@@ -12,21 +12,25 @@ import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.view.View.OnClickListener;
+import android.widget.EditText;
 import android.widget.SectionIndexer;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.smartisanos.textboom.util.Constant;
+import com.smartisanos.textboom.data.BigBangSettings;
 import com.smartisanos.textboom.util.LogUtils;
 import com.smartisanos.textboom.util.Utils;
 
@@ -52,12 +56,16 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     private final static int CATEGORY_DICT = 2;
 
     private Toast mOcrSwitchToast;
+    private BigBangSettings mSettings;
 
     private StickyListHeadersListView mOptionsList;
     private SettingItemSwitch mTextBoomSwitch;
     private SettingItemSwitch mOCRSwitch;
     private OptionsAdapter mAdapter;
     private SettingItemText mTextBoomTriggerAreaOption;
+    private Spinner mDebugPresetSpinner;
+    private EditText mDebugTextInput;
+    private Button mDebugPreviewButton;
     private List<BigBangItem> mBigBangItemList = new ArrayList<BigBangItem>();
     private int mCurrentSearchValue;
     private int mCurrentDictValue;
@@ -76,6 +84,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mSettings = BigBangSettings.get(this);
         setContentView(R.layout.sticky_options_list_layout);
 
         mOptionsList = (StickyListHeadersListView) findViewById(R.id.options_list);
@@ -97,13 +106,11 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
                 switch (selectedItem.category) {
                     case CATEGORY_SEARCH:
                         mCurrentSearchValue = selectedItem.settingsValue;
-                        Settings.Global.putInt(getContentResolver(), Settings.Global.TEXT_BOOM_SEARCH_METHOD,
-                                selectedItem.settingsValue);
+                        mSettings.setWebSearchType(selectedItem.settingsValue);
                         break;
                     case CATEGORY_DICT:
                         mCurrentDictValue = selectedItem.settingsValue;
-                        Settings.Global.putInt(getContentResolver(), Constant.BIG_BANG_DEFAULT_DICT,
-                                selectedItem.settingsValue);
+                        mSettings.setDictSearchType(selectedItem.settingsValue);
                         break;
 
                     default:
@@ -188,6 +195,9 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
                 launchTextBoomTriggerAreaOptions();
             }
         });
+        mDebugPresetSpinner = (Spinner) headerView.findViewById(R.id.debug_preset_spinner);
+        mDebugTextInput = (EditText) headerView.findViewById(R.id.debug_preview_text);
+        mDebugPreviewButton = (Button) headerView.findViewById(R.id.debug_preview_button);
         mOptionsList.addHeaderView(headerView);
         mOptionsList.addFooterView(Utils.inflateListTransparentHeader(this));
     }
@@ -195,10 +205,8 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     @Override
     protected void onResume() {
         super.onResume();
-        mCurrentSearchValue = Settings.Global.getInt(getContentResolver(), Settings.Global.TEXT_BOOM_SEARCH_METHOD,
-                Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_SHENMA);
-        mCurrentDictValue = Settings.Global.getInt(getContentResolver(), Constant.BIG_BANG_DEFAULT_DICT,
-                Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_BINGDICT);
+        mCurrentSearchValue = mSettings.getWebSearchType();
+        mCurrentDictValue = mSettings.getDictSearchType();
         updateViews();
         IntentFilter pkgFilter = new IntentFilter();
         pkgFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -208,15 +216,16 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     }
 
     private void updateViews() {
-        boolean isBigBangEnabled = Settings.Global.getInt(getContentResolver(), Settings.Global.TEXT_BOOM, 1) == 1;
-        //ocr 功能不可用，需要向扫描全能王申请 key
-        boolean isOCREnabled = false;//Settings.Global.getInt(getContentResolver(), Constant.BIG_BANG_OCR, 1) == 1;
+        boolean isBigBangEnabled = mSettings.isBigBangEnabled();
+        boolean isOCREnabled = false;
         mTextBoomSwitch.setChecked(isBigBangEnabled);
         mOCRSwitch.setChecked(isOCREnabled);
-        mOCRSwitch.setEnabled(isBigBangEnabled && Utils.isPackageInstalled(this, Constant.PKG_CAMSCANNER));
+        mOCRSwitch.setEnabled(false);
+        mSettings.setOcrEnabled(false);
         mTextBoomSwitch.setOnCheckedChangeListener(this);
         mOCRSwitch.setOnCheckedChangeListener(this);
         mTextBoomTriggerAreaOption.setSubTitle(getTextBoomTriggerAreaSubtitle());
+        bindDebugPresetViews();
         mAdapter.notifyDataSetChanged();
     }
 
@@ -234,17 +243,10 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         if (buttonView == mTextBoomSwitch.getSwitch()) {
-            Settings.Global.putInt(getContentResolver(), Settings.Global.TEXT_BOOM, isChecked ? 1 : 0);
+            mSettings.setBigBangEnabled(isChecked);
             updateViews();
         } else if (buttonView == mOCRSwitch.getSwitch()) {
-            //Settings.Global.putInt(getContentResolver(), Constant.BIG_BANG_OCR, isChecked ? 1 : 0);
-            //ocr 功能不可用，代码注掉，加 toast 提示
-            if (isChecked) {
-                buttonView.setChecked(false);
-                if (mOcrSwitchToast != null) mOcrSwitchToast.cancel();
-                mOcrSwitchToast = Toast.makeText(this, "OCR功能不可用，需要向扫描全能王申请key。", Toast.LENGTH_LONG);
-                mOcrSwitchToast.show();
-            }
+            mSettings.setOcrEnabled(isChecked);
         }
     }
 
@@ -373,30 +375,83 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     }
 
     private int getTextBoomTriggerAreaSettings() {
-        return Settings.Global.getInt(getContentResolver(),
-                Settings.Global.BOOM_TEXT_TRIGGER_AREA, Settings.Global.BOOM_TEXT_TRIGGER_AREA_MIDDLE);
+        return mSettings.getTriggerArea();
     }
 
     private void launchTextBoomTriggerAreaOptions() {
         OptionsInfo opts = new OptionsInfo(
                 getResources().getStringArray(R.array.thumb_trigger_area_options),
-                new Integer[]{Settings.Global.BOOM_TEXT_TRIGGER_AREA_SMALLEST,
-                        Settings.Global.BOOM_TEXT_TRIGGER_AREA_SMALL,
-                        Settings.Global.BOOM_TEXT_TRIGGER_AREA_MIDDLE,
-                        Settings.Global.BOOM_TEXT_TRIGGER_AREA_LARGE,
-                        Settings.Global.BOOM_TEXT_TRIGGER_AREA_LARGEST},
-                OptionsInfo.SaveTargetTable.Global,
-                Settings.Global.BOOM_TEXT_TRIGGER_AREA);
+                new Integer[]{BigBangSettings.TRIGGER_AREA_SMALLEST,
+                        BigBangSettings.TRIGGER_AREA_SMALL,
+                        BigBangSettings.TRIGGER_AREA_MIDDLE,
+                        BigBangSettings.TRIGGER_AREA_LARGE,
+                        BigBangSettings.TRIGGER_AREA_LARGEST},
+                OptionsInfo.SaveTargetTable.App,
+                BigBangSettings.KEY_TRIGGER_AREA);
 
         Intent intent = new Intent(this, OptionsActivity.class);
         intent.putExtra(OptionsActivity.EXTRA_OPTION_INFO, opts);
         intent.putExtra(OptionsActivity.EXTRA_CURRENT_VALUE, String.valueOf(getTextBoomTriggerAreaSettings()));
         intent.putExtra(Title.EXTRA_TITLE_TEXT, getString(R.string.thumb_trigger_area));
         intent.putExtra(Title.EXTRA_BACK_BTN_RES_ID, R.string.text_boom_settings);
-        intent.putExtra(IntentSmt.EXTRA_SMARTISAN_ANIM_RESOURCE_ID, new int[] {
-                smartisanos.R.anim.slide_in_from_left, smartisanos.R.anim.slide_out_to_right});
         startActivity(intent);
-        overridePendingTransition(smartisanos.R.anim.slide_in_from_right, smartisanos.R.anim.slide_out_to_left);
+    }
+
+    private void bindDebugPresetViews() {
+        if (mDebugPresetSpinner == null || mDebugTextInput == null || mDebugPreviewButton == null) {
+            return;
+        }
+        String[] presets = getResources().getStringArray(R.array.debug_preset_texts);
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_item, presets);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mDebugPresetSpinner.setAdapter(adapter);
+        String storedText = mSettings.getDebugPreviewText();
+        int selectedIndex = 0;
+        for (int i = 0; i < presets.length; i++) {
+            if (presets[i].equals(storedText)) {
+                selectedIndex = i;
+                break;
+            }
+        }
+        mDebugPresetSpinner.setSelection(selectedIndex, false);
+        mDebugTextInput.setText(storedText);
+        mDebugTextInput.setSelection(mDebugTextInput.getText().length());
+        mDebugPresetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String text = (String) parent.getItemAtPosition(position);
+                mSettings.setDebugPresetText(text);
+                mDebugTextInput.setText(text);
+                mDebugTextInput.setSelection(text.length());
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+        mDebugPreviewButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openBigBangPreview(mDebugTextInput.getText().toString());
+            }
+        });
+    }
+
+    private void openBigBangPreview(String text) {
+        if (text == null) {
+            text = "";
+        }
+        mSettings.setDebugPreviewText(text);
+        Intent intent = new Intent(this, BoomActivity.class);
+        intent.putExtra(Intent.EXTRA_TEXT, text);
+        intent.putExtra(BoomActivity.EXTRA_DEBUG_PREVIEW_TEXT, text);
+        intent.putExtra("boom_index", -1);
+        int width = getResources().getDisplayMetrics().widthPixels;
+        int height = getResources().getDisplayMetrics().heightPixels;
+        intent.putExtra("boom_startx", width / 2);
+        intent.putExtra("boom_starty", height / 2);
+        startActivity(intent);
     }
 
 }

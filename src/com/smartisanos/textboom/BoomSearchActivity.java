@@ -1,10 +1,7 @@
 package com.smartisanos.textboom;
 
 import android.content.ActivityNotFoundException;
-import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -14,6 +11,8 @@ import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.TextView;
+
+import com.smartisanos.textboom.data.BigBangSettings;
 
 import smartisanos.app.SearchActivity;
 
@@ -26,17 +25,17 @@ public class BoomSearchActivity extends SearchActivity {
     private static final String SEARCH_DICT = "search_dict";
     private static final String SEARCH_WIKI = "search_wiki";
     public static final String SEARCH_TYPE = "search_type";
-    public static final String SEARCH_DICT_KEY = "big_bang_default_dict";
-    public static final int TYPE_BAIDU = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_BAIDU;
-    public static final int TYPE_GOOGLE = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_GOOGLE;
-    public static final int TYPE_BING = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_BING;
-    public static final int TYPE_SHENMA = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_SHENMA;
-    public static final int TYPE_WIKI = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_WIKI;
-    public static final int TYPE_BAIKE = TYPE_WIKI + 1;
-    public static final int TYPE_YOUDAO = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_YOUDAO;
-    public static final int TYPE_KINGSOFT = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_KINGSOFT;
-    public static final int TYPE_BINGDICT = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_BINGDICT;
-    public static final int TYPE_HIDICT = Settings.TEXT_BOOM_SEARCH_VALUE.TYPE_HIDICT;
+    public static final String SEARCH_DICT_KEY = BigBangSettings.KEY_DICT_SEARCH_TYPE;
+    public static final int TYPE_BAIDU = BigBangSettings.TYPE_BAIDU;
+    public static final int TYPE_GOOGLE = BigBangSettings.TYPE_GOOGLE;
+    public static final int TYPE_BING = BigBangSettings.TYPE_BING;
+    public static final int TYPE_SHENMA = BigBangSettings.TYPE_SHENMA;
+    public static final int TYPE_WIKI = BigBangSettings.TYPE_WIKI;
+    public static final int TYPE_BAIKE = BigBangSettings.TYPE_BAIKE;
+    public static final int TYPE_YOUDAO = BigBangSettings.TYPE_YOUDAO;
+    public static final int TYPE_KINGSOFT = BigBangSettings.TYPE_KINGSOFT;
+    public static final int TYPE_BINGDICT = BigBangSettings.TYPE_BINGDICT;
+    public static final int TYPE_HIDICT = BigBangSettings.TYPE_HIDICT;
 
     private int mArrowHorrizontalOffset;
     private int mSearchType;
@@ -216,8 +215,9 @@ public class BoomSearchActivity extends SearchActivity {
     protected void onResume() {
         super.onResume();
 
-        final int webType = Settings.Global.getInt(getContentResolver(), Settings.Global.TEXT_BOOM_SEARCH_METHOD, TYPE_SHENMA);
-        final int dictType = Settings.Global.getInt(getContentResolver(), SEARCH_DICT_KEY, TYPE_BINGDICT);
+        final BigBangSettings settings = BigBangSettings.get(this);
+        final int webType = settings.getWebSearchType();
+        final int dictType = settings.getDictSearchType();
         if (mWebSearchType == -1) mWebSearchType = webType;
         if (mDictSearchType == -1) mDictSearchType = dictType;
         if (mSearchType < TYPE_YOUDAO) {
@@ -371,21 +371,25 @@ public class BoomSearchActivity extends SearchActivity {
     }
 
     private int getSearchInfo(String key) {
-        SharedPreferences preferences = getSharedPreferences("setting", Context.MODE_PRIVATE);
-        int defaultValue = TYPE_SHENMA;
-        if (key.equals(SEARCH_DICT)) {
-            defaultValue = TYPE_BINGDICT;
-        } else if (key.equals(SEARCH_WIKI)) {
-            defaultValue = TYPE_WIKI;
+        BigBangSettings settings = BigBangSettings.get(this);
+        if (SEARCH_DICT.equals(key)) {
+            return settings.getDictSearchType();
         }
-        return preferences.getInt(key, defaultValue);
+        if (SEARCH_WIKI.equals(key)) {
+            return settings.getWikiSearchType();
+        }
+        return settings.getWebSearchType();
     }
 
     private void putSearchInfo(String key, int value) {
-        SharedPreferences preferences = getSharedPreferences("setting", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putInt(key, value);
-        editor.commit();
+        BigBangSettings settings = BigBangSettings.get(this);
+        if (SEARCH_DICT.equals(key)) {
+            settings.setDictSearchType(value);
+        } else if (SEARCH_WIKI.equals(key)) {
+            settings.setWikiSearchType(value);
+        } else {
+            settings.setWebSearchType(value);
+        }
     }
 
     @Override

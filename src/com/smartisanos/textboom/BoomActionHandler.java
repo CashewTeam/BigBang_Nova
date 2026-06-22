@@ -6,13 +6,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Rect;
-import android.provider.Settings.Global;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
+
+import com.smartisanos.textboom.data.BigBangSettings;
 
 import java.util.TreeSet;
 
@@ -189,16 +190,14 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         searchView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                search(getSelectedText(), Global.getInt(mBoomPage.mActivity.getContentResolver(),
-                        Global.TEXT_BOOM_SEARCH_METHOD, BoomSearchActivity.TYPE_SHENMA));
+                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getWebSearchType());
             }
         });
         ImageView dictView = (ImageView) mSelectBar.findViewById(R.id.all_dict);
         dictView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                search(getSelectedText(), Global.getInt(mBoomPage.mActivity.getContentResolver(),
-                        BoomSearchActivity.SEARCH_DICT_KEY, BoomSearchActivity.TYPE_BINGDICT));
+                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getDictSearchType());
             }
         });
         ImageView shareView = (ImageView) mSelectBar.findViewById(R.id.all_share);
@@ -223,16 +222,14 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         topSearchView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                search(getSelectedText(), Global.getInt(mBoomPage.mActivity.getContentResolver(),
-                        Global.TEXT_BOOM_SEARCH_METHOD, BoomSearchActivity.TYPE_SHENMA));
+                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getWebSearchType());
             }
         });
         ImageView topDictView = (ImageView) mFakeSelectBar.findViewById(R.id.all_dict);
         topDictView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                search(getSelectedText(), Global.getInt(mBoomPage.mActivity.getContentResolver(),
-                        BoomSearchActivity.SEARCH_DICT_KEY, BoomSearchActivity.TYPE_BINGDICT));
+                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getDictSearchType());
             }
         });
         ImageView topShareView = (ImageView) mFakeSelectBar.findViewById(R.id.all_share);

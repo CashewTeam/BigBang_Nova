@@ -102,4 +102,10 @@
         <item>@string/thumb_trigger_area_largest</item>
     </string-array>
 
+    <string-array name="debug_preset_texts">
+        <item>BigBang preview text lets you verify word layout, selection, and button states.</item>
+        <item>这是一个预制文本，用来检查中文分词预览页面是否正常显示。</item>
+        <item>Mixed preview: BigBang 123, punctuation, and short lines.</item>
+    </string-array>
+
 </resources>

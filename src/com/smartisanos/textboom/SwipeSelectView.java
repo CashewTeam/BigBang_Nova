@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.graphics.Rect;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -203,10 +204,16 @@ public class SwipeSelectView extends LinearLayout {
         }
     }
 
+    private boolean isPointInsideView(float x, float y, View view) {
+        final Rect hitRect = new Rect();
+        view.getHitRect(hitRect);
+        return hitRect.contains((int) x, (int) y);
+    }
+
     private BoomChip findChip(float x, float y, boolean isSwiping) {
         for (int i = 0; i < getChildCount(); ++i) {
             final LinearLayout row = (LinearLayout) getChildAt(i);
-            if (isTransformedTouchPointInView(x, y, row, null)) {
+            if (isPointInsideView(x, y, row)) {
                 final float offsetX = row.getScrollX() - row.getLeft();
                 final float offsetY = row.getScrollY() - row.getTop();
                 float newX = x + offsetX;
@@ -220,7 +227,7 @@ public class SwipeSelectView extends LinearLayout {
                         }
                         return null;
                     }
-                    if (isTransformedTouchPointInView(newX, newY, child, null)) {
+                    if (isPointInsideView(newX, newY, child)) {
                         if (child.getTag() instanceof BoomChip) {
                             BoomChip chip = (BoomChip) child.getTag();
                             return chip;

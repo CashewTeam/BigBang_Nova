@@ -1,10 +1,12 @@
 package com.smartisanos.textboom;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.provider.Settings;
 
+import com.smartisanos.textboom.data.BigBangSettings;
 import com.smartisanos.textboom.util.LogUtils;
 
 import java.io.Serializable;
@@ -44,6 +46,19 @@ public class OptionsInfo implements Parcelable {
         if (which < mOptionValues.length) {
             Object value = mOptionValues[which];
             switch (mTargetTable) {
+                case App: {
+                    SharedPreferences preferences = mContext.getSharedPreferences(BigBangSettings.PREF_NAME, Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = preferences.edit();
+                    if (value instanceof Integer) {
+                        editor.putInt(mSettingKey, (Integer) value);
+                    } else if (value instanceof Boolean) {
+                        editor.putBoolean(mSettingKey, (Boolean) value);
+                    } else {
+                        editor.putString(mSettingKey, value != null ? value.toString() : null);
+                    }
+                    result = editor.commit();
+                    break;
+                }
                 case System:
                     result = Settings.System.putString(mContext.getContentResolver(),
                             mSettingKey, value != null ? value.toString() : null);
@@ -125,7 +140,7 @@ public class OptionsInfo implements Parcelable {
     };
 
     public enum SaveTargetTable implements Serializable{
-        System, Secure, Global
+        App, System, Secure, Global
     }
 
     public interface OnSelectListener extends Serializable {

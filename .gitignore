@@ -1,59 +1,8 @@
-# Gradle
 .gradle/
-build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# IDE
-.idea/
+/build/
+/app/build/
+/local.properties
 *.iml
-*.iws
-*.ipr
-.nbattrs
-
-# Android
-local.properties
 *.apk
 *.ap_
-*.aab
-*.dex
-*.class
-*.log
-gen/
-out/
-.navigation/
-
-# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-Thumbs.db
-ehthumbs.db
-*.swp
-*.swo
-*~
-
-# NDK / CMake
-.cxx/
-*.so
-*.o
-
-# Keystore
-*.keystore
-*.jks
-keystore.properties
-
-# Secrets / signing
-signing.properties
-google-services.json
-*.gpg
-
-# Test
-/captures
-*.hprof
-
-# Temporary
-*.tmp
-*.bak
-*.orig

@@ -26,6 +26,8 @@
     <dimen name="popup_vertical_offset">74dp</dimen>
     <dimen name="popup_arrow_horrizontal_offset">44dp</dimen>
     <dimen name="search_popup_height">504dp</dimen>
+    <dimen name="search_popup_width">320dp</dimen>
+    <dimen name="search_webview_vertical_margin">52dp</dimen>
 
     <dimen name="fake_select_bar_margin_top">33dp</dimen>
     <dimen name="fake_select_bar_margin_bottom">55dp</dimen>

@@ -4,7 +4,7 @@
        android:id="@+id/title_shadow"
        android:layout_width="match_parent"
        android:layout_height="wrap_content"
-       android:background="@smartisanos:drawable/title_bar_shadow"
+       android:background="@drawable/boom_shadow_top"
        android:layout_below="@id/view_title"
        android:focusable="false"
        android:focusableInTouchMode="false"

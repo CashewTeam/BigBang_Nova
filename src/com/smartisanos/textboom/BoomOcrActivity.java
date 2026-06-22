@@ -18,7 +18,6 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.preference.PreferenceManager;
-import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
@@ -32,8 +31,6 @@ import com.intsig.csopen.sdk.CSOpenAPI;
 import com.intsig.csopen.sdk.CSOpenApiFactory;
 import com.intsig.csopen.sdk.OCRLanguage;
 import com.smartisanos.textboom.util.LogUtils;
-
-import android.view.SurfaceControl;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -136,6 +133,12 @@ public class BoomOcrActivity extends Activity {
             return;
         }
         if (sBoomCancel) {
+            finish();
+            return;
+        }
+        boolean disableOcrForP0 = true;
+        if (disableOcrForP0) {
+            Toast.makeText(this, R.string.scanner_unavailable, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -676,47 +679,7 @@ public class BoomOcrActivity extends Activity {
 
     public static final int SCALE_SCREENSHOT = 2;
     private boolean takeScreenShot() {
-        int w = getResources().getInteger(R.integer.screen_width);
-        int h = getResources().getInteger(R.integer.screen_height);
-        Bitmap screen = SurfaceControl.screenshot(w, h);
-        if (null == screen) {
-            return false;
-        }
-        Bitmap bm = adjustScreenshotFor(screen);
-        File f = new File(OCR_IMAGE_PATH);
-        try {
-            File dir = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + OCR_IMAGE_DIR);
-            if (!dir.exists()) {
-                dir.mkdir();
-            }
-            if (f.exists()) {
-                f.delete();
-            }
-            f.createNewFile();
-        } catch (IOException e) {
-            bm.recycle();
-            e.printStackTrace();
-            return false;
-        }
-        FileOutputStream fOut = null;
-        try {
-            fOut = new FileOutputStream(f);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            bm.recycle();
-            return false;
-        }
-        bm.compress(Bitmap.CompressFormat.JPEG, 80, fOut);
-        try {
-            fOut.flush();
-            fOut.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        } finally {
-            bm.recycle();
-        }
-        return true;
+        return false;
     }
 
     private void readKey() {

@@ -35,4 +35,7 @@
     <string name="thumb_trigger_area_large">Large</string>
     <string name="thumb_trigger_area_largest">Maximum</string>
     <string name="network_disconnected">No Internet Connection</string>
+    <string name="debug_preset_text_label">Preview Text</string>
+    <string name="debug_preview_text_hint">Edit the text to preview the BigBang page</string>
+    <string name="debug_preview_button">Open BigBang Preview</string>
 </resources>

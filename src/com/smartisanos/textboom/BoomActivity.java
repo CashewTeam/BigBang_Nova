@@ -14,6 +14,7 @@ import com.smartisanos.textboom.network.OkHttpClientManager;
 import com.smartisanos.textboom.util.Constant;
 import com.smartisanos.textboom.util.LogUtils;
 import com.smartisanos.textboom.util.Utils;
+import com.smartisanos.textboom.data.BigBangSettings;
 import com.squareup.okhttp.Request;
 
 import org.json.JSONArray;
@@ -26,6 +27,7 @@ import java.util.Map;
 public class BoomActivity extends Activity {
 
     public final static boolean DBG = true;
+    public static final String EXTRA_DEBUG_PREVIEW_TEXT = "extra_debug_preview_text";
     private final static String TAG = "BoomActivity";
     private final static String SELECTED_STATE = "selected_state";
 
@@ -60,6 +62,12 @@ public class BoomActivity extends Activity {
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
         window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+
+        final String previewText = getIntent().getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT);
+        if (previewText != null) {
+            segmentPreview(previewText);
+            return;
+        }
 
         if (Utils.isNetworkAvailable(this)) {
             segmentOnline();
@@ -140,6 +148,74 @@ public class BoomActivity extends Activity {
             }
             finish();
         }
+    }
+
+    private void segmentPreview(String text) {
+        int[] result = buildPreviewSegments(text);
+        handleSegmentResult(text, result);
+    }
+
+    private int[] buildPreviewSegments(String text) {
+        java.util.ArrayList<Integer> words = new java.util.ArrayList<Integer>();
+        java.util.ArrayList<Integer> punctuations = new java.util.ArrayList<Integer>();
+
+        int index = 0;
+        while (index < text.length()) {
+            int start = index;
+            int codePoint = text.codePointAt(index);
+            if (Character.isWhitespace(codePoint)) {
+                index += Character.charCount(codePoint);
+                continue;
+            }
+            boolean asciiWord = isAsciiWord(codePoint);
+            boolean chinese = isChineseWord(codePoint);
+            if (asciiWord) {
+                index += Character.charCount(codePoint);
+                while (index < text.length()) {
+                    int next = text.codePointAt(index);
+                    if (!isAsciiWord(next)) {
+                        break;
+                    }
+                    index += Character.charCount(next);
+                }
+                words.add(start);
+                words.add(index - 1);
+            } else if (chinese) {
+                index += Character.charCount(codePoint);
+                words.add(start);
+                words.add(index - 1);
+            } else {
+                index += Character.charCount(codePoint);
+                punctuations.add(start);
+                punctuations.add(index - 1);
+            }
+        }
+
+        int[] result = new int[words.size() + punctuations.size() + 1];
+        int offset = 0;
+        for (Integer value : words) {
+            result[offset++] = value;
+        }
+        result[offset++] = -1;
+        for (Integer value : punctuations) {
+            result[offset++] = value;
+        }
+        return result;
+    }
+
+    private boolean isAsciiWord(int codePoint) {
+        return (codePoint >= 'a' && codePoint <= 'z')
+                || (codePoint >= 'A' && codePoint <= 'Z')
+                || (codePoint >= '0' && codePoint <= '9')
+                || codePoint == '_';
+    }
+
+    private boolean isChineseWord(int codePoint) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B;
     }
 
     @Override

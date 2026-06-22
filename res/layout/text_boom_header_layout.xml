@@ -8,7 +8,7 @@
     <smartisanos.widget.SettingItemSwitch
         android:id="@+id/text_boom_switch"
         style="@style/SettingSubItemSingleStyle"
-        smartisanos:title="@string/text_boom"
+        android:text="@string/text_boom"
         android:layout_marginTop="@dimen/list_transparent_header_footer"/>
 
     <TextView
@@ -17,7 +17,7 @@
 
     <smartisanos.widget.SettingItemSwitch
         android:id="@+id/ocr_switch"
-        smartisanos:title="@string/ocr_title"
+        android:text="@string/ocr_title"
         style="@style/SettingSubItemSingleStyle"/>
 
     <TextView
@@ -27,10 +27,45 @@
     <smartisanos.widget.SettingItemText
         android:id="@+id/textboom_trigger_area_options"
         style="@style/SettingSubItemSingleStyle"
-        smartisanos:title="@string/thumb_trigger_area"/>
+        android:text="@string/thumb_trigger_area"/>
 
     <TextView
         style="@style/SettingItemTipsStyle"
         android:text="@string/thumb_trigger_area_tips"/>
+
+    <TextView
+        style="@style/SettingItemHeaderStyle"
+        android:text="@string/debug_preset_text_label" />
+
+    <Spinner
+        android:id="@+id/debug_preset_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginRight="30dp"
+        android:layout_marginTop="4dp" />
+
+    <EditText
+        android:id="@+id/debug_preview_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginRight="30dp"
+        android:layout_marginTop="8dp"
+        android:minLines="3"
+        android:gravity="top"
+        android:hint="@string/debug_preview_text_hint"
+        android:inputType="textMultiLine|textCapSentences"
+        android:background="@drawable/setting_sub_item_bg_single"
+        android:padding="12dp" />
+
+    <Button
+        android:id="@+id/debug_preview_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="30dp"
+        android:layout_marginRight="30dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/debug_preview_button" />
 
 </LinearLayout>

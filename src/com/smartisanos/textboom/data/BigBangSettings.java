@@ -1,0 +1,116 @@
+package com.smartisanos.textboom.data;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+public final class BigBangSettings {
+    public static final String PREF_NAME = "bigbang_settings";
+
+    public static final String KEY_WEB_SEARCH_TYPE = "web_search_type";
+    public static final String KEY_DICT_SEARCH_TYPE = "dict_search_type";
+    public static final String KEY_WIKI_SEARCH_TYPE = "wiki_search_type";
+    public static final String KEY_BIG_BANG_ENABLED = "big_bang_enabled";
+    public static final String KEY_OCR_ENABLED = "ocr_enabled";
+    public static final String KEY_TRIGGER_AREA = "trigger_area";
+    public static final String KEY_DEBUG_PRESET_TEXT = "debug_preset_text";
+    public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
+
+    public static final int TYPE_BAIDU = 0x000;
+    public static final int TYPE_GOOGLE = 0x001;
+    public static final int TYPE_BING = 0x002;
+    public static final int TYPE_SHENMA = 0x003;
+    public static final int TYPE_WIKI = 0x010;
+    public static final int TYPE_BAIKE = 0x011;
+    public static final int TYPE_YOUDAO = 0x100;
+    public static final int TYPE_KINGSOFT = 0x101;
+    public static final int TYPE_BINGDICT = 0x102;
+    public static final int TYPE_HIDICT = 0x103;
+
+    public static final int TRIGGER_AREA_SMALLEST = 0;
+    public static final int TRIGGER_AREA_SMALL = 1;
+    public static final int TRIGGER_AREA_MIDDLE = 2;
+    public static final int TRIGGER_AREA_LARGE = 3;
+    public static final int TRIGGER_AREA_LARGEST = 4;
+
+    private static final String DEFAULT_PRESET_TEXT =
+            "BigBang Nova lets you preview word chips before wiring the full capture flow.";
+
+    private static final int DEFAULT_WEB_SEARCH_TYPE = TYPE_SHENMA;
+    private static final int DEFAULT_DICT_SEARCH_TYPE = TYPE_BINGDICT;
+    private static final int DEFAULT_WIKI_SEARCH_TYPE = TYPE_WIKI;
+
+    private final SharedPreferences preferences;
+
+    private BigBangSettings(Context context) {
+        preferences = context.getApplicationContext()
+                .getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+    }
+
+    public static BigBangSettings get(Context context) {
+        return new BigBangSettings(context);
+    }
+
+    public int getWebSearchType() {
+        return preferences.getInt(KEY_WEB_SEARCH_TYPE, DEFAULT_WEB_SEARCH_TYPE);
+    }
+
+    public void setWebSearchType(int value) {
+        preferences.edit().putInt(KEY_WEB_SEARCH_TYPE, value).apply();
+    }
+
+    public int getDictSearchType() {
+        return preferences.getInt(KEY_DICT_SEARCH_TYPE, DEFAULT_DICT_SEARCH_TYPE);
+    }
+
+    public void setDictSearchType(int value) {
+        preferences.edit().putInt(KEY_DICT_SEARCH_TYPE, value).apply();
+    }
+
+    public int getWikiSearchType() {
+        return preferences.getInt(KEY_WIKI_SEARCH_TYPE, DEFAULT_WIKI_SEARCH_TYPE);
+    }
+
+    public void setWikiSearchType(int value) {
+        preferences.edit().putInt(KEY_WIKI_SEARCH_TYPE, value).apply();
+    }
+
+    public boolean isBigBangEnabled() {
+        return preferences.getBoolean(KEY_BIG_BANG_ENABLED, true);
+    }
+
+    public void setBigBangEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_BIG_BANG_ENABLED, enabled).apply();
+    }
+
+    public boolean isOcrEnabled() {
+        return preferences.getBoolean(KEY_OCR_ENABLED, false);
+    }
+
+    public void setOcrEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_OCR_ENABLED, enabled).apply();
+    }
+
+    public int getTriggerArea() {
+        return preferences.getInt(KEY_TRIGGER_AREA, TRIGGER_AREA_MIDDLE);
+    }
+
+    public void setTriggerArea(int value) {
+        preferences.edit().putInt(KEY_TRIGGER_AREA, value).apply();
+    }
+
+    public String getDebugPresetText() {
+        return preferences.getString(KEY_DEBUG_PRESET_TEXT, DEFAULT_PRESET_TEXT);
+    }
+
+    public void setDebugPresetText(String text) {
+        preferences.edit().putString(KEY_DEBUG_PRESET_TEXT, text).apply();
+    }
+
+    public String getDebugPreviewText() {
+        return preferences.getString(KEY_DEBUG_PREVIEW_TEXT, getDebugPresetText());
+    }
+
+    public void setDebugPreviewText(String text) {
+        preferences.edit().putString(KEY_DEBUG_PREVIEW_TEXT, text).apply();
+    }
+}

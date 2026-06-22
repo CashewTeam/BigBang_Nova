@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="@*smartisanos:dimen/search_popup_width"
+    android:layout_width="@dimen/search_popup_width"
     android:layout_height="@dimen/search_popup_height"
     android:background="@drawable/boom_win_shadow"
     android:onClick="outsideClick"
@@ -8,8 +8,8 @@
 
     <WebView
         android:id="@+id/search_webview"
-        android:layout_marginTop="@*smartisanos:dimen/search_webview_vertical_margin"
-        android:layout_marginBottom="@*smartisanos:dimen/search_webview_vertical_margin"
+        android:layout_marginTop="@dimen/search_webview_vertical_margin"
+        android:layout_marginBottom="@dimen/search_webview_vertical_margin"
         android:overScrollMode="never"
         android:clickable="true"
         android:layout_width="match_parent"
@@ -58,7 +58,7 @@
             <ImageView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@*smartisanos:drawable/search_topbar_shadow" />
+                android:background="@drawable/search_topbar_shadow" />
         </LinearLayout>
 
         <LinearLayout
@@ -72,7 +72,7 @@
             <ImageView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@*smartisanos:drawable/search_bottombar_shadow" />
+                android:background="@drawable/search_bottombar_shadow" />
 
             <RelativeLayout
                 android:layout_width="match_parent"

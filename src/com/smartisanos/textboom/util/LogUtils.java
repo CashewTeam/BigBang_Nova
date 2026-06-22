@@ -1,10 +1,11 @@
 package com.smartisanos.textboom.util;
 
 import android.util.Log;
-import android.os.SystemProperties;
+
+import com.smartisanos.textboom.BuildConfig;
 
 public class LogUtils {
-    public static final boolean DEBUG =  (SystemProperties.getInt("ro.debuggable", 0) == 1);
+    public static final boolean DEBUG = BuildConfig.DEBUG;
     public static final String TAG = "TextBoom";
 
     public static void d(String tag, String msg) {
