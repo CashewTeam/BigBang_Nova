@@ -80,11 +80,15 @@ public class BoomChipPage {
         }
 
         private float getChipParentX() {
-            return mBoomTable.getX() + mBoomConent.getX();
+            int[] location = new int[2];
+            mBoomConent.getLocationOnScreen(location);
+            return location[0];
         }
 
         private float getChipParentY() {
-            return mBoomTable.getY() + mBoomConent.getY();
+            int[] location = new int[2];
+            mBoomConent.getLocationOnScreen(location);
+            return location[1];
         }
     };
 
@@ -149,6 +153,17 @@ public class BoomChipPage {
 
     public boolean handleClick() {
         return mBoomActionHandler != null && mBoomActionHandler.handleClick();
+    }
+
+    public Serializable captureSelectedState() {
+        if (mBoomActionHandler != null && mBoomActionHandler.hasSelection()) {
+            return new TreeSet<Integer>(mBoomActionHandler.mSelectedId);
+        }
+        return null;
+    }
+
+    public void restoreSelectedState(Serializable savedState) {
+        mSavedData = savedState;
     }
 
     private void initChips() {

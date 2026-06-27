@@ -19,12 +19,17 @@
         android:allowBackup="true" >
         <activity
             android:name=".BoomActivity"
-            android:theme="@style/BaseStyle"
+            android:theme="@style/OverlayActivityTheme"
             android:exported="true" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".BoomSearchOverlayActivity"
+            android:theme="@style/OverlayActivityTheme"
+            android:exported="false"
+            android:excludeFromRecents="true" />
         <activity
             android:name=".OverlayActivity"
             android:theme="@style/OverlayActivityTheme"

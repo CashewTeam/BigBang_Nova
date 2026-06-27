@@ -12,8 +12,8 @@ android {
         applicationId = "com.smartisanos.textboom"
         minSdk = 29
         targetSdk = 34
-        versionCode = 17
-        versionName = "0.8.4"
+        versionCode = 18
+        versionName = "0.9.0"
     }
 
     sourceSets.getByName("main") {
@@ -61,5 +61,6 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.webkit:webkit:1.11.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

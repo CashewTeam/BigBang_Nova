@@ -159,10 +159,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     public void search(String text, int type) {
-        Intent intent = new Intent(mBoomPage.mActivity, BoomSearchActivity.class);
-        intent.putExtra(BoomSearchActivity.SEARCH_TYPE, type);
-        intent.putExtra(Intent.EXTRA_TEXT, text);
-        intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        Intent intent = BoomSearchOverlayActivity.createIntent(mBoomPage.mActivity, text, type);
         mBoomPage.mActivity.startActivity(intent);
     }
 

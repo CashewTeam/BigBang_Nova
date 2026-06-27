@@ -64,4 +64,13 @@
     <string name="overlay_channel_name">BigBang 悬浮球</string>
     <string name="overlay_channel_description">悬浮球与全局文本捕获状态</string>
     <string name="accessibility_service_summary">提取屏幕文本并交给大爆炸分词</string>
+    <string name="search_overlay_close">关闭</string>
+    <string name="search_overlay_refresh">刷新</string>
+    <string name="search_overlay_settings">设置</string>
+    <string name="search_overlay_back">后退</string>
+    <string name="search_overlay_forward">前进</string>
+    <string name="search_overlay_browser">浏览器</string>
+    <string name="search_overlay_web">网页搜索</string>
+    <string name="search_overlay_dict">词典</string>
+    <string name="search_overlay_wiki">百科</string>
 </resources>
