@@ -1,6 +1,6 @@
-# BigBang Nova
+# Nova Text
 
-**BigBang Nova** 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移和现代化、本地化改造项目。
+**Nova Text** 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移和现代化、本地化改造项目。
 
 当前目标不是重新发明一套新产品，而是在保留原版交互气质的前提下，把旧 Smartisan 代码逐步改造成一套可在通用 Android 设备上运行、可继续维护、可继续补功能的本地化实现。
 
