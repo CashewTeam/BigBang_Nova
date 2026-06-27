@@ -1,6 +1,11 @@
 package com.smartisanos.textboom
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.content.Intent
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,11 +15,11 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,17 +30,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -51,14 +58,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -70,6 +88,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.smartisanos.textboom.data.BigBangSettings
 import com.smartisanos.textboom.data.CppJiebaTokenizer
 import kotlinx.coroutines.delay
+import kotlin.math.ceil
 
 class TextBoomSettingsActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
@@ -152,6 +171,7 @@ private data class SettingsPalette(
     val background: Color,
     val stripe: Color,
     val topBar: Color,
+    val topBarText: Color,
     val card: Color,
     val cardInset: Color,
     val cardBorder: Color,
@@ -169,12 +189,13 @@ private fun BigBangSettingsTheme(content: @Composable () -> Unit) {
     val palette = if (dark) {
         SettingsPalette(
             background = Color(0xFF121417),
-            stripe = Color(0xFF1A1D21),
-            topBar = Color(0xFF17191D),
+            stripe = Color.White.copy(alpha = 0.02f),
+            topBar = Color.White,
+            topBarText = Color(0xFF20242A),
             card = Color(0xFF1C2127),
             cardInset = Color(0xFF20262D),
             cardBorder = Color(0xFF2C333B),
-            shadow = Color(0x66000000),
+            shadow = Color(0xFF000000),
             accent = Color(0xFF79A8FF),
             accentSoft = Color(0x223E7BFF),
             textPrimary = Color(0xFFF3F5F7),
@@ -184,12 +205,13 @@ private fun BigBangSettingsTheme(content: @Composable () -> Unit) {
     } else {
         SettingsPalette(
             background = Color(0xFFF1F2F4),
-            stripe = Color(0xFFE7E9ED),
+            stripe = Color.Black.copy(alpha = 0.02f),
             topBar = Color.White,
+            topBarText = Color(0xFF20242A),
             card = Color(0xFFFDFDFE),
             cardInset = Color(0xFFF5F7FA),
             cardBorder = Color(0xFFE6E8EC),
-            shadow = Color(0x1A52606D),
+            shadow = Color(0xFF52606D),
             accent = Color(0xFF5D91FF),
             accentSoft = Color(0x1F5D91FF),
             textPrimary = Color(0xFF20242A),
@@ -217,6 +239,81 @@ private val LocalSettingsPalette =
     androidx.compose.runtime.staticCompositionLocalOf<SettingsPalette> {
         error("SettingsPalette not provided")
     }
+
+@Composable
+private fun BlurredShadow(
+    shape: Shape,
+    modifier: Modifier = Modifier,
+) {
+    val shadowColor = LocalSettingsPalette.current.shadow.copy(alpha = 0.5f)
+    Box(
+        modifier = modifier.drawWithCache {
+            val blurPx = 16.dp.toPx()
+            val offsetYPx = 5.dp.toPx()
+            val padding = ceil(blurPx * 2f + offsetYPx).toInt()
+            val bitmapWidth = ceil(size.width + padding * 2f).toInt().coerceAtLeast(1)
+            val bitmapHeight = ceil(size.height + padding * 2f).toInt().coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val shadowPath = shape.createOutlinePath(Size(size.width, size.height), layoutDirection, this)
+            val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = shadowColor.toArgb()
+                style = Paint.Style.FILL
+                setShadowLayer(blurPx, 0f, offsetYPx, shadowColor.toArgb())
+            }
+            val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            }
+
+            canvas.save()
+            canvas.translate(padding.toFloat(), padding.toFloat())
+            canvas.drawPath(shadowPath.asAndroidPath(), shadowPaint)
+            canvas.drawPath(shadowPath.asAndroidPath(), clearPaint)
+            canvas.restore()
+
+            onDrawWithContent {
+                drawIntoCanvas { target ->
+                    target.nativeCanvas.drawBitmap(bitmap, -padding.toFloat(), -padding.toFloat(), null)
+                }
+                drawContent()
+            }
+        },
+    )
+}
+
+private fun Shape.createOutlinePath(
+    size: Size,
+    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+    density: androidx.compose.ui.unit.Density,
+): Path {
+    return when (val outline = createOutline(size, layoutDirection, density)) {
+        is Outline.Rectangle -> Path().apply { addRect(outline.rect) }
+        is Outline.Rounded -> Path().apply { addRoundRect(outline.roundRect) }
+        is Outline.Generic -> outline.path
+    }
+}
+
+@Composable
+private fun rememberStripeBrush(stripeColor: Color): Brush {
+    val density = LocalDensity.current
+    return remember(stripeColor, density) {
+        val stripeWidth = with(density) { 2.dp.toPx() }
+        val gap = with(density) { 2.dp.toPx() }
+        val patternWidth = stripeWidth + gap
+        Brush.horizontalGradient(
+            colorStops = arrayOf(
+                0f to stripeColor,
+                stripeWidth / patternWidth to stripeColor,
+                stripeWidth / patternWidth to Color.Transparent,
+                1f to Color.Transparent,
+            ),
+            startX = 0f,
+            endX = patternWidth,
+            tileMode = TileMode.Repeated,
+        )
+    }
+}
 
 @Composable
 private fun ApplySystemBars() {
@@ -247,14 +344,25 @@ private fun SettingsScreen(
 ) {
     val palette = LocalSettingsPalette.current
     ApplySystemBars()
-    val presets = stringArrayResource(R.array.debug_preset_texts).toList()
+    val stripeBrush = rememberStripeBrush(palette.stripe)
+    val context = LocalContext.current
+    val layoutDirection = LocalLayoutDirection.current
+    val presetLabels = remember(context, layoutDirection) {
+        context.resources.getStringArray(R.array.debug_preset_text_labels).toList()
+    }
+    val presetTexts = remember(context, layoutDirection) {
+        context.resources.getStringArray(R.array.debug_preset_texts).toList()
+    }
     var previewText by rememberSaveable { mutableStateOf(settings.debugPreviewText) }
     var selectedPresetIndex by rememberSaveable {
-        mutableIntStateOf(presets.indexOf(settings.debugPresetText).coerceAtLeast(0))
+        mutableIntStateOf(presetTexts.indexOf(settings.debugPresetText).coerceAtLeast(0))
     }
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var warmUpState by remember { mutableIntStateOf(tokenizer.warmUpState) }
+    var topBarHeightPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val listTopPadding = with(density) { topBarHeightPx.toDp() } + 10.dp
 
     LaunchedEffect(tokenizer) {
         while (true) {
@@ -268,47 +376,28 @@ private fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        containerColor = Color.Transparent,
-        topBar = {
-            SettingsTopBar()
-        },
-    ) { innerPadding ->
-        Box(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palette.background)
+            .background(stripeBrush),
+    ) {
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(palette.background)
-                .drawBehind {
-                    val stripeWidth = 2.dp.toPx()
-                    val gap = 10.dp.toPx()
-                    var x = 0f
-                    while (x < size.width + stripeWidth) {
-                        drawRect(
-                            color = palette.stripe,
-                            topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
-                            size = androidx.compose.ui.geometry.Size(stripeWidth, size.height),
-                        )
-                        x += stripeWidth + gap
-                    }
-                },
+                .padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(top = listTopPadding, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
+            item {
                 SettingsSectionCard {
                     DebugSection(
                         previewText = previewText,
                         selectedPresetIndex = selectedPresetIndex,
-                        presetTexts = presets,
+                        presetLabels = presetLabels,
                         warmUpState = warmUpState,
                         onPresetSelected = { index ->
-                            val text = presets[index]
+                            val text = presetTexts[index]
                             selectedPresetIndex = index
                             previewText = text
                             settings.setDebugPresetText(text)
@@ -324,7 +413,9 @@ private fun SettingsScreen(
                         },
                     )
                 }
+            }
 
+            item {
                 SettingsSectionCard {
                     OptionSection(
                         title = stringResource(R.string.default_search_way),
@@ -337,7 +428,9 @@ private fun SettingsScreen(
                         },
                     )
                 }
+            }
 
+            item {
                 SettingsSectionCard {
                     OptionSection(
                         title = stringResource(R.string.default_dict),
@@ -350,40 +443,48 @@ private fun SettingsScreen(
                         },
                     )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
+
+        SettingsTopBar(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .onSizeChanged { topBarHeightPx = it.height },
+        )
     }
 }
 
 @Composable
-private fun SettingsTopBar() {
+private fun SettingsTopBar(modifier: Modifier = Modifier) {
     val palette = LocalSettingsPalette.current
-    Surface(
-        modifier = Modifier
+    val shape = RoundedCornerShape(0.dp)
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 8.dp,
-                ambientColor = palette.shadow,
-                spotColor = palette.shadow,
-            ),
-        color = palette.topBar,
+            .padding(bottom = 24.dp),
     ) {
-        Box(
+        BlurredShadow(shape = shape, modifier = Modifier.matchParentSize())
+        Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth(),
+            shape = shape,
+            color = palette.topBar,
         ) {
-            Text(
-                text = stringResource(R.string.text_boom_settings),
-                color = palette.textPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.text_boom_settings),
+                    color = palette.topBarText,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
@@ -391,31 +492,36 @@ private fun SettingsTopBar() {
 @Composable
 private fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalSettingsPalette.current
-    Surface(
+    val shape = RoundedCornerShape(18.dp)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(22.dp),
-                ambientColor = palette.shadow,
-                spotColor = palette.shadow,
-            ),
-        shape = RoundedCornerShape(22.dp),
-        color = palette.card,
-        border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
+            .padding(horizontal = 4.dp, vertical = 14.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-            content = content,
-        )
+        BlurredShadow(shape = shape, modifier = Modifier.matchParentSize())
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(),
+            shape = shape,
+            color = palette.card,
+            border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+                content = content,
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DebugSection(
     previewText: String,
     selectedPresetIndex: Int,
-    presetTexts: List<String>,
+    presetLabels: List<String>,
     warmUpState: Int,
     onPresetSelected: (Int) -> Unit,
     onPreviewTextChange: (String) -> Unit,
@@ -437,34 +543,32 @@ private fun DebugSection(
         )
         WarmUpBadge(state = warmUpState)
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            presetTexts.forEachIndexed { index, item ->
-                val selected = index == selectedPresetIndex
-                Surface(
-                    modifier = Modifier
-                        .width(220.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable { onPresetSelected(index) },
-                    shape = RoundedCornerShape(18.dp),
-                    color = if (selected) palette.accentSoft else palette.cardInset,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (selected) palette.accent.copy(alpha = 0.45f) else palette.cardBorder,
+            presetLabels.forEachIndexed { index, item ->
+                SegmentedButton(
+                    selected = index == selectedPresetIndex,
+                    onClick = { onPresetSelected(index) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = presetLabels.size,
                     ),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = palette.accentSoft,
+                        activeContentColor = palette.textPrimary,
+                        activeBorderColor = palette.accent.copy(alpha = 0.45f),
+                        inactiveContainerColor = palette.cardInset,
+                        inactiveContentColor = palette.textSecondary,
+                        inactiveBorderColor = palette.cardBorder,
+                    ),
+                    modifier = Modifier.height(42.dp),
                 ) {
                     Text(
                         text = item,
-                        color = if (selected) palette.textPrimary else palette.textSecondary,
                         fontSize = 13.sp,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     )
                 }
             }
@@ -474,8 +578,7 @@ private fun DebugSection(
             value = previewText,
             onValueChange = onPreviewTextChange,
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp)),
+                .fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             minLines = 5,
             maxLines = 8,
@@ -506,30 +609,32 @@ private fun DebugSection(
             ),
         )
 
-        Button(
-            onClick = onPreviewClick,
+        val buttonShape = RoundedCornerShape(18.dp)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp)
-                .shadow(
-                    elevation = 6.dp,
-                    shape = RoundedCornerShape(18.dp),
-                    ambientColor = palette.shadow,
-                    spotColor = palette.shadow,
-                ),
-            shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = palette.accent,
-                contentColor = Color.White,
-            ),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                .padding(bottom = 24.dp),
         ) {
-            Text(
-                text = stringResource(R.string.debug_preview_button),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.2.sp,
-            )
+            BlurredShadow(shape = buttonShape, modifier = Modifier.matchParentSize())
+            Button(
+                onClick = onPreviewClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = buttonShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.accent,
+                    contentColor = Color.White,
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.debug_preview_button),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.2.sp,
+                )
+            }
         }
     }
 }

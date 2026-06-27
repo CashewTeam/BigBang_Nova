@@ -102,10 +102,18 @@
         <item>@string/thumb_trigger_area_largest</item>
     </string-array>
 
+    <string-array name="debug_preset_text_labels">
+        <item>中文</item>
+        <item>中文多行</item>
+        <item>英语</item>
+        <item>日语</item>
+    </string-array>
+
     <string-array name="debug_preset_texts">
-        <item>这段预览文本用于检查词块布局、选中状态以及底部按钮是否正常显示。</item>
-        <item>这是一个预制文本，用来检查中文分词预览页面是否正常显示。</item>
-        <item>混合预览文本：包含 BigBang 123、标点符号，以及较短的换行内容。</item>
+        <item>这是一段中文预览文本，用来检查词块布局、选中状态以及按钮显示是否正常。</item>
+        <item>第一行是中文预览。\n第二行继续检查换行后的词块布局。\n第三行用于观察多行滚动与段落间距。</item>
+        <item>This is an English preview text for checking token layout, selection feedback, and action button states.</item>
+        <item>これは日本語のプレビュー用テキストです。分かち書き結果とレイアウト表示を確認します。</item>
     </string-array>
 
 </resources>
