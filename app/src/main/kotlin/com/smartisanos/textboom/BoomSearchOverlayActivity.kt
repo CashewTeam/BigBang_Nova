@@ -42,9 +42,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,6 +69,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -397,7 +406,7 @@ private fun SearchTopBar(
         backgroundColor = palette.topBar,
         leading = {
             OverlayIconAction(
-                iconRes = R.drawable.boom_cancel,
+                imageVector = Icons.Outlined.Close,
                 tint = palette.primaryText,
                 onClick = onClose,
                 contentDescription = stringResource(R.string.search_overlay_close),
@@ -423,13 +432,13 @@ private fun SearchTopBar(
         },
         trailing = {
             OverlayIconAction(
-                iconRes = android.R.drawable.ic_popup_sync,
+                imageVector = Icons.Outlined.Refresh,
                 tint = palette.secondaryText,
                 onClick = onRefresh,
                 contentDescription = stringResource(R.string.search_overlay_refresh),
             )
             OverlayIconAction(
-                iconRes = R.drawable.boom_win_setting,
+                imageVector = Icons.Outlined.Settings,
                 tint = palette.secondaryText,
                 onClick = onOpenSettings,
                 contentDescription = stringResource(R.string.search_overlay_settings),
@@ -460,7 +469,7 @@ private fun SearchBottomBar(
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
     OverlayBottomBar(backgroundColor = palette.bottomBar) {
         ToolbarIconButton(
-            iconRes = R.drawable.boom_win_go_back,
+            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
             tint = if (canGoBack) palette.iconTint else palette.secondaryText.copy(alpha = 0.45f),
             enabled = canGoBack,
             onClick = onBack,
@@ -468,7 +477,7 @@ private fun SearchBottomBar(
         )
         Spacer(modifier = Modifier.width(6.dp))
         ToolbarIconButton(
-            iconRes = if (canGoForward) R.drawable.boom_win_forward_normal else R.drawable.boom_win_forward_disable,
+            imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
             tint = if (canGoForward) palette.iconTint else palette.secondaryText.copy(alpha = 0.45f),
             enabled = canGoForward,
             onClick = onForward,
@@ -519,7 +528,7 @@ private fun SearchBottomBar(
         Spacer(modifier = Modifier.width(12.dp))
         ToolbarIconButton(
             iconRes = R.drawable.boom_win_browser,
-            tint = palette.iconTint,
+            tint = null,
             enabled = true,
             onClick = onBrowser,
             contentDescription = stringResource(R.string.search_overlay_browser),
@@ -530,7 +539,7 @@ private fun SearchBottomBar(
 @Composable
 private fun ToolbarIconButton(
     @DrawableRes iconRes: Int,
-    tint: Color,
+    tint: Color?,
     enabled: Boolean,
     onClick: () -> Unit,
     contentDescription: String,
@@ -558,8 +567,41 @@ private fun ToolbarIconButton(
                 view.setImageResource(iconRes)
                 view.contentDescription = contentDescription
                 view.isEnabled = enabled
-                view.setColorFilter(tint.toArgb())
+                if (tint == null) {
+                    view.clearColorFilter()
+                } else {
+                    view.setColorFilter(tint.toArgb())
+                }
             },
+        )
+    }
+}
+
+@Composable
+private fun ToolbarIconButton(
+    imageVector: ImageVector,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    contentDescription: String,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = contentDescription,
+            tint = tint,
         )
     }
 }
@@ -590,22 +632,14 @@ private fun SearchProviderButton(
                 color = if (selected) palette.accent.copy(alpha = 0.45f) else palette.border,
             ),
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Box(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Image(
                     painter = painterResource(provider.iconRes),
                     contentDescription = contentDescription,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = provider.title,
-                    color = if (selected) palette.primaryText else palette.secondaryText,
-                    fontSize = 12.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 1,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

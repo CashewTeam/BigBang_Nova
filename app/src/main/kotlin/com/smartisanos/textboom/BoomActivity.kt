@@ -8,6 +8,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -186,13 +191,13 @@ private fun BigBangOverlayContent(
                         backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
                         leading = {
                             OverlayIconAction(
-                                iconRes = R.drawable.bigbang_ic_edit,
+                                imageVector = Icons.Outlined.Edit,
                                 tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
                                 onClick = onEditMode,
                                 contentDescription = stringResource(R.string.bigbang_action_edit),
                             )
                             OverlayIconAction(
-                                iconRes = R.drawable.bigbang_ic_select_all,
+                                imageVector = Icons.Outlined.SelectAll,
                                 tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
                                 onClick = onSelectAll,
                                 contentDescription = stringResource(R.string.bigbang_action_select_all),
@@ -208,13 +213,13 @@ private fun BigBangOverlayContent(
                         },
                         trailing = {
                             OverlayIconAction(
-                                iconRes = R.drawable.bigbang_ic_share,
+                                imageVector = Icons.Outlined.Share,
                                 tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
                                 onClick = onShareAll,
                                 contentDescription = stringResource(R.string.bigbang_action_share_all),
                             )
                             OverlayIconAction(
-                                iconRes = R.drawable.bigbang_ic_more,
+                                imageVector = Icons.Outlined.MoreHoriz,
                                 tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
                                 onClick = onMore,
                                 contentDescription = stringResource(R.string.bigbang_action_more),
