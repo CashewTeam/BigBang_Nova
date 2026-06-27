@@ -15,6 +15,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -60,7 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -565,10 +566,18 @@ private fun ToolbarIconButton(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(iconRes),
-            contentDescription = contentDescription,
-            colorFilter = ColorFilter.tint(tint),
+        AndroidView(
+            factory = { context ->
+                ImageView(context).apply {
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+            },
+            update = { view ->
+                view.setImageResource(iconRes)
+                view.contentDescription = contentDescription
+                view.isEnabled = enabled
+                view.setColorFilter(tint.toArgb())
+            },
         )
     }
 }
