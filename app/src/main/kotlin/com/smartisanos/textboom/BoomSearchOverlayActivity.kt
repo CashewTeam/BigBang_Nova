@@ -303,7 +303,10 @@ private fun SearchOverlayScreen(
                         palette = palette,
                         title = activeProviderFor(activeKind).title,
                         searchText = searchText,
-                        onClose = onClose,
+                        canGoBack = canGoBack,
+                        canGoForward = canGoForward,
+                        onBack = { webViewRef?.goBack() },
+                        onForward = { webViewRef?.goForward() },
                         onRefresh = { webViewRef?.reload() },
                         onOpenSettings = onOpenSettings,
                     )
@@ -331,10 +334,7 @@ private fun SearchOverlayScreen(
                         webProvider = activeProviderFor(SearchKind.Web),
                         dictProvider = activeProviderFor(SearchKind.Dict),
                         wikiProvider = activeProviderFor(SearchKind.Wiki),
-                        canGoBack = canGoBack,
-                        canGoForward = canGoForward,
-                        onBack = { webViewRef?.goBack() },
-                        onForward = { webViewRef?.goForward() },
+                        onClose = onClose,
                         onBrowser = { openInBrowser(context, currentUrl) },
                         onKindClick = { kind -> updateCurrentTypeFor(kind) },
                         onKindLongPress = { kind -> expandedKind = kind },
@@ -398,7 +398,10 @@ private fun SearchTopBar(
     palette: SearchPalette,
     title: String,
     searchText: String,
-    onClose: () -> Unit,
+    canGoBack: Boolean,
+    canGoForward: Boolean,
+    onBack: () -> Unit,
+    onForward: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -406,10 +409,16 @@ private fun SearchTopBar(
         backgroundColor = palette.topBar,
         leading = {
             OverlayIconAction(
-                imageVector = Icons.Outlined.Close,
-                tint = palette.primaryText,
-                onClick = onClose,
-                contentDescription = stringResource(R.string.search_overlay_close),
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                tint = if (canGoBack) palette.primaryText else palette.secondaryText.copy(alpha = 0.45f),
+                onClick = onBack,
+                contentDescription = stringResource(R.string.search_overlay_back),
+            )
+            OverlayIconAction(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                tint = if (canGoForward) palette.primaryText else palette.secondaryText.copy(alpha = 0.45f),
+                onClick = onForward,
+                contentDescription = stringResource(R.string.search_overlay_forward),
             )
         },
         center = {
@@ -454,10 +463,7 @@ private fun SearchBottomBar(
     webProvider: SearchProvider,
     dictProvider: SearchProvider,
     wikiProvider: SearchProvider,
-    canGoBack: Boolean,
-    canGoForward: Boolean,
-    onBack: () -> Unit,
-    onForward: () -> Unit,
+    onClose: () -> Unit,
     onBrowser: () -> Unit,
     onKindClick: (SearchKind) -> Unit,
     onKindLongPress: (SearchKind) -> Unit,
@@ -469,19 +475,11 @@ private fun SearchBottomBar(
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
     OverlayBottomBar(backgroundColor = palette.bottomBar) {
         ToolbarIconButton(
-            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-            tint = if (canGoBack) palette.iconTint else palette.secondaryText.copy(alpha = 0.45f),
-            enabled = canGoBack,
-            onClick = onBack,
-            contentDescription = stringResource(R.string.search_overlay_back),
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        ToolbarIconButton(
-            imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-            tint = if (canGoForward) palette.iconTint else palette.secondaryText.copy(alpha = 0.45f),
-            enabled = canGoForward,
-            onClick = onForward,
-            contentDescription = stringResource(R.string.search_overlay_forward),
+            imageVector = Icons.Outlined.Close,
+            tint = palette.iconTint,
+            enabled = true,
+            onClick = onClose,
+            contentDescription = stringResource(R.string.search_overlay_close),
         )
         Spacer(modifier = Modifier.width(12.dp))
         Row(
@@ -490,7 +488,6 @@ private fun SearchBottomBar(
         ) {
             SearchProviderButton(
                 provider = webProvider,
-                palette = palette,
                 selected = activeKind == SearchKind.Web,
                 onClick = { onKindClick(SearchKind.Web) },
                 onLongClick = { onKindLongPress(SearchKind.Web) },
@@ -502,7 +499,6 @@ private fun SearchBottomBar(
             )
             SearchProviderButton(
                 provider = dictProvider,
-                palette = palette,
                 selected = activeKind == SearchKind.Dict,
                 onClick = { onKindClick(SearchKind.Dict) },
                 onLongClick = { onKindLongPress(SearchKind.Dict) },
@@ -514,7 +510,6 @@ private fun SearchBottomBar(
             )
             SearchProviderButton(
                 provider = wikiProvider,
-                palette = palette,
                 selected = activeKind == SearchKind.Wiki,
                 onClick = { onKindClick(SearchKind.Wiki) },
                 onLongClick = { onKindLongPress(SearchKind.Wiki) },
@@ -609,7 +604,6 @@ private fun ToolbarIconButton(
 @Composable
 private fun SearchProviderButton(
     provider: SearchProvider,
-    palette: SearchPalette,
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -620,28 +614,29 @@ private fun SearchProviderButton(
     contentDescription: String,
 ) {
     Box {
-        Surface(
-            modifier = Modifier.combinedClickable(
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
-            color = if (selected) palette.accentSoft else Color.Transparent,
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(
-                width = 1.dp,
-                color = if (selected) palette.accent.copy(alpha = 0.45f) else palette.border,
-            ),
         ) {
-            Box(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painter = painterResource(provider.iconRes),
-                    contentDescription = contentDescription,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(2.dp),
+                factory = { context ->
+                    ImageView(context).apply {
+                        scaleType = ImageView.ScaleType.CENTER_INSIDE
+                    }
+                },
+                update = { view ->
+                    view.setImageResource(provider.iconRes)
+                    view.contentDescription = contentDescription
+                    view.alpha = if (selected) 1f else 0.72f
+                },
+            )
         }
         DropdownMenu(
             expanded = menuExpanded,
