@@ -646,21 +646,25 @@ private fun SearchProviderButton(
                         elevation = 5.dp,
                         shape = CircleShape,
                         clip = false,
-                    ),
-            )
-            AndroidView(
-                modifier = Modifier.size(48.dp),
-                factory = { context ->
-                    ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                    }
-                },
-                update = { view ->
-                    view.setImageResource(provider.iconRes)
-                    view.contentDescription = contentDescription
-                    view.alpha = if (selected) 1f else 0.82f
-                },
-            )
+                    )
+                    .background(Color.White, CircleShape)
+                    .clip(CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                AndroidView(
+                    modifier = Modifier.size(58.dp),
+                    factory = { context ->
+                        ImageView(context).apply {
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                        }
+                    },
+                    update = { view ->
+                        view.setImageResource(provider.iconRes)
+                        view.contentDescription = contentDescription
+                        view.alpha = if (selected) 1f else 0.82f
+                    },
+                )
+            }
         }
         DropdownMenu(
             expanded = menuExpanded,
