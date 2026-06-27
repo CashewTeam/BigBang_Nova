@@ -486,7 +486,7 @@ private fun SearchBottomBar(
         Spacer(modifier = Modifier.width(12.dp))
         Row(
             modifier = Modifier.weight(1f).padding(bottom = navigationPadding.calculateBottomPadding()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
         ) {
             SearchProviderButton(
                 provider = webProvider,
@@ -621,26 +621,38 @@ private fun SearchProviderButton(
     Box {
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .shadow(
-                    elevation = 5.dp,
-                    shape = CircleShape,
-                    clip = false,
-                )
-                .background(
-                    color = if (selected) Color(0xFFE5E5E8) else Color.Transparent,
-                    shape = CircleShape,
-                )
+                .width(64.dp)
+                .height(52.dp)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                 ),
+            contentAlignment = Alignment.Center,
         ) {
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            color = Color(0xFFE5E5E8),
+                            shape = RoundedCornerShape(10.dp),
+                        ),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .shadow(
+                        elevation = 5.dp,
+                        shape = CircleShape,
+                        clip = false,
+                    ),
+            )
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.size(48.dp),
                 factory = { context ->
                     ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.CENTER_INSIDE
+                        scaleType = ImageView.ScaleType.FIT_CENTER
                     }
                 },
                 update = { view ->
