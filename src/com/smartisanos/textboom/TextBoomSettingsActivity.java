@@ -12,6 +12,7 @@ import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.view.LayoutInflater;
@@ -31,6 +32,7 @@ import android.widget.Toast;
 
 import com.smartisanos.textboom.util.Constant;
 import com.smartisanos.textboom.data.BigBangSettings;
+import com.smartisanos.textboom.data.CppJiebaTokenizer;
 import com.smartisanos.textboom.util.LogUtils;
 import com.smartisanos.textboom.util.Utils;
 
@@ -66,6 +68,14 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
     private Spinner mDebugPresetSpinner;
     private EditText mDebugTextInput;
     private Button mDebugPreviewButton;
+    private TextView mWarmUpStatusView;
+    private final Handler mHandler = new Handler();
+    private final Runnable mWarmUpStatusUpdater = new Runnable() {
+        @Override
+        public void run() {
+            updateWarmUpStatus();
+        }
+    };
     private List<BigBangItem> mBigBangItemList = new ArrayList<BigBangItem>();
     private int mCurrentSearchValue;
     private int mCurrentDictValue;
@@ -198,6 +208,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         mDebugPresetSpinner = (Spinner) headerView.findViewById(R.id.debug_preset_spinner);
         mDebugTextInput = (EditText) headerView.findViewById(R.id.debug_preview_text);
         mDebugPreviewButton = (Button) headerView.findViewById(R.id.debug_preview_button);
+        mWarmUpStatusView = (TextView) headerView.findViewById(R.id.debug_warm_up_status);
         mOptionsList.addHeaderView(headerView);
         mOptionsList.addFooterView(Utils.inflateListTransparentHeader(this));
     }
@@ -208,6 +219,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         mCurrentSearchValue = mSettings.getWebSearchType();
         mCurrentDictValue = mSettings.getDictSearchType();
         updateViews();
+        startWarmUpStatusUpdates();
         IntentFilter pkgFilter = new IntentFilter();
         pkgFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
         pkgFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
@@ -226,7 +238,43 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         mOCRSwitch.setOnCheckedChangeListener(this);
         mTextBoomTriggerAreaOption.setSubTitle(getTextBoomTriggerAreaSubtitle());
         bindDebugPresetViews();
+        updateWarmUpStatus();
         mAdapter.notifyDataSetChanged();
+    }
+
+    private void startWarmUpStatusUpdates() {
+        mHandler.removeCallbacks(mWarmUpStatusUpdater);
+        mHandler.post(mWarmUpStatusUpdater);
+    }
+
+    private void updateWarmUpStatus() {
+        if (mWarmUpStatusView == null) {
+            return;
+        }
+        int state = CppJiebaTokenizer.get(this).getWarmUpState();
+        int textResId;
+        boolean keepPolling = false;
+        switch (state) {
+            case CppJiebaTokenizer.WARM_UP_RUNNING:
+                textResId = R.string.debug_warm_up_status_running;
+                keepPolling = true;
+                break;
+            case CppJiebaTokenizer.WARM_UP_READY:
+                textResId = R.string.debug_warm_up_status_ready;
+                break;
+            case CppJiebaTokenizer.WARM_UP_FAILED:
+                textResId = R.string.debug_warm_up_status_failed;
+                break;
+            default:
+                textResId = R.string.debug_warm_up_status_idle;
+                keepPolling = true;
+                break;
+        }
+        mWarmUpStatusView.setText(textResId);
+        mHandler.removeCallbacks(mWarmUpStatusUpdater);
+        if (keepPolling) {
+            mHandler.postDelayed(mWarmUpStatusUpdater, 250);
+        }
     }
 
     @Override
@@ -234,6 +282,7 @@ public class TextBoomSettingsActivity extends Activity implements CompoundButton
         super.onPause();
         mTextBoomSwitch.setOnCheckedChangeListener(null);
         mOCRSwitch.setOnCheckedChangeListener(null);
+        mHandler.removeCallbacks(mWarmUpStatusUpdater);
         unregisterReceiver(mPackageReceiver);
         if (mOcrSwitchToast != null) {
             mOcrSwitchToast.cancel();
