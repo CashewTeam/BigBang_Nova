@@ -1,6 +1,6 @@
-# BigBang Nova
+# Nova Text
 
-**BigBang Nova** 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移项目。
+**Nova Text** 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移项目。
 
 目标是将屏幕上的任意文本「炸开」为独立的词芯片（word chips），支持滑动多选后进行搜索、查词典、复制、分享等操作，并逐步替换 Smartisan OS 私有依赖，迁移到标准 Android 能力。
 
