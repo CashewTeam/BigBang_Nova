@@ -293,7 +293,7 @@ private fun SearchOverlayScreen(
             width = panelMetrics.width,
             height = panelMetrics.height,
             modifier = overlayPanelPlacement(panelMetrics),
-            shape = RoundedCornerShape(30.dp),
+            shape = RoundedCornerShape(panelMetrics.cornerRadius),
             backgroundColor = palette.panel,
             borderColor = palette.border,
             shadowColor = null,
@@ -621,7 +621,7 @@ private fun SearchProviderButton(
     Box {
         Box(
             modifier = Modifier
-                .width(64.dp)
+                .width(48.dp)
                 .height(52.dp)
                 .combinedClickable(
                     onClick = onClick,
@@ -641,9 +641,9 @@ private fun SearchProviderButton(
             }
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(27.dp)
                     .shadow(
-                        elevation = 5.dp,
+                        elevation = 2.dp,
                         shape = CircleShape,
                         clip = false,
                     )
@@ -662,8 +662,8 @@ private fun SearchProviderButton(
                         view.setImageResource(provider.iconRes)
                         view.contentDescription = contentDescription
                         view.alpha = if (selected) 1f else 0.82f
-                        view.scaleX = 1.95f
-                        view.scaleY = 1.95f
+                        view.scaleX = 2.3f
+                        view.scaleY = 2.3f
                     },
                 )
             }

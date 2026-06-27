@@ -172,7 +172,7 @@ private fun BigBangOverlayContent(
     val panelBorder = if (dark) Color(0xFF2E353E) else Color(0xFFD7D7DA)
     val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.48f)
     val shadowColor = Color.Black.copy(alpha = 0.5f)
-    val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(30.dp)
+    val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(panelMetrics.cornerRadius)
 
     BackHandler(onBack = onDismiss)
     OverlayScene(scrimColor = scrimColor, onDismiss = onDismiss) {
@@ -183,7 +183,7 @@ private fun BigBangOverlayContent(
             shape = panelShape,
             backgroundColor = panelBackground,
             borderColor = panelBorder,
-            shadowColor = shadowColor,
+            shadowColor = if (panelMetrics.multiWindow) null else shadowColor,
         ) {
             OverlayPanelScaffold(
                 topBar = {

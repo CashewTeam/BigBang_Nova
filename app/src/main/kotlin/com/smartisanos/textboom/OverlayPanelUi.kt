@@ -1,5 +1,6 @@
 package com.smartisanos.textboom
 
+import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -119,19 +121,25 @@ internal data class OverlayPanelMetrics(
     val width: Dp,
     val height: Dp,
     val offsetY: Dp,
+    val cornerRadius: Dp,
+    val multiWindow: Boolean,
 )
 
 @Composable
 internal fun rememberOverlayPanelMetrics(): OverlayPanelMetrics {
     val configuration = LocalConfiguration.current
+    val activity = LocalContext.current as? Activity
     val screenWidth = configuration.screenWidthDp.dp
     val screenHeight = configuration.screenHeightDp.dp
-    val topInset = 96.dp
-    val bottomInset = 64.dp
+    val inMultiWindow = activity?.isInMultiWindowMode == true
+    val topInset = if (inMultiWindow) 0.dp else 96.dp
+    val bottomInset = if (inMultiWindow) 0.dp else 64.dp
     return OverlayPanelMetrics(
         width = screenWidth,
         height = screenHeight - topInset - bottomInset,
-        offsetY = 18.dp,
+        offsetY = if (inMultiWindow) 0.dp else 18.dp,
+        cornerRadius = if (inMultiWindow) 0.dp else 30.dp,
+        multiWindow = inMultiWindow,
     )
 }
 

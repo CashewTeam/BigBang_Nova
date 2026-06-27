@@ -102,6 +102,14 @@ public class BoomChipPage {
         mScroller = (CustomScrollView) contentView.findViewById(R.id.boom_scroller);
         mLayout = new BoomWordsLayout(mActivity);
         mBoomConent.setBoomPage(this);
+        mBoomPage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!handleClick()) {
+                    mActivity.finish();
+                }
+            }
+        });
         mBoomTable.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

@@ -236,8 +236,8 @@ private fun BigBangSettingsTheme(content: @Composable () -> Unit) {
         SettingsPalette(
             background = Color(0xFF121417),
             stripe = Color.White.copy(alpha = 0.02f),
-            topBar = Color.White,
-            topBarText = Color(0xFF20242A),
+            topBar = Color(0xFF171B20),
+            topBarText = Color(0xFFF3F5F7),
             card = Color(0xFF1C2127),
             cardInset = Color(0xFF20262D),
             cardBorder = Color(0xFF2C333B),
