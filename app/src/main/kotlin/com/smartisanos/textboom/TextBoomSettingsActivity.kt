@@ -1,13 +1,16 @@
 package com.smartisanos.textboom
 
+import android.content.ComponentName
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.ArrayRes
@@ -47,6 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -75,6 +79,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -85,8 +90,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.smartisanos.textboom.data.BigBangSettings
 import com.smartisanos.textboom.data.CppJiebaTokenizer
+import com.smartisanos.textboom.service.BoomActivityLauncher
+import com.smartisanos.textboom.service.FloatingBallService
+import com.smartisanos.textboom.service.NovaTextAccessibilityService
 import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
@@ -121,6 +131,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     searchOptions = searchOptions,
                     dictionaryOptions = dictionaryOptions,
                     onOpenPreview = { openBigBangPreview(it) },
+                    onOpenOverlayPermission = { openOverlayPermission() },
+                    onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                    onStartFloatingBall = { startFloatingBall() },
+                    onStopFloatingBall = { stopFloatingBall() },
+                    onResetFloatingBall = { resetFloatingBall() },
                 )
             }
         }
@@ -149,15 +164,40 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun openBigBangPreview(text: String) {
         settings.setDebugPreviewText(text)
-        val intent = Intent(this, BoomActivity::class.java)
-        intent.putExtra(Intent.EXTRA_TEXT, text)
-        intent.putExtra(BoomActivity.EXTRA_DEBUG_PREVIEW_TEXT, text)
-        intent.putExtra("boom_index", -1)
         val width = resources.displayMetrics.widthPixels
         val height = resources.displayMetrics.heightPixels
-        intent.putExtra("boom_startx", width / 2)
-        intent.putExtra("boom_starty", height / 2)
-        startActivity(intent)
+        BoomActivityLauncher.openText(
+            context = this,
+            text = text,
+            touchX = width / 2,
+            touchY = height / 2,
+            isPreview = true,
+        )
+    }
+
+    private fun openOverlayPermission() {
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName"),
+            )
+        )
+    }
+
+    private fun openAccessibilitySettings() {
+        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    private fun startFloatingBall() {
+        FloatingBallService.start(this)
+    }
+
+    private fun stopFloatingBall() {
+        FloatingBallService.stop(this)
+    }
+
+    private fun resetFloatingBall() {
+        FloatingBallService.resetPosition(this)
     }
 }
 
@@ -165,6 +205,12 @@ private data class OptionItem(
     val title: String,
     val value: Int,
     @DrawableRes val iconRes: Int,
+)
+
+private data class PermissionState(
+    val overlayGranted: Boolean,
+    val accessibilityEnabled: Boolean,
+    val floatingBallRunning: Boolean,
 )
 
 private data class SettingsPalette(
@@ -341,11 +387,17 @@ private fun SettingsScreen(
     searchOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
     onOpenPreview: (String) -> Unit,
+    onOpenOverlayPermission: () -> Unit,
+    onOpenAccessibilitySettings: () -> Unit,
+    onStartFloatingBall: () -> Unit,
+    onStopFloatingBall: () -> Unit,
+    onResetFloatingBall: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     ApplySystemBars()
     val stripeBrush = rememberStripeBrush(palette.stripe)
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val layoutDirection = LocalLayoutDirection.current
     val presetLabels = remember(context, layoutDirection) {
         context.resources.getStringArray(R.array.debug_preset_text_labels).toList()
@@ -360,6 +412,16 @@ private fun SettingsScreen(
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var warmUpState by remember { mutableIntStateOf(tokenizer.warmUpState) }
+    val currentPermissionState = {
+        PermissionState(
+            overlayGranted = canDrawOverlays(context),
+            accessibilityEnabled = isAccessibilityServiceEnabled(context),
+            floatingBallRunning = FloatingBallService.isActive(),
+        )
+    }
+    var permissionState by remember {
+        mutableStateOf(currentPermissionState())
+    }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val listTopPadding = with(density) { topBarHeightPx.toDp() } + 10.dp
@@ -376,6 +438,18 @@ private fun SettingsScreen(
         }
     }
 
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                permissionState = currentPermissionState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -389,6 +463,19 @@ private fun SettingsScreen(
             contentPadding = PaddingValues(top = listTopPadding, bottom = 22.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item {
+                SettingsSectionCard {
+                    PermissionSection(
+                        state = permissionState,
+                        onOpenOverlayPermission = onOpenOverlayPermission,
+                        onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                        onStartFloatingBall = onStartFloatingBall,
+                        onStopFloatingBall = onStopFloatingBall,
+                        onResetFloatingBall = onResetFloatingBall,
+                    )
+                }
+            }
+
             item {
                 SettingsSectionCard {
                     DebugSection(
@@ -451,6 +538,25 @@ private fun SettingsScreen(
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
         )
+    }
+}
+
+private fun canDrawOverlays(context: android.content.Context): Boolean {
+    return Settings.canDrawOverlays(context)
+}
+
+private fun isAccessibilityServiceEnabled(context: android.content.Context): Boolean {
+    val serviceComponent = ComponentName(context, NovaTextAccessibilityService::class.java)
+    val enabledServices = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+    ) ?: return false
+    val expected = serviceComponent.flattenToString()
+    val expectedShort = serviceComponent.flattenToShortString()
+    return enabledServices.split(':').any { value ->
+        val normalized = value.trim()
+        normalized.equals(expected, ignoreCase = true) ||
+            normalized.equals(expectedShort, ignoreCase = true)
     }
 }
 
@@ -640,6 +746,85 @@ private fun DebugSection(
 }
 
 @Composable
+private fun PermissionSection(
+    state: PermissionState,
+    onOpenOverlayPermission: () -> Unit,
+    onOpenAccessibilitySettings: () -> Unit,
+    onStartFloatingBall: () -> Unit,
+    onStopFloatingBall: () -> Unit,
+    onResetFloatingBall: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    val primaryActionText = when {
+        !state.overlayGranted -> stringResource(R.string.permission_overlay_action)
+        !state.accessibilityEnabled -> stringResource(R.string.permission_accessibility_action)
+        state.floatingBallRunning -> stringResource(R.string.permission_stop_floating_ball)
+        else -> stringResource(R.string.permission_start_floating_ball)
+    }
+    val primaryAction = when {
+        !state.overlayGranted -> onOpenOverlayPermission
+        !state.accessibilityEnabled -> onOpenAccessibilitySettings
+        state.floatingBallRunning -> onStopFloatingBall
+        else -> onStartFloatingBall
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.permission_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.permission_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        PermissionStatusRow(
+            title = stringResource(R.string.permission_overlay_title),
+            granted = state.overlayGranted,
+        )
+        PermissionStatusRow(
+            title = stringResource(R.string.permission_accessibility_title),
+            granted = state.accessibilityEnabled,
+        )
+        PermissionStatusRow(
+            title = stringResource(R.string.permission_floating_ball_title),
+            granted = state.floatingBallRunning,
+            grantedText = stringResource(R.string.permission_enabled),
+            deniedText = stringResource(R.string.permission_disabled),
+        )
+        ShadowedPrimaryButton(
+            text = primaryActionText,
+            onClick = primaryAction,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SecondaryActionButton(
+                modifier = Modifier.weight(1f),
+                text = stringResource(R.string.permission_overlay_action),
+                onClick = onOpenOverlayPermission,
+            )
+            SecondaryActionButton(
+                modifier = Modifier.weight(1f),
+                text = stringResource(R.string.permission_accessibility_action),
+                onClick = onOpenAccessibilitySettings,
+            )
+        }
+        if (state.floatingBallRunning) {
+            SecondaryActionButton(
+                modifier = Modifier.fillMaxWidth(),
+                text = stringResource(R.string.permission_reset_floating_ball),
+                onClick = onResetFloatingBall,
+            )
+        }
+    }
+}
+
+@Composable
 private fun WarmUpBadge(state: Int) {
     val palette = LocalSettingsPalette.current
     val statusText = when (state) {
@@ -674,6 +859,106 @@ private fun WarmUpBadge(state: Int) {
                 text = stringResource(statusText),
                 color = palette.textPrimary,
                 fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PermissionStatusRow(
+    title: String,
+    granted: Boolean,
+    grantedText: String = stringResource(R.string.permission_granted),
+    deniedText: String = stringResource(R.string.permission_missing),
+) {
+    val palette = LocalSettingsPalette.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = title,
+            color = palette.textPrimary,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = if (granted) palette.accentSoft else palette.cardInset,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (granted) palette.accent.copy(alpha = 0.35f) else palette.cardBorder,
+            ),
+        ) {
+            Text(
+                text = if (granted) grantedText else deniedText,
+                color = if (granted) palette.textPrimary else palette.textSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShadowedPrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    val buttonShape = RoundedCornerShape(18.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp),
+    ) {
+        BlurredShadow(shape = buttonShape, modifier = Modifier.matchParentSize())
+        Button(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = buttonShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = palette.accent,
+                contentColor = Color.White,
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+        ) {
+            Text(
+                text = text,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.2.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SecondaryActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalSettingsPalette.current
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = palette.cardInset,
+        border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                color = palette.textPrimary,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
             )
         }

@@ -45,4 +45,23 @@
     <string name="debug_warm_up_status_failed">Jieba 引擎预热失败</string>
     <string name="debug_preview_text_hint">输入或修改文本，预览大爆炸页面的分词与排版效果</string>
     <string name="debug_preview_button">打开大爆炸预览</string>
+    <string name="permission_section_title">全局触发入口</string>
+    <string name="permission_section_summary">通过悬浮球和无障碍权限建立新的文本捕获入口。拖拽悬浮球并释放后，会直接抓取当前位置附近的可访问文本并打开大爆炸。</string>
+    <string name="permission_overlay_title">悬浮窗权限</string>
+    <string name="permission_accessibility_title">无障碍服务</string>
+    <string name="permission_floating_ball_title">悬浮球服务</string>
+    <string name="permission_granted">已授权</string>
+    <string name="permission_missing">未授权</string>
+    <string name="permission_enabled">运行中</string>
+    <string name="permission_disabled">未启动</string>
+    <string name="permission_overlay_action">打开悬浮窗权限</string>
+    <string name="permission_accessibility_action">打开无障碍设置</string>
+    <string name="permission_start_floating_ball">启动悬浮球</string>
+    <string name="permission_stop_floating_ball">关闭悬浮球</string>
+    <string name="permission_reset_floating_ball">重置悬浮球位置</string>
+    <string name="overlay_notification_title">BigBang 悬浮球</string>
+    <string name="overlay_notification_text">悬浮球服务正在运行</string>
+    <string name="overlay_channel_name">BigBang 悬浮球</string>
+    <string name="overlay_channel_description">悬浮球与全局文本捕获状态</string>
+    <string name="accessibility_service_summary">提取屏幕文本并交给大爆炸分词</string>
 </resources>
