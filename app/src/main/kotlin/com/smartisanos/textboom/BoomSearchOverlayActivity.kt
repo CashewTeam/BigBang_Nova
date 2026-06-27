@@ -641,7 +641,7 @@ private fun SearchProviderButton(
             }
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(44.dp)
                     .shadow(
                         elevation = 5.dp,
                         shape = CircleShape,
@@ -652,7 +652,7 @@ private fun SearchProviderButton(
                 contentAlignment = Alignment.Center,
             ) {
                 AndroidView(
-                    modifier = Modifier.size(58.dp),
+                    modifier = Modifier.fillMaxSize(),
                     factory = { context ->
                         ImageView(context).apply {
                             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -662,6 +662,8 @@ private fun SearchProviderButton(
                         view.setImageResource(provider.iconRes)
                         view.contentDescription = contentDescription
                         view.alpha = if (selected) 1f else 0.82f
+                        view.scaleX = 1.95f
+                        view.scaleY = 1.95f
                     },
                 )
             }
