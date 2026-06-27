@@ -151,12 +151,13 @@ private fun SearchOverlayScreen(
 ) {
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
+    val panelMetrics = rememberOverlayPanelMetrics()
     val palette = if (dark) {
         SearchPalette(
             panel = Color(0xFF171A1F),
-            topBar = Color(0xFF1C2127),
-            bottomBar = Color(0xFF15191E),
-            border = Color(0xFF2C333B),
+            topBar = Color(0xFF1E2328),
+            bottomBar = Color(0xFF1A1F24),
+            border = Color(0xFF2E343C),
             divider = Color(0xFF2A3138),
             primaryText = Color(0xFFF2F5F8),
             secondaryText = Color(0xFF98A3AF),
@@ -166,16 +167,16 @@ private fun SearchOverlayScreen(
         )
     } else {
         SearchPalette(
-            panel = Color(0xFFF8FAFC),
+            panel = Color(0xFFF3F3F4),
             topBar = Color(0xFFFFFFFF),
-            bottomBar = Color(0xFFF2F5F8),
-            border = Color(0xFFE4E9EE),
-            divider = Color(0xFFDDE3EA),
-            primaryText = Color(0xFF20242A),
-            secondaryText = Color(0xFF6F7883),
-            iconTint = Color(0xFF3A4653),
-            accent = Color(0xFF4E84F5),
-            accentSoft = Color(0x1F4E84F5),
+            bottomBar = Color(0xFFECECEE),
+            border = Color(0xFFD7D7DA),
+            divider = Color(0xFFD8D8DB),
+            primaryText = Color(0xFF6C6760),
+            secondaryText = Color(0xFF9D9790),
+            iconTint = Color(0xFF6F6962),
+            accent = Color(0xFF5F86F4),
+            accentSoft = Color(0x225F86F4),
         )
     }
 
@@ -278,44 +279,71 @@ private fun SearchOverlayScreen(
     }
 
     OverlayScene(scrimColor = Color.Transparent, onDismiss = onClose) {
-        val panelWidth = dimensionResource(R.dimen.search_popup_width)
-        val panelHeight = dimensionResource(R.dimen.search_popup_height)
         FloatingPanel(
-            width = panelWidth,
-            height = panelHeight,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 10.dp, vertical = 18.dp),
+            width = panelMetrics.width,
+            height = panelMetrics.height,
+            modifier = overlayPanelPlacement(panelMetrics),
+            shape = RoundedCornerShape(30.dp),
             backgroundColor = palette.panel,
             borderColor = palette.border,
             shadowColor = null,
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SearchTopBar(
-                    palette = palette,
-                    title = activeProviderFor(activeKind).title,
-                    searchText = searchText,
-                    onClose = onClose,
-                    onRefresh = { webViewRef?.reload() },
-                    onOpenSettings = onOpenSettings,
-                )
-                if (progress in 0.01f..0.99f) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = palette.accent,
-                        trackColor = palette.accentSoft,
+            OverlayPanelScaffold(
+                topBar = {
+                    SearchTopBar(
+                        palette = palette,
+                        title = activeProviderFor(activeKind).title,
+                        searchText = searchText,
+                        onClose = onClose,
+                        onRefresh = { webViewRef?.reload() },
+                        onOpenSettings = onOpenSettings,
                     )
-                } else {
-                    Spacer(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .background(Color.Transparent),
+                    if (progress in 0.01f..0.99f) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = palette.accent,
+                            trackColor = palette.accentSoft,
+                        )
+                    } else {
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(Color.Transparent),
+                        )
+                    }
+                },
+                bottomBar = {
+                    HorizontalDivider(color = palette.divider)
+                    SearchBottomBar(
+                        palette = palette,
+                        activeKind = activeKind,
+                        webProvider = activeProviderFor(SearchKind.Web),
+                        dictProvider = activeProviderFor(SearchKind.Dict),
+                        wikiProvider = activeProviderFor(SearchKind.Wiki),
+                        canGoBack = canGoBack,
+                        canGoForward = canGoForward,
+                        onBack = { webViewRef?.goBack() },
+                        onForward = { webViewRef?.goForward() },
+                        onBrowser = { openInBrowser(context, currentUrl) },
+                        onKindClick = { kind -> updateCurrentTypeFor(kind) },
+                        onKindLongPress = { kind -> expandedKind = kind },
+                        expandedKind = expandedKind,
+                        onDismissMenu = { expandedKind = null },
+                        providersForKind = { kind ->
+                            when (kind) {
+                                SearchKind.Web -> webProviders
+                                SearchKind.Dict -> dictProviders
+                                SearchKind.Wiki -> wikiProviders
+                            }
+                        },
+                        onProviderSelected = ::applyProvider,
                     )
-                }
+                },
+            ) { bodyModifier ->
                 AndroidView(
-                    modifier = Modifier.weight(1f),
+                    modifier = bodyModifier,
                     factory = { context ->
                         WebView(context).apply {
                             webViewRef = this
@@ -351,31 +379,6 @@ private fun SearchOverlayScreen(
                         syncNavigationState()
                     },
                 )
-                HorizontalDivider(color = palette.divider)
-                SearchBottomBar(
-                    palette = palette,
-                    activeKind = activeKind,
-                    webProvider = activeProviderFor(SearchKind.Web),
-                    dictProvider = activeProviderFor(SearchKind.Dict),
-                    wikiProvider = activeProviderFor(SearchKind.Wiki),
-                    canGoBack = canGoBack,
-                    canGoForward = canGoForward,
-                    onBack = { webViewRef?.goBack() },
-                    onForward = { webViewRef?.goForward() },
-                    onBrowser = { openInBrowser(context, currentUrl) },
-                    onKindClick = { kind -> updateCurrentTypeFor(kind) },
-                    onKindLongPress = { kind -> expandedKind = kind },
-                    expandedKind = expandedKind,
-                    onDismissMenu = { expandedKind = null },
-                    providersForKind = { kind ->
-                        when (kind) {
-                            SearchKind.Web -> webProviders
-                            SearchKind.Dict -> dictProviders
-                            SearchKind.Wiki -> wikiProviders
-                        }
-                    },
-                    onProviderSelected = ::applyProvider,
-                )
             }
         }
     }
@@ -390,63 +393,48 @@ private fun SearchTopBar(
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.topBar)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SearchActionText(
-            text = stringResource(R.string.search_overlay_close),
-            color = palette.primaryText,
-            onClick = onClose,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = title,
-                color = palette.primaryText,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+    OverlayHeaderBar(
+        backgroundColor = palette.topBar,
+        leading = {
+            OverlayIconAction(
+                iconRes = R.drawable.boom_cancel,
+                tint = palette.primaryText,
+                onClick = onClose,
+                contentDescription = stringResource(R.string.search_overlay_close),
             )
-            Text(
-                text = searchText,
-                color = palette.secondaryText,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SearchActionText(
-                text = stringResource(R.string.search_overlay_refresh),
-                color = palette.secondaryText,
+        },
+        center = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = title,
+                    color = palette.primaryText,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = searchText,
+                    color = palette.secondaryText,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        trailing = {
+            OverlayIconAction(
+                iconRes = android.R.drawable.ic_popup_sync,
+                tint = palette.secondaryText,
                 onClick = onRefresh,
+                contentDescription = stringResource(R.string.search_overlay_refresh),
             )
-            SearchActionText(
-                text = stringResource(R.string.search_overlay_settings),
-                color = palette.secondaryText,
+            OverlayIconAction(
+                iconRes = R.drawable.boom_win_setting,
+                tint = palette.secondaryText,
                 onClick = onOpenSettings,
+                contentDescription = stringResource(R.string.search_overlay_settings),
             )
-        }
-    }
-}
-
-@Composable
-private fun SearchActionText(
-    text: String,
-    color: Color,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = text,
-        color = color,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier.combinedClickable(onClick = onClick),
+        },
     )
 }
 
@@ -470,13 +458,7 @@ private fun SearchBottomBar(
     onProviderSelected: (SearchProvider, SearchKind) -> Unit,
 ) {
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.bottomBar)
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp + navigationPadding.calculateBottomPadding()),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    OverlayBottomBar(backgroundColor = palette.bottomBar) {
         ToolbarIconButton(
             iconRes = R.drawable.boom_win_go_back,
             tint = if (canGoBack) palette.iconTint else palette.secondaryText.copy(alpha = 0.45f),
@@ -494,7 +476,7 @@ private fun SearchBottomBar(
         )
         Spacer(modifier = Modifier.width(12.dp))
         Row(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(bottom = navigationPadding.calculateBottomPadding()),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
             SearchProviderButton(

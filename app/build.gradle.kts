@@ -12,8 +12,8 @@ android {
         applicationId = "com.smartisanos.textboom"
         minSdk = 29
         targetSdk = 34
-        versionCode = 19
-        versionName = "0.9.1"
+        versionCode = 23
+        versionName = "0.11.0"
     }
 
     sourceSets.getByName("main") {

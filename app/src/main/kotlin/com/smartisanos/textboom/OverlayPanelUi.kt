@@ -5,12 +5,21 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,8 +38,10 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.ceil
 
 @Composable
@@ -99,6 +110,132 @@ internal fun FloatingPanel(
         ) {
             Box(modifier = Modifier.fillMaxSize(), content = content)
         }
+    }
+}
+
+internal data class OverlayPanelMetrics(
+    val width: Dp,
+    val height: Dp,
+    val offsetY: Dp,
+)
+
+@Composable
+internal fun rememberOverlayPanelMetrics(): OverlayPanelMetrics {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    val topInset = 96.dp
+    val bottomInset = 64.dp
+    return OverlayPanelMetrics(
+        width = screenWidth,
+        height = screenHeight - topInset - bottomInset,
+        offsetY = 18.dp,
+    )
+}
+
+internal fun BoxScope.overlayPanelPlacement(
+    metrics: OverlayPanelMetrics,
+): Modifier {
+    return Modifier
+        .align(Alignment.Center)
+        .offset(y = metrics.offsetY)
+}
+
+@Composable
+internal fun OverlayPanelScaffold(
+    topBar: @Composable () -> Unit,
+    bottomBar: @Composable () -> Unit,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        topBar()
+        content(Modifier.weight(1f).fillMaxWidth())
+        bottomBar()
+    }
+}
+
+@Composable
+internal fun OverlayHeaderBar(
+    backgroundColor: Color,
+    leading: @Composable RowScope.() -> Unit,
+    center: @Composable BoxScope.() -> Unit,
+    trailing: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .background(backgroundColor)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = leading,
+        )
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.Center,
+            content = center,
+        )
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+            content = trailing,
+        )
+    }
+}
+
+@Composable
+internal fun OverlayBottomBar(
+    backgroundColor: Color,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .background(backgroundColor)
+            .padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+@Composable
+internal fun OverlayIconAction(
+    iconRes: Int,
+    tint: Color,
+    onClick: () -> Unit,
+    contentDescription: String,
+) {
+    Box(
+        modifier = Modifier
+            .requiredWidth(36.dp)
+            .requiredHeight(36.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        AndroidView(
+            factory = { context ->
+                ImageView(context).apply {
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+            },
+            update = { view ->
+                view.setImageResource(iconRes)
+                view.contentDescription = contentDescription
+                view.setColorFilter(tint.toArgb())
+            },
+        )
     }
 }
 

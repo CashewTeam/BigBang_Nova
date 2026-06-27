@@ -9,16 +9,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import com.smartisanos.textboom.data.CppJiebaTokenizer
@@ -47,6 +50,10 @@ class BoomActivity : ComponentActivity() {
             BigBangOverlayContent(
                 contentView = legacyContentView,
                 onDismiss = { dismissPage() },
+                onEditMode = { showPlaceholder() },
+                onSelectAll = { selectAll() },
+                onShareAll = { shareAll() },
+                onMore = { showPlaceholder() },
             )
         }
 
@@ -63,6 +70,26 @@ class BoomActivity : ComponentActivity() {
         if (boomChipPage?.handleClick() != true) {
             finish()
         }
+    }
+
+    private fun selectAll() {
+        boomChipPage?.selectAll()
+    }
+
+    private fun shareAll() {
+        val shareText = boomChipPage?.originalText ?: return
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+        startActivity(Intent.createChooser(send, null).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+        })
+        finish()
+    }
+
+    private fun showPlaceholder() {
+        Toast.makeText(this, R.string.bigbang_action_placeholder, Toast.LENGTH_SHORT).show()
     }
 
     private fun segmentLocally(text: String) {
@@ -129,33 +156,98 @@ class BoomActivity : ComponentActivity() {
 private fun BigBangOverlayContent(
     contentView: View,
     onDismiss: () -> Unit,
+    onEditMode: () -> Unit,
+    onSelectAll: () -> Unit,
+    onShareAll: () -> Unit,
+    onMore: () -> Unit,
 ) {
     val dark = isSystemInDarkTheme()
-    val panelBackground = if (dark) Color(0xFF171B20) else Color(0xFFF7F8FA)
-    val panelBorder = if (dark) Color(0xFF2E353E) else Color(0xFFE3E7EC)
-    val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.42f)
+    val panelMetrics = rememberOverlayPanelMetrics()
+    val panelBackground = if (dark) Color(0xFF171B20) else Color(0xFFF3F3F4)
+    val panelBorder = if (dark) Color(0xFF2E353E) else Color(0xFFD7D7DA)
+    val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.48f)
     val shadowColor = Color.Black.copy(alpha = 0.5f)
+    val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(30.dp)
 
     BackHandler(onBack = onDismiss)
     OverlayScene(scrimColor = scrimColor, onDismiss = onDismiss) {
-        val panelWidth = dimensionResource(R.dimen.search_popup_width)
-        val panelHeight = dimensionResource(R.dimen.search_popup_height)
         FloatingPanel(
-            width = panelWidth,
-            height = panelHeight,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 10.dp, vertical = 18.dp),
+            width = panelMetrics.width,
+            height = panelMetrics.height,
+            modifier = overlayPanelPlacement(panelMetrics),
+            shape = panelShape,
             backgroundColor = panelBackground,
             borderColor = panelBorder,
             shadowColor = shadowColor,
         ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = {
-                    contentView
+            OverlayPanelScaffold(
+                topBar = {
+                    OverlayHeaderBar(
+                        backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
+                        leading = {
+                            OverlayIconAction(
+                                iconRes = android.R.drawable.ic_menu_edit,
+                                tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                onClick = onEditMode,
+                                contentDescription = stringResource(R.string.bigbang_action_edit),
+                            )
+                            OverlayIconAction(
+                                iconRes = android.R.drawable.ic_menu_agenda,
+                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                onClick = onSelectAll,
+                                contentDescription = stringResource(R.string.bigbang_action_select_all),
+                            )
+                        },
+                        center = {
+                            androidx.compose.material3.Text(
+                                text = stringResource(R.string.bigbang_overlay_title),
+                                color = if (dark) Color(0xFFF2F5F8) else Color(0xFFD1CCC6),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        },
+                        trailing = {
+                            OverlayIconAction(
+                                iconRes = android.R.drawable.ic_menu_share,
+                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                onClick = onShareAll,
+                                contentDescription = stringResource(R.string.bigbang_action_share_all),
+                            )
+                            OverlayIconAction(
+                                iconRes = android.R.drawable.ic_menu_more,
+                                tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                onClick = onMore,
+                                contentDescription = stringResource(R.string.bigbang_action_more),
+                            )
+                        },
+                    )
                 },
-            )
+                bottomBar = {
+                    OverlayBottomBar(
+                        backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
+                    ) {
+                        OverlayIconAction(
+                            iconRes = R.drawable.boom_cancel,
+                            tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                            onClick = onDismiss,
+                            contentDescription = stringResource(R.string.search_overlay_close),
+                        )
+                    }
+                },
+            ) { bodyModifier ->
+                Column(modifier = bodyModifier.fillMaxSize()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    AndroidView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(bottom = 4.dp),
+                        factory = {
+                            contentView
+                        },
+                    )
+                }
+            }
         }
     }
 }

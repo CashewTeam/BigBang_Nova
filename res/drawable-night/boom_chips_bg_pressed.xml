@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <corners android:radius="17dp" />
-    <solid android:color="#FF4A7AE8" />
-</shape>
+<nine-patch xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/boom_chips_bg_pressed_base"
+    android:tint="#FF5F86F4" />

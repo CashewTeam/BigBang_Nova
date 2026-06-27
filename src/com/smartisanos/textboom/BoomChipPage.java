@@ -166,6 +166,29 @@ public class BoomChipPage {
         mSavedData = savedState;
     }
 
+    public String getOriginalText() {
+        return mLayout.getOriText();
+    }
+
+    public void selectAll() {
+        final int wordCount = mLayout.getWordCount();
+        if (wordCount <= 0) {
+            return;
+        }
+        handleClick();
+        for (int i = 0; i < mLayout.getRowCount(); ++i) {
+            final LinearLayout row = (LinearLayout) mBoomConent.getChildAt(i);
+            for (int j = 0; j < row.getChildCount(); ++j) {
+                View child = row.getChildAt(j);
+                if (child.getTag() instanceof BoomChip) {
+                    BoomChip chip = (BoomChip) child.getTag();
+                    chip.setSelected(true);
+                }
+            }
+        }
+        mBoomActionHandler.onSelect(0, wordCount - 1);
+    }
+
     private void initChips() {
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final int start = mLayout.getRowStart(i);

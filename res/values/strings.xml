@@ -73,4 +73,10 @@
     <string name="search_overlay_web">网页搜索</string>
     <string name="search_overlay_dict">词典</string>
     <string name="search_overlay_wiki">百科</string>
+    <string name="bigbang_overlay_title">大爆炸</string>
+    <string name="bigbang_action_edit">编辑</string>
+    <string name="bigbang_action_select_all">全选</string>
+    <string name="bigbang_action_share_all">分享全部</string>
+    <string name="bigbang_action_more">更多</string>
+    <string name="bigbang_action_placeholder">功能建设中</string>
 </resources>
