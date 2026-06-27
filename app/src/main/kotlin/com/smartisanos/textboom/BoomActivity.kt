@@ -186,13 +186,13 @@ private fun BigBangOverlayContent(
                         backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
                         leading = {
                             OverlayIconAction(
-                                iconRes = android.R.drawable.ic_menu_edit,
+                                iconRes = R.drawable.bigbang_ic_edit,
                                 tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
                                 onClick = onEditMode,
                                 contentDescription = stringResource(R.string.bigbang_action_edit),
                             )
                             OverlayIconAction(
-                                iconRes = android.R.drawable.ic_menu_agenda,
+                                iconRes = R.drawable.bigbang_ic_select_all,
                                 tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
                                 onClick = onSelectAll,
                                 contentDescription = stringResource(R.string.bigbang_action_select_all),
@@ -208,13 +208,13 @@ private fun BigBangOverlayContent(
                         },
                         trailing = {
                             OverlayIconAction(
-                                iconRes = android.R.drawable.ic_menu_share,
+                                iconRes = R.drawable.bigbang_ic_share,
                                 tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
                                 onClick = onShareAll,
                                 contentDescription = stringResource(R.string.bigbang_action_share_all),
                             )
                             OverlayIconAction(
-                                iconRes = android.R.drawable.ic_menu_more,
+                                iconRes = R.drawable.bigbang_ic_more,
                                 tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
                                 onClick = onMore,
                                 contentDescription = stringResource(R.string.bigbang_action_more),
