@@ -10,8 +10,8 @@ android {
         applicationId = "com.smartisanos.textboom"
         minSdk = 29
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.3.1"
     }
 
     sourceSets.getByName("main") {
@@ -35,6 +35,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
     buildFeatures {
         buildConfig = true
     }
@@ -42,7 +48,5 @@ android {
 
 dependencies {
     implementation(files("../libs/android-support-v4.jar"))
-    implementation(files("../libs/okhttp-2.7.5.jar"))
-    implementation(files("../libs/okio-1.7.0.jar"))
     implementation(files("../libs/csopensdk.jar"))
 }

@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Users/con11/Documents/GitHub/BigBang_Nova/app/.cxx/Debug/5q57234k/x86_64",
+  "command": "/Users/con11/Library/Android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=x86_64-none-linux-android29 --sysroot=/Users/con11/Library/Android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dtextboom_jieba_EXPORTS -I/Users/con11/Documents/GitHub/BigBang_Nova/app/src/main/cpp/include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -fno-limit-debug-info  -fPIC -o CMakeFiles/textboom_jieba.dir/jieba_jni.cpp.o -c /Users/con11/Documents/GitHub/BigBang_Nova/app/src/main/cpp/jieba_jni.cpp",
+  "file": "/Users/con11/Documents/GitHub/BigBang_Nova/app/src/main/cpp/jieba_jni.cpp"
+}
+]

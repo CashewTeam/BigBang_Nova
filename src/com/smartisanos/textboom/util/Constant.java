@@ -13,6 +13,4 @@ public class Constant {
     public static final String PKG_CAMSCANNER = "com.intsig.camscanner";
     public static final String BIG_BANG_DEFAULT_DICT = "big_bang_default_dict";
     public static final String BIG_BANG_OCR = "big_bang_ocr";
-
-    public static final String SEGMENT_URL = "http://bigbang.sanjiaoshou.net/http";
 }
