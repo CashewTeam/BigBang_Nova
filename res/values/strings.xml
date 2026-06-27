@@ -9,8 +9,8 @@
     <string name="scanner_unavailable">Scanner not installed</string>
     <string name="text_boom">Big Bang</string>
     <string name="ocr_title">OCR</string>
-    <string name="text_boom_settings">Big Bang Settings</string>
-    <string name="default_search_way">Default Search</string>
+    <string name="text_boom_settings">大爆炸设置</string>
+    <string name="default_search_way">默认搜索</string>
     <string name="search_via_baidu">Baidu</string>
     <string name="search_via_google">Google</string>
     <string name="search_via_bing">Bing</string>
@@ -27,7 +27,7 @@
     <string name="dlg_title_notice">Notice</string>
     <string name="install_camscanner_message">CamScanner is not installed on this system. Tap "Install" to go to the App Market to install this app and start using OCR.</string>
     <string name="install_text">Install</string>
-    <string name="default_dict">Default Dictionary</string>
+    <string name="default_dict">默认词典</string>
     <string name="thumb_trigger_area">Trigger Area</string>
     <string name="thumb_trigger_area_smallest">Minimum</string>
     <string name="thumb_trigger_area_small">Small</string>
@@ -35,11 +35,14 @@
     <string name="thumb_trigger_area_large">Large</string>
     <string name="thumb_trigger_area_largest">Maximum</string>
     <string name="network_disconnected">No Internet Connection</string>
-    <string name="debug_preset_text_label">Preview Text</string>
-    <string name="debug_warm_up_status_idle">Jieba engine warm-up queued</string>
-    <string name="debug_warm_up_status_running">Jieba engine warming up...</string>
-    <string name="debug_warm_up_status_ready">Jieba engine ready</string>
-    <string name="debug_warm_up_status_failed">Jieba engine warm-up failed</string>
-    <string name="debug_preview_text_hint">Edit the text to preview the BigBang page</string>
-    <string name="debug_preview_button">Open BigBang Preview</string>
+    <string name="debug_preset_text_label">调试预览</string>
+    <string name="settings_debug_summary">用于预览分词结果、检查词块布局，并确认本地 jieba 分词链路已经就绪。</string>
+    <string name="settings_search_summary">设置大爆炸操作栏默认使用的网页搜索服务。</string>
+    <string name="settings_dict_summary">设置大爆炸查词操作默认使用的词典服务。</string>
+    <string name="debug_warm_up_status_idle">Jieba 引擎预热排队中</string>
+    <string name="debug_warm_up_status_running">Jieba 引擎预热中</string>
+    <string name="debug_warm_up_status_ready">Jieba 引擎已就绪</string>
+    <string name="debug_warm_up_status_failed">Jieba 引擎预热失败</string>
+    <string name="debug_preview_text_hint">输入或修改文本，预览大爆炸页面的分词与排版效果</string>
+    <string name="debug_preview_button">打开大爆炸预览</string>
 </resources>

@@ -42,7 +42,7 @@
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:exported="true"
-            android:theme="@style/SettingTheme">
+            android:theme="@style/ComposeSettingsTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.DEFAULT" />
