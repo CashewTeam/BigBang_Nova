@@ -1,133 +1,175 @@
-# Nova Text
+# BigBang Nova
 
-**Nova Text** 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移项目。
+**BigBang Nova** 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移项目。
 
-目标是将屏幕上的任意文本「炸开」为独立的词芯片（word chips），支持滑动多选后进行搜索、查词典、复制、分享等操作，并逐步替换 Smartisan OS 私有依赖，迁移到标准 Android 能力。
+当前目标不是重新发明一套新产品，而是在保留原版交互气质的前提下，把旧 Smartisan 代码逐步改造成一套可在通用 Android 设备上运行、可继续维护、可继续补功能的本地化实现。
 
 ## 当前状态
 
-当前仓库**不是** README 下方“目标架构”所描述的完成态，现状如下：
+截至当前仓库状态，项目已经不再是“只能编译骨架”的阶段，已经具备可调试、可预览、可本地分词、可通过悬浮球触发的主链路基础。
 
-- 代码主体仍是老式 Android Views + Java 工程
-- 已补入 Gradle 构建脚手架，并已在本机通过 `./gradlew assembleDebug`
-- 设置页已加入预制文本调试和 BigBang 页面预览入口
-- 分词主路径仍依赖远程 HTTP 接口，离线本地分词留在后续阶段
-- OCR 入口已在 P0 暂时降级为不可用提示，旧 CamScanner 代码仍保留在源码骨架中
-- Smartisan 私有类、私有设置项、私有动画资源仍大量存在
+**已完成的核心能力**
 
-因此，本仓库目前更适合被理解为：
+- Gradle 工程已接通，保留 legacy `src/` / `res/` 目录，通过 `sourceSets` 兼容构建
+- 本地 `cppjieba` 分词已接入，`BoomActivity` 不再依赖远程分词 HTTP 接口
+- App 启动后会异步预热 jieba，引擎状态会在设置页显示
+- 设置页已重构为 Jetpack Compose，并支持深色模式
+- 设置页已具备开发调试入口
+  - 预制文本切换
+  - 自定义调试文本输入
+  - BigBang 预览入口
+  - 搜索方式 / 词典方式配置
+- 大爆炸主界面外层已接入 Compose 浮层壳，支持深浅色和多窗口全屏适配
+- 搜索页已改为 Compose + 原生 WebView 浮层页，直接叠加在大爆炸界面之上
+- 悬浮球服务、无障碍服务、基础文本捕获分发链路已接入
+- BigBang 拉起链路已改为 `OverlayActivity -> BoomActivity`，避免从三方 App 返回到设置页
 
-- 一个可用于迁移的 Smartisan 旧实现基线
-- 一个正在进行中的 Android 标准化改造项目
+**当前仍未完成或仍属过渡态的部分**
 
-## 特性
+- OCR 仍未迁移完成，旧 `BoomOcrActivity` 中的 CamScanner 路径目前处于禁用状态
+- 大爆炸原版 feature 还未补齐，尤其是“炸了又炸”、编辑模式等
+- 无障碍文本提取链路已接通，但三方 App 兼容性和命中率还需要继续打磨
+- 搜索页和设置页已现代化，但内部大爆炸词块布局仍主要沿用 legacy Java/View 实现
+- 代码库仍处于 Java legacy + Kotlin/Compose 并存阶段，不是最终架构
 
-- **文本炸词**：将选中文本分词为独立词块，配合爆炸动画展示
-- **滑动多选**：手指滑动即可精确多选词块，支持行内/跨行选取
-- **本地分词**：计划替换为 [cppjieba](https://github.com/yanyiwu/cppjieba) 离线中文分词引擎
-- **本地 OCR**：计划替换为开源 OCR 引擎（待实现）
-- **悬浮球触发**：计划复用 NovaText 的悬浮球能力
-- **无障碍模式**：计划通过 AccessibilityService 直接从界面提取文本
-- **多引擎搜索与词典**：支持多种搜索引擎和在线词典
-- **现代 UI**：后续逐步迁移到 Kotlin + Compose
+## 当前可用功能
 
-## 与原始版本的区别
+- 设置页权限检查与悬浮球控制
+- 设置页预制文本调试
+- 设置页 BigBang 页面预览
+- 本地 jieba 分词与预热状态显示
+- 大爆炸选词、滑动多选、搜索 / 词典 / 分享 / 复制等基础操作
+- 搜索 / 词典 / 百科浮层页
+- 悬浮球触发文本捕获主链路
 
-| 特性 | 原始 BigBang (Smartisan OS) | BigBang Nova |
-|------|---------------------------|--------------|
-| 目标平台 | Smartisan OS 定制 ROM | Android 10+ 通用设备 |
-| 构建系统 | Android.mk (AOSP) | 迁移中，目标为 Gradle (AGP) |
-| 分词引擎 | 远程 HTTP API | 迁移中，目标为本地 cppjieba (C++ JNI) |
-| OCR 引擎 | CamScanner SDK (商业) | 迁移中，目标为本地开源 OCR 引擎 |
-| UI 框架 | Android Views (Java) | 迁移中，目标为 Jetpack Compose (Kotlin) |
-| 悬浮球 | 系统级 Sidebar 集成 | 迁移中，目标为独立悬浮窗 Service |
-| 文本提取 | 仅限 Smartisan 文本框 | 迁移中，目标为无障碍服务通用提取 |
-| 隐私 | 文本上传至服务器 | 目标为全离线，数据不出设备 |
+## 使用说明
 
-## 目标架构
+### 1. 直接体验当前界面
 
+安装调试包后，启动 `TextBoomSettingsActivity`。
+
+在设置页中可以：
+
+- 打开悬浮窗权限
+- 打开无障碍服务设置
+- 启动 / 停止悬浮球
+- 选择预制调试文本
+- 手动输入调试文本
+- 点击“预览大爆炸”直接进入 BigBang 页面
+
+这条预览链路不依赖悬浮球，适合单独检查：
+
+- 分词是否正常
+- 词块布局是否正常
+- 选中态和按钮显示是否正常
+- 搜索浮层是否能正常打开
+
+### 2. 悬浮球链路
+
+完成以下步骤后可体验悬浮球主链路：
+
+1. 在设置页授予悬浮窗权限
+2. 在系统设置中启用无障碍服务 `NovaTextAccessibilityService`
+3. 回到设置页启动悬浮球
+4. 将悬浮球拖到目标文本区域附近释放
+
+当前流程会优先尝试走无障碍文本捕获；捕获成功后会直接拉起 BigBang。
+
+### 3. 搜索页
+
+在 BigBang 中选中文本后，可进入搜索浮层页。
+
+当前搜索页支持：
+
+- Web 搜索
+- 在线词典
+- 百科查询
+- 浮层内返回 / 前进
+- 切换默认搜索源
+- 在外部浏览器中打开当前页面
+
+## 开发环境
+
+- Android Studio / IntelliJ with Android plugin
+- Android SDK 34
+- minSdk 29
+- NDK + CMake（用于 `cppjieba` JNI）
+
+## 构建
+
+```bash
+bash ./gradlew assembleDebug
 ```
-┌──────────────────────────────────────────────────────┐
-│                  UI Layer (Compose)                    │
-│  BigBangScreen / SettingsScreen / SearchSheet          │
-├──────────────────────────────────────────────────────┤
-│              ViewModel Layer (Kotlin)                  │
-│  BigBangViewModel / SettingsViewModel                  │
-├──────────────────────────────────────────────────────┤
-│               Domain Layer (Kotlin)                    │
-│  TextTokenizer / TextCaptureEngine / ActionHandler     │
-├──────────────────────┬───────────────────────────────┤
-│  Native Layer (JNI)  │   System Services              │
-│  cppjieba (C++)      │   FloatingBallService          │
-│  OCR Engine (C++)    │   AccessibilityService         │
-│                      │   MediaProjection              │
-└──────────────────────┴───────────────────────────────┘
-```
 
-上图描述的是**目标架构**，不是当前仓库的实际目录和实现状态。
+当前工程仍保留 legacy 根目录源码布局：
 
-## 当前仓库结构
+- `src/com/smartisanos/textboom/`：旧 Java 主逻辑
+- `app/src/main/kotlin/com/smartisanos/textboom/`：新增 Kotlin / Compose / Service / overlay 逻辑
+- `res/`：legacy 资源
+- `app/src/main/cpp/`：本地 `cppjieba` JNI
+
+## 当前代码结构
 
 ```text
 BigBang_Nova/
-├── app/                               # Gradle 应用模块
-├── src/com/smartisanos/textboom/      # 旧版核心业务逻辑（Java）
-├── src/se/emilsjolander/              # 内嵌 StickyListHeaders 库
-├── src/smartisanos/                   # 兼容性 stub（过渡期）
-├── res/                               # 旧版布局、资源、多语言
-├── libs/                              # 旧版 jar 依赖（okhttp/okio/csopensdk 等）
+├── app/
+│   └── src/main/
+│       ├── cpp/                           # cppjieba JNI / CMake
+│       └── kotlin/com/smartisanos/textboom/
+│           ├── BoomActivity.kt            # Compose 外层壳 + legacy BigBang 内核接入
+│           ├── BoomSearchOverlayActivity.kt
+│           ├── TextBoomSettingsActivity.kt
+│           ├── OverlayActivity.kt
+│           ├── OverlayPanelUi.kt
+│           ├── service/                   # 悬浮球 / 无障碍 / 捕获分发
+│           ├── domain/capture/            # 捕获会话数据结构
+│           └── data/                      # 新增偏好与存储
+├── src/com/smartisanos/textboom/          # legacy Java BigBang 主逻辑
+├── src/smartisanos/                       # 过渡期兼容 stub
+├── res/                                   # legacy 资源
+├── libs/                                  # 旧 jar 依赖（含 csopensdk）
 ├── AndroidManifest.xml
 ├── Android.mk
-├── build.gradle.kts
-├── settings.gradle.kts
-├── gradle.properties
-└── DEVELOPMENT_PLAN.md                # 当前迁移计划
+├── README.md
+└── DEVELOPMENT_PLAN.md
 ```
 
-## 目标技术栈
+## 当前迁移策略
 
-| 层 | 目标技术 |
-|----|---------|
-| 语言 | Kotlin + C++17 |
-| UI | Jetpack Compose + Material 3 |
-| 架构 | 分层架构 / ViewModel |
-| 构建 | Gradle + AGP |
-| 分词 | cppjieba (via JNI/CMake) |
-| OCR | PaddleOCR Lite / Tesseract（待定） |
-| 网络 | 仅保留搜索/词典访问所需能力 |
-| 测试 | 单元测试 + UI 测试 + 集成验证 |
+这个项目当前采用的是**外层现代化、内核逐步替换**的路线：
 
-## 快速开始
+- 外层页面、权限入口、设置、浮层 UI 优先迁到 Kotlin + Compose
+- 词块布局、选中逻辑、部分动画仍暂时复用 legacy Java
+- 在每一轮功能迁移中，优先保证主链路可运行，再补齐原版 feature
 
-### 当前可用入口
+这样做的目的很直接：
 
-- 阅读迁移计划：[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)
-- 查看现有工程入口：`Android.mk`、`AndroidManifest.xml`
-- 查看核心逻辑：`src/com/smartisanos/textboom/`
+- 避免一次性重写所有 BigBang 交互导致回归不可控
+- 让设置页、搜索页、悬浮球链路先具备可调试性
+- 把精力先放在 OCR、本地化和 feature 补齐上
 
-### 说明
+## 下一阶段重点
 
-当前仓库已补入 Gradle 构建脚手架，但还没有完成这台机器上的同步/构建验证，因此 README 先不写成“已验证可执行”的状态。
+下一阶段开发重点已经收敛为三条：
 
-## 权限说明
+1. 接入 Android 原生 ML Kit OCR 识别
+2. 继续补齐原版大爆炸功能 feature，例如“炸了又炸”和编辑模式
+3. 做三方应用适配与性能调优
 
-| 权限 | 用途 |
-|------|------|
-| `SYSTEM_ALERT_WINDOW` | 目标态：悬浮球显示 |
-| `BIND_ACCESSIBILITY_SERVICE` | 目标态：从界面提取文本 |
-| `FOREGROUND_SERVICE` | 目标态：悬浮球后台运行 |
-| `INTERNET` | 搜索 / 词典查询 |
-| `READ/WRITE_EXTERNAL_STORAGE` | 旧版 OCR / 文件读写路径 |
+详细计划见：[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)
 
-## 开发计划
+## 已知限制
 
-详见 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)
+- OCR 入口目前不可用，旧 CamScanner 代码仅作为迁移残留保留
+- 搜索页中个别站点在浮层 WebView 中仍存在兼容性问题
+- 大爆炸内部仍有部分 legacy View 交互与视觉细节待继续对齐原版
+- 多厂商 ROM 下的无障碍文本提取稳定性还没有完整收敛
 
 ## 致谢
 
-- [cppjieba](https://github.com/yanyiwu/cppjieba) - 结巴中文分词 C++ 版本
-- [Smartisan OS](https://www.smartisan.com) - 原始 BigBang 功能创意来源
-- [NovaText](https://github.com/con11/NovaText) - Flutter 先行版本（悬浮球/无障碍组件复用）
+- [cppjieba](https://github.com/yanyiwu/cppjieba)
+- Smartisan OS BigBang 原始交互设计
+- NovaText 中已验证的悬浮球 / 无障碍链路实现
 
 ## License
 

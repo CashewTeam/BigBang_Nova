@@ -599,26 +599,20 @@ private fun SettingsTopBar(modifier: Modifier = Modifier) {
 private fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalSettingsPalette.current
     val shape = RoundedCornerShape(18.dp)
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp, vertical = 14.dp),
+        shape = shape,
+        color = palette.card,
+        border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
+        tonalElevation = 0.dp,
+        shadowElevation = 8.dp,
     ) {
-        BlurredShadow(shape = shape, modifier = Modifier.matchParentSize())
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(),
-            shape = shape,
-            color = palette.card,
-            border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-                content = content,
-            )
-        }
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+            content = content,
+        )
     }
 }
 
@@ -715,33 +709,10 @@ private fun DebugSection(
             ),
         )
 
-        val buttonShape = RoundedCornerShape(18.dp)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-        ) {
-            BlurredShadow(shape = buttonShape, modifier = Modifier.matchParentSize())
-            Button(
-                onClick = onPreviewClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = buttonShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = palette.accent,
-                    contentColor = Color.White,
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.debug_preview_button),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.2.sp,
-                )
-            }
-        }
+        ShadowedPrimaryButton(
+            text = stringResource(R.string.debug_preview_button),
+            onClick = onPreviewClick,
+        )
     }
 }
 
@@ -910,31 +881,27 @@ private fun ShadowedPrimaryButton(
 ) {
     val palette = LocalSettingsPalette.current
     val buttonShape = RoundedCornerShape(18.dp)
-    Box(
+    Button(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 24.dp),
+            .height(54.dp),
+        shape = buttonShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = palette.accent,
+            contentColor = Color.White,
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 6.dp,
+            pressedElevation = 8.dp,
+        ),
     ) {
-        BlurredShadow(shape = buttonShape, modifier = Modifier.matchParentSize())
-        Button(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
-            shape = buttonShape,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = palette.accent,
-                contentColor = Color.White,
-            ),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-        ) {
-            Text(
-                text = text,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.2.sp,
-            )
-        }
+        Text(
+            text = text,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.2.sp,
+        )
     }
 }
 
