@@ -68,6 +68,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.toArgb
@@ -479,6 +480,7 @@ private fun SearchBottomBar(
             tint = palette.iconTint,
             enabled = true,
             onClick = onClose,
+            buttonSize = 48.dp,
             contentDescription = stringResource(R.string.search_overlay_close),
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -526,6 +528,7 @@ private fun SearchBottomBar(
             tint = null,
             enabled = true,
             onClick = onBrowser,
+            buttonSize = 48.dp,
             contentDescription = stringResource(R.string.search_overlay_browser),
         )
     }
@@ -537,12 +540,13 @@ private fun ToolbarIconButton(
     tint: Color?,
     enabled: Boolean,
     onClick: () -> Unit,
+    buttonSize: androidx.compose.ui.unit.Dp = 36.dp,
     contentDescription: String,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(buttonSize)
             .clip(CircleShape)
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -578,12 +582,13 @@ private fun ToolbarIconButton(
     tint: Color,
     enabled: Boolean,
     onClick: () -> Unit,
+    buttonSize: androidx.compose.ui.unit.Dp = 36.dp,
     contentDescription: String,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(buttonSize)
             .clip(CircleShape)
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -616,16 +621,23 @@ private fun SearchProviderButton(
     Box {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(48.dp)
+                .shadow(
+                    elevation = 5.dp,
+                    shape = CircleShape,
+                    clip = false,
+                )
+                .background(
+                    color = if (selected) Color(0xFFE5E5E8) else Color.Transparent,
+                    shape = CircleShape,
+                )
                 .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                ),
         ) {
             AndroidView(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(2.dp),
+                modifier = Modifier.fillMaxSize(),
                 factory = { context ->
                     ImageView(context).apply {
                         scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -634,7 +646,7 @@ private fun SearchProviderButton(
                 update = { view ->
                     view.setImageResource(provider.iconRes)
                     view.contentDescription = contentDescription
-                    view.alpha = if (selected) 1f else 0.72f
+                    view.alpha = if (selected) 1f else 0.82f
                 },
             )
         }
