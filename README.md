@@ -139,7 +139,7 @@ BigBang_Nova/
 这个项目当前采用的是**外层现代化、内核逐步替换**的路线：
 
 - 外层页面、权限入口、设置、浮层 UI 优先迁到 Kotlin + Compose
-- 词块布局、选中逻辑、部分动画仍暂时复用 legacy Java
+- 词块布局、选中逻辑、部分动画复用 legacy Java 保留大爆炸原汁原味的交互体验
 - 在每一轮功能迁移中，优先保证主链路可运行，再补齐原版 feature
 
 这样做的目的很直接：
@@ -167,9 +167,8 @@ BigBang_Nova/
 
 ## 致谢
 
-- [cppjieba](https://github.com/yanyiwu/cppjieba)
-- Smartisan OS BigBang 原始交互设计
-- NovaText 中已验证的悬浮球 / 无障碍链路实现
+- [cppjieba](https://github.com/yanyiwu/cppjieba) 本地分词算法
+- [BigBang](https://github.com/SmartisanTech/packages_apps_BigBang) Smartisan OS 大爆炸原始开源代码
 
 ## License
 
