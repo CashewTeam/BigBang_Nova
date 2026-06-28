@@ -14,6 +14,7 @@ public final class BigBangSettings {
     public static final String KEY_TRIGGER_AREA = "trigger_area";
     public static final String KEY_DEBUG_PRESET_TEXT = "debug_preset_text";
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
+    public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
     public static final String KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = "floating_ball_active_alpha_percent";
     public static final String KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT = "floating_ball_idle_alpha_percent";
@@ -35,12 +36,18 @@ public final class BigBangSettings {
     public static final int TRIGGER_AREA_LARGE = 3;
     public static final int TRIGGER_AREA_LARGEST = 4;
 
+    public static final String OCR_MODE_CHINESE = "chinese";
+    public static final String OCR_MODE_JAPANESE = "japanese";
+    public static final String OCR_MODE_KOREAN = "korean";
+    public static final String OCR_MODE_LATIN = "latin";
+
     private static final String DEFAULT_PRESET_TEXT =
             "BigBang Nova lets you preview word chips before wiring the full capture flow.";
 
     private static final int DEFAULT_WEB_SEARCH_TYPE = TYPE_SHENMA;
     private static final int DEFAULT_DICT_SEARCH_TYPE = TYPE_BINGDICT;
     private static final int DEFAULT_WIKI_SEARCH_TYPE = TYPE_WIKI;
+    private static final String DEFAULT_OCR_RECOGNIZER_MODE = OCR_MODE_CHINESE;
     private static final int DEFAULT_FLOATING_BALL_SIZE_PERCENT = 75;
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
@@ -120,6 +127,18 @@ public final class BigBangSettings {
         preferences.edit().putString(KEY_DEBUG_PREVIEW_TEXT, text).apply();
     }
 
+    public String getOcrRecognizerMode() {
+        return normalizeOcrRecognizerMode(
+                preferences.getString(KEY_OCR_RECOGNIZER_MODE, DEFAULT_OCR_RECOGNIZER_MODE)
+        );
+    }
+
+    public void setOcrRecognizerMode(String value) {
+        preferences.edit()
+                .putString(KEY_OCR_RECOGNIZER_MODE, normalizeOcrRecognizerMode(value))
+                .apply();
+    }
+
     public int getFloatingBallSizePercent() {
         return clampPercent(preferences.getInt(
                 KEY_FLOATING_BALL_SIZE_PERCENT,
@@ -155,5 +174,18 @@ public final class BigBangSettings {
 
     private static int clampPercent(int value) {
         return Math.max(0, Math.min(100, value));
+    }
+
+    private static String normalizeOcrRecognizerMode(String value) {
+        if (OCR_MODE_JAPANESE.equals(value)) {
+            return OCR_MODE_JAPANESE;
+        }
+        if (OCR_MODE_KOREAN.equals(value)) {
+            return OCR_MODE_KOREAN;
+        }
+        if (OCR_MODE_LATIN.equals(value)) {
+            return OCR_MODE_LATIN;
+        }
+        return OCR_MODE_CHINESE;
     }
 }

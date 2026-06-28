@@ -42,12 +42,8 @@
         <activity
             android:name=".BoomOcrActivity"
             android:theme="@style/BaseStyleTrans"
-            android:exported="true"
-            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode" />
 
         <activity
             android:name=".TextBoomSettingsActivity"

@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.annotation.ArrayRes
 import androidx.annotation.DrawableRes
@@ -104,6 +105,10 @@ import kotlin.math.roundToInt
 
 class TextBoomSettingsActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
+    private val pickOcrImageLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri?.let(::openOcrDebug)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -140,6 +145,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallSizeChange = { updateFloatingBallSizePercent(it) },
                     onFloatingBallActiveAlphaChange = { updateFloatingBallActiveAlphaPercent(it) },
                     onFloatingBallIdleAlphaChange = { updateFloatingBallIdleAlphaPercent(it) },
+                    onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
         }
@@ -176,6 +182,24 @@ class TextBoomSettingsActivity : ComponentActivity() {
             touchX = width / 2,
             touchY = height / 2,
             isPreview = true,
+        )
+    }
+
+    private fun openOcrDebugPicker() {
+        pickOcrImageLauncher.launch("image/*")
+    }
+
+    private fun openOcrDebug(uri: Uri) {
+        val width = resources.displayMetrics.widthPixels
+        val height = resources.displayMetrics.heightPixels
+        startActivity(
+            Intent(this, BoomOcrActivity::class.java).apply {
+                putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, uri.toString())
+                putExtra("boom_startx", width / 2)
+                putExtra("boom_starty", height / 2)
+                putExtra("boom_fullscreen", true)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
         )
     }
 
@@ -230,6 +254,11 @@ private data class PermissionState(
     val overlayGranted: Boolean,
     val accessibilityEnabled: Boolean,
     val floatingBallRunning: Boolean,
+)
+
+private data class OcrModeItem(
+    val title: String,
+    val value: String,
 )
 
 private data class SettingsPalette(
@@ -413,6 +442,7 @@ private fun SettingsScreen(
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
+    onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     ApplySystemBars()
@@ -432,6 +462,7 @@ private fun SettingsScreen(
     }
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
+    var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
     val warmUpState by JiebaWarmUpTracker.getStateFlow().collectAsState(
         initial = JiebaWarmUpTracker.getCurrentState(),
     )
@@ -460,6 +491,14 @@ private fun SettingsScreen(
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val listTopPadding = with(density) { topBarHeightPx.toDp() } + 10.dp
+    val ocrModes = remember {
+        listOf(
+            OcrModeItem(title = context.getString(R.string.ocr_mode_chinese), value = BigBangSettings.OCR_MODE_CHINESE),
+            OcrModeItem(title = context.getString(R.string.ocr_mode_japanese), value = BigBangSettings.OCR_MODE_JAPANESE),
+            OcrModeItem(title = context.getString(R.string.ocr_mode_korean), value = BigBangSettings.OCR_MODE_KOREAN),
+            OcrModeItem(title = context.getString(R.string.ocr_mode_latin), value = BigBangSettings.OCR_MODE_LATIN),
+        )
+    }
 
     DisposableEffect(floatingBallRunning) {
         permissionState = currentPermissionState()
@@ -528,6 +567,20 @@ private fun SettingsScreen(
 
             item {
                 SettingsSectionCard {
+                    OcrSection(
+                        selectedMode = selectedOcrMode,
+                        modes = ocrModes,
+                        onModeSelected = {
+                            selectedOcrMode = it
+                            settings.setOcrRecognizerMode(it)
+                        },
+                        onPickImage = onOpenOcrDebugPicker,
+                    )
+                }
+            }
+
+            item {
+                SettingsSectionCard {
                     DebugSection(
                         previewText = previewText,
                         selectedPresetIndex = selectedPresetIndex,
@@ -587,6 +640,66 @@ private fun SettingsScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OcrSection(
+    selectedMode: String,
+    modes: List<OcrModeItem>,
+    onModeSelected: (String) -> Unit,
+    onPickImage: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.ocr_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.ocr_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            modes.forEachIndexed { index, item ->
+                SegmentedButton(
+                    selected = item.value == selectedMode,
+                    onClick = { onModeSelected(item.value) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = modes.size,
+                    ),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = palette.accentSoft,
+                        activeContentColor = palette.textPrimary,
+                        activeBorderColor = palette.accent.copy(alpha = 0.45f),
+                        inactiveContainerColor = palette.cardInset,
+                        inactiveContentColor = palette.textSecondary,
+                        inactiveBorderColor = palette.cardBorder,
+                    ),
+                    modifier = Modifier.height(42.dp),
+                ) {
+                    Text(
+                        text = item.title,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        SecondaryActionButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = stringResource(R.string.ocr_debug_pick_image_button),
+            onClick = onPickImage,
         )
     }
 }

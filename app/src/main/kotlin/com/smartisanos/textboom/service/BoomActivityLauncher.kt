@@ -6,6 +6,7 @@ import com.cashewteam.novatext.android.BoomActivity
 import com.cashewteam.novatext.android.OverlayActivity
 
 object BoomActivityLauncher {
+    @JvmStatic
     fun openText(
         context: Context,
         text: String,

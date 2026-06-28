@@ -7,7 +7,8 @@
     <string name="a_msg_no_words">未识别出文字</string>
     <string name="ocr_recognize">正在识别图片中的文字\n点击屏幕任意处取消</string>
     <string name="ocr_cancel">点击屏幕任意处取消</string>
-    <string name="scanner_unavailable">未安装扫描全能王</string>
+    <string name="scanner_unavailable">OCR 当前不可用</string>
+    <string name="ocr_image_unavailable">无法读取所选图片</string>
     <string name="ocr_title">图像文字识别</string>
     <string name="text_boom">大爆炸</string>
     <string name="text_boom_settings">大爆炸设置</string>
@@ -23,11 +24,8 @@
     <string name="search_via_hidict">海词词典</string>
     <string name="search_via_baidupedia">百度百科</string>
     <string name="thumb_trigger_area_tips">触发面积越小，越容易触发此功能。你可以通过调整触发面积来避免误触</string>
-    <string name="ocr_tips">/camscanner/扫描全能王提供 OCR 技术支持（功能不可用，需要申请key）</string>
     <string name="big_bang_tips">/tricorn/三角兽提供智能分词技术支持</string>
     <string name="dlg_title_notice">提示</string>
-    <string name="install_camscanner_message">当前系统中未安装“扫描全能王”应用。点击“安装”前往应用商店下载并安装后即可启用图像文字识别功能</string>
-    <string name="install_text">"安装"</string>
     <string name="default_dict">默认词典</string>
     <string name="thumb_trigger_area">触发面积</string>
     <string name="thumb_trigger_area_smallest">最小</string>
@@ -36,4 +34,11 @@
     <string name="thumb_trigger_area_large">大</string>
     <string name="thumb_trigger_area_largest">最大</string>
     <string name="network_disconnected">无网络连接</string>
+    <string name="ocr_section_title">OCR 识别</string>
+    <string name="ocr_section_summary">使用离线 ML Kit V2 识别图片文字，并直接进入大爆炸。当前提供中文、日语、韩语和英语四种识别模式。</string>
+    <string name="ocr_mode_chinese">中文</string>
+    <string name="ocr_mode_japanese">日语</string>
+    <string name="ocr_mode_korean">韩语</string>
+    <string name="ocr_mode_latin">英语</string>
+    <string name="ocr_debug_pick_image_button">选择图片进行 OCR 调试</string>
 </resources>
