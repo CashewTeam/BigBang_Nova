@@ -12,8 +12,8 @@ android {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 29
         targetSdk = 34
-        versionCode = 53
-        versionName = "1.0.0"
+        versionCode = 54
+        versionName = "1.0.1"
     }
 
     sourceSets.getByName("main") {
