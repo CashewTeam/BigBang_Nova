@@ -418,6 +418,24 @@ class FloatingBallService : Service() {
             activeService?.refreshBubbleAppearance()
         }
 
+        fun hideForScreenshot() {
+            activeService?.bubbleHandler?.post {
+                val service = activeService ?: return@post
+                service.bubbleHandler.removeCallbacks(service.fadeBubbleRunnable)
+                service.bubbleView?.animate()?.cancel()
+                service.bubbleView?.visibility = View.INVISIBLE
+                service.bubbleView?.alpha = 0f
+            }
+        }
+
+        fun restoreAfterScreenshot() {
+            activeService?.bubbleHandler?.post {
+                val service = activeService ?: return@post
+                service.bubbleView?.visibility = View.VISIBLE
+                service.bubbleView?.alpha = service.idleAlpha()
+            }
+        }
+
         private fun prepare(context: Context) {
             if (prepared) return
             synchronized(this) {

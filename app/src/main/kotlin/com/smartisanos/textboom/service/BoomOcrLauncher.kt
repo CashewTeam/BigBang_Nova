@@ -33,6 +33,7 @@ object BoomOcrLauncher {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (context !is Activity) {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             }
         }
         context.startActivity(intent)

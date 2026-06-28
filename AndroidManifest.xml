@@ -53,6 +53,8 @@
             android:theme="@style/OverlayActivityTheme"
             android:exported="true"
             android:label="@string/ocr_title"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cashewteam.novatext.android.overlay"
             android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

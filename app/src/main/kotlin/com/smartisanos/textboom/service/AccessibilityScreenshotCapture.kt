@@ -30,6 +30,7 @@ object AccessibilityScreenshotCapture {
             Toast.makeText(service, R.string.ocr_capture_in_progress, Toast.LENGTH_SHORT).show()
             return true
         }
+        FloatingBallService.hideForScreenshot()
         try {
             service.takeScreenshot(
                 Display.DEFAULT_DISPLAY,
@@ -38,6 +39,7 @@ object AccessibilityScreenshotCapture {
                     override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
                         val uri = saveScreenshot(service, screenshot.hardwareBuffer, screenshot.colorSpace)
                         captureInFlight.set(false)
+                        FloatingBallService.restoreAfterScreenshot()
                         if (uri == null) {
                             Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                             return
@@ -54,12 +56,14 @@ object AccessibilityScreenshotCapture {
 
                     override fun onFailure(errorCode: Int) {
                         captureInFlight.set(false)
+                        FloatingBallService.restoreAfterScreenshot()
                         Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                     }
                 },
             )
         } catch (_: SecurityException) {
             captureInFlight.set(false)
+            FloatingBallService.restoreAfterScreenshot()
             Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
             return false
         }

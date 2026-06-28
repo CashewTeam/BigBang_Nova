@@ -302,8 +302,9 @@ class BoomOcrActivity : ComponentActivity() {
         if (sourceWidth <= left + right || sourceHeight <= top + bottom) {
             return screenshot
         }
-        val aw = (sourceWidth - left - right) / SCALE_SCREENSHOT
-        val ah = (sourceHeight - top - bottom) / SCALE_SCREENSHOT
+        val scale = screenshotScale()
+        val aw = (sourceWidth - left - right) / scale
+        val ah = (sourceHeight - top - bottom) / scale
         if (aw <= 0 || ah <= 0) {
             return screenshot
         }
@@ -321,6 +322,16 @@ class BoomOcrActivity : ComponentActivity() {
         )
         screenshot.recycle()
         return bitmap
+    }
+
+    private fun screenshotScale(): Int {
+        if (offset[0] != 0 || offset[1] != 0) {
+            return SCALE_SCREENSHOT
+        }
+        if (PKG_GALLERY == callerPackage && !fullscreen) {
+            return SCALE_SCREENSHOT
+        }
+        return 1
     }
 
     private fun recycleBitmap(bitmap: Bitmap?, allowPrepared: Boolean) {
