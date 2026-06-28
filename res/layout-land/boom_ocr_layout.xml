@@ -1,50 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/ocr_page"
     android:layout_width="@dimen/screen_h"
     android:layout_height="@dimen/screen_w">
 
-    <FrameLayout
-        android:id="@+id/click_layout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:clickable="true"
-        android:focusable="true">
-
-        <LinearLayout
-            android:layout_width="220dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:background="@drawable/ocr_loading_dialog_bg"
-            android:gravity="center_horizontal"
-            android:orientation="vertical"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="22dp">
-
-            <ProgressBar
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:indeterminate="true" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:gravity="center"
-                android:text="@string/ocr_recognize"
-                android:textColor="#FFFFFFFF"
-                android:textSize="16sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center"
-                android:text="@string/ocr_cancel"
-                android:textColor="#CCFFFFFF"
-                android:textSize="13sp" />
-        </LinearLayout>
-    </FrameLayout>
+    <include layout="@layout/boom_ocr_panel" />
 
 </FrameLayout>

@@ -7,6 +7,13 @@
     <string name="ocr_recognize">識別中</string>
     <string name="ocr_cancel">點擊螢幕任意處取消</string>
     <string name="ocr_title">图像文字识别</string>
+    <string name="ocr_select_region_hint">調整識別區域，然後開始識別</string>
+    <string name="ocr_select_region_title">框選需要識別的區域</string>
+    <string name="ocr_action_cancel">取消</string>
+    <string name="ocr_action_recognize">開始識別</string>
+    <string name="ocr_action_qr">二維碼</string>
+    <string name="ocr_action_language">識別語言</string>
+    <string name="ocr_qr_placeholder">二維碼識別功能建設中</string>
     <string name="text_boom">大爆炸</string>
     <string name="text_boom_settings">大爆炸設定</string>
     <string name="default_search_way">預設搜尋</string>

@@ -41,4 +41,11 @@
     <string name="ocr_mode_korean">韩语</string>
     <string name="ocr_mode_latin">英语</string>
     <string name="ocr_debug_pick_image_button">选择图片进行 OCR 调试</string>
+    <string name="ocr_select_region_hint">调整识别区域，然后开始识别</string>
+    <string name="ocr_select_region_title">框选需要识别的区域</string>
+    <string name="ocr_action_cancel">取消</string>
+    <string name="ocr_action_recognize">开始识别</string>
+    <string name="ocr_action_qr">二维码</string>
+    <string name="ocr_action_language">识别语言</string>
+    <string name="ocr_qr_placeholder">二维码识别功能建设中</string>
 </resources>

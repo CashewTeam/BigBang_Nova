@@ -49,9 +49,16 @@
 
         <activity
             android:name=".BoomOcrActivity"
-            android:theme="@style/BaseStyleTrans"
-            android:exported="false"
-            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode" />
+            android:theme="@style/OverlayActivityTheme"
+            android:exported="true"
+            android:label="@string/ocr_title"
+            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".TextBoomSettingsActivity"
