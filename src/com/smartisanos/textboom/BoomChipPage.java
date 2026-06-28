@@ -144,6 +144,9 @@ public class BoomChipPage {
                 28,
                 mActivity.getResources().getDisplayMetrics()
         );
+        int selectBarHeadroom = Math.abs(
+                mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_move_up_offset)
+        );
         ViewGroup.MarginLayoutParams scrollerParams = (ViewGroup.MarginLayoutParams) mScroller.getLayoutParams();
         scrollerParams.topMargin = 0;
         scrollerParams.bottomMargin = 0;
@@ -160,6 +163,12 @@ public class BoomChipPage {
         tableParams.topMargin = 0;
         tableParams.bottomMargin = 0;
         mBoomTable.setLayoutParams(tableParams);
+        mBoomTable.setPadding(
+                mBoomTable.getPaddingLeft(),
+                selectBarHeadroom,
+                mBoomTable.getPaddingRight(),
+                mBoomTable.getPaddingBottom()
+        );
 
         mBoomConent.setPadding(
                 mBoomConent.getPaddingLeft(),
