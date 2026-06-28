@@ -1,4 +1,4 @@
-package com.smartisanos.textboom.data
+package com.cashewteam.novatext.android.data
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

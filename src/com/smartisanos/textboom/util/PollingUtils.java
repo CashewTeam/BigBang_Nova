@@ -1,4 +1,4 @@
-package com.smartisanos.textboom.util;
+package com.cashewteam.novatext.android.util;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;

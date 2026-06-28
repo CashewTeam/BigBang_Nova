@@ -1,4 +1,4 @@
-package com.smartisanos.textboom.domain.capture
+package com.cashewteam.novatext.android.domain.capture
 
 data class CaptureTextBlockContract(
     val text: String,

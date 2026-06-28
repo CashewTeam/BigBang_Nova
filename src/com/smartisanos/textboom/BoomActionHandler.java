@@ -1,4 +1,4 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -13,7 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
-import com.smartisanos.textboom.data.BigBangSettings;
+import com.cashewteam.novatext.android.data.BigBangSettings;
 
 import java.util.TreeSet;
 

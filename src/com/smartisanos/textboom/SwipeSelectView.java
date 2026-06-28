@@ -1,4 +1,4 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -10,8 +10,8 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.LinearLayout;
 
-import com.smartisanos.textboom.BoomChipPage;
-import com.smartisanos.textboom.BoomChipPage.BoomChip;
+import com.cashewteam.novatext.android.BoomChipPage;
+import com.cashewteam.novatext.android.BoomChipPage.BoomChip;
 
 import smartisanos.util.SidebarUtils;
 

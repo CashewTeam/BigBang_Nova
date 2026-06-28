@@ -1,4 +1,4 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.app.Activity;
 import android.util.Log;
@@ -8,11 +8,11 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.smartisanos.textboom.BoomActivity;
-import com.smartisanos.textboom.BoomWordsLayout;
-import com.smartisanos.textboom.BoomAnimator;
-import com.smartisanos.textboom.SwipeSelectView;
-import com.smartisanos.textboom.BoomActionHandler;
+import com.cashewteam.novatext.android.BoomActivity;
+import com.cashewteam.novatext.android.BoomWordsLayout;
+import com.cashewteam.novatext.android.BoomAnimator;
+import com.cashewteam.novatext.android.SwipeSelectView;
+import com.cashewteam.novatext.android.BoomActionHandler;
 
 import java.io.Serializable;
 import java.util.TreeSet;

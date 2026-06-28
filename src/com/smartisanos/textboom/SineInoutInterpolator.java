@@ -1,4 +1,4 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.view.animation.Interpolator;
 

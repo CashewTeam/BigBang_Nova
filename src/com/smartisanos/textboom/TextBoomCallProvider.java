@@ -1,4 +1,4 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
@@ -20,7 +20,7 @@ public class TextBoomCallProvider extends ContentProvider {
     private static final int ALL_ROWS = 1;
     private static final int SINGLE_ROW = 2;
 
-    public static final String AUTHORITY = "com.smartisanos.textboom.call_method";
+    public static final String AUTHORITY = "com.cashewteam.novatext.android.call_method";
     public static final String PROVIDER_TYPE_NAME = "textboom_call";
 
     static {

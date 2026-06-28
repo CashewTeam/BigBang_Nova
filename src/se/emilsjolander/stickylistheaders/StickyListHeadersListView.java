@@ -25,7 +25,7 @@ import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.SectionIndexer;
 
-import com.smartisanos.textboom.R;
+import com.cashewteam.novatext.android.R;
 
 import se.emilsjolander.stickylistheaders.WrapperViewList.LifeCycleListener;
 

@@ -1,5 +1,5 @@
 
-package com.smartisanos.textboom.util;
+package com.cashewteam.novatext.android.util;
 
 import java.io.File;
 import java.io.FileOutputStream;

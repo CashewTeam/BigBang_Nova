@@ -1,4 +1,4 @@
-package com.smartisanos.textboom
+package com.cashewteam.novatext.android
 
 import android.content.Intent
 import android.os.Bundle
@@ -29,8 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
-import com.smartisanos.textboom.data.CppJiebaTokenizer
-import com.smartisanos.textboom.util.LogUtils
+import com.cashewteam.novatext.android.data.CppJiebaTokenizer
+import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
     private var boomChipPage: BoomChipPage? = null

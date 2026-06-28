@@ -1,9 +1,9 @@
-package com.smartisanos.textboom.data;
+package com.cashewteam.novatext.android.data;
 
 import android.content.Context;
 
-import com.smartisanos.textboom.BuildConfig;
-import com.smartisanos.textboom.util.Utils;
+import com.cashewteam.novatext.android.BuildConfig;
+import com.cashewteam.novatext.android.util.Utils;
 
 import java.io.File;
 import java.util.ArrayList;

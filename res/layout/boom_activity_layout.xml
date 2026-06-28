@@ -7,7 +7,7 @@
     android:background="@drawable/boom_background_color"
     android:visibility="invisible">
 
-    <com.smartisanos.textboom.CustomScrollView
+    <com.cashewteam.novatext.android.CustomScrollView
         android:id="@+id/boom_scroller"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -31,7 +31,7 @@
                 android:background="@drawable/boom_multi_select_bg"
                 android:visibility="gone" />
 
-            <com.smartisanos.textboom.SwipeSelectView
+            <com.cashewteam.novatext.android.SwipeSelectView
                 android:id="@+id/boom_content"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -47,7 +47,7 @@
             <include android:id="@+id/multi_selected_bar"
                      layout="@layout/multi_select_bar"/>
         </FrameLayout>
-    </com.smartisanos.textboom.CustomScrollView>
+    </com.cashewteam.novatext.android.CustomScrollView>
 
     <RelativeLayout
         android:id="@+id/boom_mask"

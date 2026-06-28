@@ -1,8 +1,8 @@
-package com.smartisanos.textboom.service
+package com.cashewteam.novatext.android.service
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
-import com.smartisanos.textboom.util.NovaTextLogger
+import com.cashewteam.novatext.android.util.NovaTextLogger
 
 class NovaTextAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {

@@ -1,12 +1,12 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.app.Application;
 import android.os.Process;
 
-import com.smartisanos.textboom.data.CppJiebaTokenizer;
-import com.smartisanos.textboom.data.JiebaWarmUpTracker;
-import com.smartisanos.textboom.util.ConfigUtils;
-import com.smartisanos.textboom.util.LogUtils;
+import com.cashewteam.novatext.android.data.CppJiebaTokenizer;
+import com.cashewteam.novatext.android.data.JiebaWarmUpTracker;
+import com.cashewteam.novatext.android.util.ConfigUtils;
+import com.cashewteam.novatext.android.util.LogUtils;
 
 public class BoomApplication extends Application {
     private static final String TAG = "BoomApplication";

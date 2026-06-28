@@ -1,4 +1,4 @@
-package com.smartisanos.textboom
+package com.cashewteam.novatext.android
 
 import android.content.ComponentName
 import android.graphics.Bitmap
@@ -92,11 +92,11 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.smartisanos.textboom.data.BigBangSettings
-import com.smartisanos.textboom.data.JiebaWarmUpTracker
-import com.smartisanos.textboom.service.BoomActivityLauncher
-import com.smartisanos.textboom.service.FloatingBallService
-import com.smartisanos.textboom.service.NovaTextAccessibilityService
+import com.cashewteam.novatext.android.data.BigBangSettings
+import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
+import com.cashewteam.novatext.android.service.BoomActivityLauncher
+import com.cashewteam.novatext.android.service.FloatingBallService
+import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import kotlin.math.ceil
 
 class TextBoomSettingsActivity : ComponentActivity() {

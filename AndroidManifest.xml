@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name="com.smartisanos.textboom.BoomApplication"
+        android:name="com.cashewteam.novatext.android.BoomApplication"
         android:label="@string/app_label"
         android:icon="@drawable/icon_bigbang"
         android:allowBackup="true" >
@@ -36,7 +36,7 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:taskAffinity="com.smartisanos.textboom.overlay" />
+            android:taskAffinity="com.cashewteam.novatext.android.overlay" />
 
         <activity
             android:name=".BoomOcrActivity"
@@ -61,8 +61,8 @@
             </intent-filter>
         </activity>
         <provider
-            android:authorities="com.smartisanos.textboom.call_method"
-            android:name="com.smartisanos.textboom.TextBoomCallProvider"
+            android:authorities="com.cashewteam.novatext.android.call_method"
+            android:name="com.cashewteam.novatext.android.TextBoomCallProvider"
             android:multiprocess="true"
             android:exported="true"
             />

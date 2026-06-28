@@ -1,4 +1,4 @@
-package com.smartisanos.textboom.service
+package com.cashewteam.novatext.android.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -27,9 +27,9 @@ import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.smartisanos.textboom.R
-import com.smartisanos.textboom.data.BigBangPreferences
-import com.smartisanos.textboom.util.NovaTextLogger
+import com.cashewteam.novatext.android.R
+import com.cashewteam.novatext.android.data.BigBangPreferences
+import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
@@ -313,9 +313,9 @@ class FloatingBallService : Service() {
         private const val MODE_DETECT = "detect"
         private const val MODE_RELOCATE = "relocate"
 
-        const val ACTION_START = "com.smartisanos.textboom.action.START_FLOATING_BALL"
-        const val ACTION_STOP = "com.smartisanos.textboom.action.STOP_FLOATING_BALL"
-        const val ACTION_RESET_POSITION = "com.smartisanos.textboom.action.RESET_FLOATING_BALL"
+        const val ACTION_START = "com.cashewteam.novatext.android.action.START_FLOATING_BALL"
+        const val ACTION_STOP = "com.cashewteam.novatext.android.action.STOP_FLOATING_BALL"
+        const val ACTION_RESET_POSITION = "com.cashewteam.novatext.android.action.RESET_FLOATING_BALL"
 
         @Volatile
         private var isRunning = false

@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.smartisanos.textboom"
+    namespace = "com.cashewteam.novatext.android"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.smartisanos.textboom"
+        applicationId = "com.cashewteam.novatext.android"
         minSdk = 29
         targetSdk = 34
-        versionCode = 52
-        versionName = "0.12.9"
+        versionCode = 53
+        versionName = "1.0.0"
     }
 
     sourceSets.getByName("main") {

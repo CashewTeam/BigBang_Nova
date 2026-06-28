@@ -1,4 +1,4 @@
-package com.smartisanos.textboom;
+package com.cashewteam.novatext.android;
 
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -30,7 +30,7 @@ import com.intsig.csopen.sdk.CSOcrResult;
 import com.intsig.csopen.sdk.CSOpenAPI;
 import com.intsig.csopen.sdk.CSOpenApiFactory;
 import com.intsig.csopen.sdk.OCRLanguage;
-import com.smartisanos.textboom.util.LogUtils;
+import com.cashewteam.novatext.android.util.LogUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;

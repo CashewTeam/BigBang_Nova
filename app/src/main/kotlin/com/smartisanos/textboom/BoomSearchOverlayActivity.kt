@@ -1,6 +1,6 @@
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 
-package com.smartisanos.textboom
+package com.cashewteam.novatext.android
 
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
@@ -84,7 +84,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
-import com.smartisanos.textboom.data.BigBangSettings
+import com.cashewteam.novatext.android.data.BigBangSettings
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 

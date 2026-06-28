@@ -1,8 +1,8 @@
-package com.smartisanos.textboom.util;
+package com.cashewteam.novatext.android.util;
 
 import android.util.Log;
 
-import com.smartisanos.textboom.BuildConfig;
+import com.cashewteam.novatext.android.BuildConfig;
 
 public class LogUtils {
     public static final boolean DEBUG = BuildConfig.DEBUG;

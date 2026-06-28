@@ -1,10 +1,10 @@
-package com.smartisanos.textboom.domain.capture
+package com.cashewteam.novatext.android.domain.capture
 
 import android.graphics.Rect
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
-import com.smartisanos.textboom.service.NovaTextAccessibilityService
-import com.smartisanos.textboom.util.NovaTextLogger
+import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
+import com.cashewteam.novatext.android.util.NovaTextLogger
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min

@@ -1,9 +1,9 @@
-package com.smartisanos.textboom.service
+package com.cashewteam.novatext.android.service
 
 import android.content.Context
-import com.smartisanos.textboom.domain.capture.CaptureRequestContract
-import com.smartisanos.textboom.domain.capture.TextSessionCoordinator
-import com.smartisanos.textboom.util.NovaTextLogger
+import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
+import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
+import com.cashewteam.novatext.android.util.NovaTextLogger
 
 object BigBangCaptureDispatcher {
     fun captureAt(

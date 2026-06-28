@@ -1,9 +1,9 @@
-package com.smartisanos.textboom.service
+package com.cashewteam.novatext.android.service
 
 import android.content.Context
 import android.content.Intent
-import com.smartisanos.textboom.BoomActivity
-import com.smartisanos.textboom.OverlayActivity
+import com.cashewteam.novatext.android.BoomActivity
+import com.cashewteam.novatext.android.OverlayActivity
 
 object BoomActivityLauncher {
     fun openText(
