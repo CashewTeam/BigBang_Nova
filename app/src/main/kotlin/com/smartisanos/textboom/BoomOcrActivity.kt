@@ -391,9 +391,7 @@ private fun OcrOverlayScreen(
     }
     val currentLanguage = options.firstOrNull { it.value == settings.ocrRecognizerMode } ?: options.first()
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
-    val wideImage = bitmap != null && bitmap.width > 0 && bitmap.height > 0 &&
-        bitmap.width.toFloat() / bitmap.height.toFloat() > 0.75f
-    val selectionHorizontalPadding = if (wideImage) 20.dp else 0.dp
+    val selectionSafePadding = 28.dp
 
     BackHandler(onBack = onBack)
 
@@ -512,7 +510,7 @@ private fun OcrOverlayScreen(
                     AndroidView(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = selectionHorizontalPadding),
+                            .padding(all = selectionSafePadding),
                         factory = { ctx ->
                             OcrSelectionContainer(ctx).also(onContainerReady).apply {
                                 bindBitmap(bitmap)
