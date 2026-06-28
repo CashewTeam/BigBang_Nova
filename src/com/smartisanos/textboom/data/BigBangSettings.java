@@ -14,6 +14,7 @@ public final class BigBangSettings {
     public static final String KEY_TRIGGER_AREA = "trigger_area";
     public static final String KEY_DEBUG_PRESET_TEXT = "debug_preset_text";
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
+    public static final String KEY_DEBUG_SKIP_ACCESSIBILITY = "debug_skip_accessibility";
     public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
     public static final String KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = "floating_ball_active_alpha_percent";
@@ -125,6 +126,14 @@ public final class BigBangSettings {
 
     public void setDebugPreviewText(String text) {
         preferences.edit().putString(KEY_DEBUG_PREVIEW_TEXT, text).apply();
+    }
+
+    public boolean isDebugSkipAccessibilityEnabled() {
+        return preferences.getBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, false);
+    }
+
+    public void setDebugSkipAccessibilityEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, enabled).apply();
     }
 
     public String getOcrRecognizerMode() {

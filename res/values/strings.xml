@@ -45,6 +45,8 @@
     <string name="debug_warm_up_status_ready">Jieba 引擎已就绪</string>
     <string name="debug_warm_up_status_failed">Jieba 引擎预热失败</string>
     <string name="debug_preview_text_hint">输入或修改文本，预览大爆炸页面的分词与排版效果</string>
+    <string name="debug_skip_accessibility_title">跳过无障碍抓文</string>
+    <string name="debug_skip_accessibility_summary">开启后，悬浮球释放会直接使用当前调试文本启动大爆炸，方便快速调试 UI 与动画。</string>
     <string name="debug_preview_button">打开大爆炸预览</string>
     <string name="permission_section_title">全局触发入口</string>
     <string name="permission_section_summary">通过悬浮球和无障碍权限建立新的文本捕获入口。拖拽悬浮球并释放后，会直接抓取当前位置附近的可访问文本并打开大爆炸。</string>

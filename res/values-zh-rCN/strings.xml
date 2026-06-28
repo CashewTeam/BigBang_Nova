@@ -41,6 +41,8 @@
     <string name="ocr_mode_korean">韩语</string>
     <string name="ocr_mode_latin">英语</string>
     <string name="ocr_debug_pick_image_button">选择图片进行 OCR 调试</string>
+    <string name="debug_skip_accessibility_title">跳过无障碍抓文</string>
+    <string name="debug_skip_accessibility_summary">开启后，悬浮球释放会直接使用当前调试文本启动大爆炸，方便快速调试 UI 与动画。</string>
     <string name="ocr_select_region_hint">调整识别区域，然后开始识别</string>
     <string name="ocr_select_region_title">框选需要识别的区域</string>
     <string name="ocr_action_cancel">取消</string>

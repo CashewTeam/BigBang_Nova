@@ -50,6 +50,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -463,6 +465,9 @@ private fun SettingsScreen(
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
+    var debugSkipAccessibility by rememberSaveable {
+        mutableStateOf(settings.isDebugSkipAccessibilityEnabled)
+    }
     val warmUpState by JiebaWarmUpTracker.getStateFlow().collectAsState(
         initial = JiebaWarmUpTracker.getCurrentState(),
     )
@@ -586,6 +591,7 @@ private fun SettingsScreen(
                         selectedPresetIndex = selectedPresetIndex,
                         presetLabels = presetLabels,
                         warmUpState = warmUpState,
+                        debugSkipAccessibility = debugSkipAccessibility,
                         onPresetSelected = { index ->
                             val text = presetTexts[index]
                             selectedPresetIndex = index
@@ -600,6 +606,10 @@ private fun SettingsScreen(
                         onPreviewClick = {
                             settings.setDebugPreviewText(previewText)
                             onOpenPreview(previewText)
+                        },
+                        onDebugSkipAccessibilityChange = {
+                            debugSkipAccessibility = it
+                            settings.setDebugSkipAccessibilityEnabled(it)
                         },
                     )
                 }
@@ -786,9 +796,11 @@ private fun DebugSection(
     selectedPresetIndex: Int,
     presetLabels: List<String>,
     warmUpState: Int,
+    debugSkipAccessibility: Boolean,
     onPresetSelected: (Int) -> Unit,
     onPreviewTextChange: (String) -> Unit,
     onPreviewClick: () -> Unit,
+    onDebugSkipAccessibilityChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -872,6 +884,13 @@ private fun DebugSection(
             ),
         )
 
+        DebugSwitchRow(
+            title = stringResource(R.string.debug_skip_accessibility_title),
+            subtitle = stringResource(R.string.debug_skip_accessibility_summary),
+            checked = debugSkipAccessibility,
+            onCheckedChange = onDebugSkipAccessibilityChange,
+        )
+
         ShadowedPrimaryButton(
             text = stringResource(R.string.debug_preview_button),
             onClick = onPreviewClick,
@@ -891,13 +910,11 @@ private fun PermissionSection(
     val palette = LocalSettingsPalette.current
     val primaryActionText = when {
         !state.overlayGranted -> stringResource(R.string.permission_overlay_action)
-        !state.accessibilityEnabled -> stringResource(R.string.permission_accessibility_action)
         state.floatingBallRunning -> stringResource(R.string.permission_stop_floating_ball)
         else -> stringResource(R.string.permission_start_floating_ball)
     }
     val primaryAction = when {
         !state.overlayGranted -> onOpenOverlayPermission
-        !state.accessibilityEnabled -> onOpenAccessibilitySettings
         state.floatingBallRunning -> onStopFloatingBall
         else -> onStartFloatingBall
     }
@@ -953,6 +970,59 @@ private fun PermissionSection(
                 modifier = Modifier.fillMaxWidth(),
                 text = stringResource(R.string.permission_reset_floating_ball),
                 onClick = onResetFloatingBall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DebugSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = palette.cardInset,
+        border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onCheckedChange(!checked) }
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = title,
+                    color = palette.textPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = subtitle,
+                    color = palette.textSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = palette.accent,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = palette.cardBorder,
+                    uncheckedBorderColor = palette.cardBorder,
+                ),
             )
         }
     }
