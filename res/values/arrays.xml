@@ -1,44 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string-array name="search_engine_text">
-        <item>Search with Baidu</item>
-        <item>Search with Google</item>
-        <item>Search with Bing</item>
-        <item>Search with Shenma</item>
-    </string-array>
-
-    <array name="search_engine_icon">
-        <item>@drawable/boom_win_search_baidu</item>
-        <item>@drawable/boom_win_search_google</item>
-        <item>@drawable/boom_win_search_bing</item>
-        <item>@drawable/boom_win_search_shenma</item>
-    </array>
-
-    <string-array name="search_dict_text">
-        <item>Youdao Dictionary</item>
-        <item>Iciba</item>
-        <item>Bing Dictionary</item>
-        <item>Dict.CN</item>
-    </string-array>
-
-    <array name="search_dict_icon">
-        <item>@drawable/boom_win_search_youdao</item>
-        <item>@drawable/boom_win_search_kingsoft</item>
-        <item>@drawable/boom_win_search_bingdict</item>
-        <item>@drawable/boom_win_search_hidict</item>
-    </array>
-
-    <array name="search_wiki_icon">
-        <item>@drawable/boom_win_search_hudongdict</item>
-        <item>@drawable/boom_win_search_baike</item>
-    </array>
-
-    <string-array name="search_wiki_text">
-        <item>Hudong Baike</item>
-        <item>Baidu Baike</item>
-    </string-array>
-
     <string-array name="ocr_key">
         <!--需要申请key-->
         <item></item>

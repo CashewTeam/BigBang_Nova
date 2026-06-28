@@ -49,9 +49,6 @@
         </activity>
 
         <activity
-            android:name=".BoomSearchActivity"
-            android:theme="@style/BoomSearchActivityStyle" />
-        <activity
             android:name=".TextBoomSettingsActivity"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
@@ -63,8 +60,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity android:name=".OptionsActivity"
-            android:screenOrientation="portrait" android:theme="@style/SettingTheme" />
         <provider
             android:authorities="com.smartisanos.textboom.call_method"
             android:name="com.smartisanos.textboom.TextBoomCallProvider"

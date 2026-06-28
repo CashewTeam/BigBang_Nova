@@ -13,10 +13,6 @@ import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.view.LayoutInflater;
-import android.view.View;
-
-import com.smartisanos.textboom.R;
 
 public class Utils {
 
@@ -94,9 +90,4 @@ public class Utils {
         }
         return info != null;
     }
-
-    public static View inflateListTransparentHeader(Context context) {
-        return LayoutInflater.from(context).inflate(R.layout.settings_list_header_footer_view, null);
-    }
-
 }
