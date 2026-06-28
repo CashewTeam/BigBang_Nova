@@ -30,6 +30,7 @@ public class OcrSelectionView extends View {
     private final RectF mSelectionRect = new RectF();
     private final float mTouchThresholdPx;
     private final float mHandleRadiusPx;
+    private final float mHandleHitRadiusPx;
     private final float mMinSelectionSizePx;
 
     private boolean mHasSelection = false;
@@ -49,6 +50,7 @@ public class OcrSelectionView extends View {
         super(context, attrs, defStyleAttr);
         mTouchThresholdPx = dp(26);
         mHandleRadiusPx = dp(13);
+        mHandleHitRadiusPx = dp(28);
         mMinSelectionSizePx = dp(96);
 
         mScrimPaint.setColor(0x7A000000);
@@ -218,23 +220,38 @@ public class OcrSelectionView extends View {
     }
 
     private int resolveMode(float x, float y) {
-        if (!mImageBounds.contains(x, y)) {
-            return MODE_NONE;
-        }
+        if (isNearHandle(x, y, mSelectionRect.left, mSelectionRect.top)) return MODE_LEFT_TOP;
+        if (isNearHandle(x, y, mSelectionRect.right, mSelectionRect.top)) return MODE_RIGHT_TOP;
+        if (isNearHandle(x, y, mSelectionRect.left, mSelectionRect.bottom)) return MODE_LEFT_BOTTOM;
+        if (isNearHandle(x, y, mSelectionRect.right, mSelectionRect.bottom)) return MODE_RIGHT_BOTTOM;
+
         boolean nearLeft = Math.abs(x - mSelectionRect.left) <= mTouchThresholdPx;
         boolean nearRight = Math.abs(x - mSelectionRect.right) <= mTouchThresholdPx;
         boolean nearTop = Math.abs(y - mSelectionRect.top) <= mTouchThresholdPx;
         boolean nearBottom = Math.abs(y - mSelectionRect.bottom) <= mTouchThresholdPx;
-        if (nearLeft && nearTop) return MODE_LEFT_TOP;
-        if (nearRight && nearTop) return MODE_RIGHT_TOP;
-        if (nearLeft && nearBottom) return MODE_LEFT_BOTTOM;
-        if (nearRight && nearBottom) return MODE_RIGHT_BOTTOM;
         if (nearLeft && withinVerticalBounds(y)) return MODE_LEFT;
         if (nearRight && withinVerticalBounds(y)) return MODE_RIGHT;
         if (nearTop && withinHorizontalBounds(x)) return MODE_TOP;
         if (nearBottom && withinHorizontalBounds(x)) return MODE_BOTTOM;
+
+        if (!containsWithSlop(mImageBounds, x, y, mTouchThresholdPx)) {
+            return MODE_NONE;
+        }
         if (mSelectionRect.contains(x, y)) return MODE_MOVE;
         return MODE_NONE;
+    }
+
+    private boolean isNearHandle(float x, float y, float handleX, float handleY) {
+        float dx = x - handleX;
+        float dy = y - handleY;
+        return dx * dx + dy * dy <= mHandleHitRadiusPx * mHandleHitRadiusPx;
+    }
+
+    private boolean containsWithSlop(RectF rect, float x, float y, float slop) {
+        return x >= rect.left - slop
+                && x <= rect.right + slop
+                && y >= rect.top - slop
+                && y <= rect.bottom + slop;
     }
 
     private boolean withinHorizontalBounds(float x) {
