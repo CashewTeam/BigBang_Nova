@@ -40,6 +40,14 @@
             android:taskAffinity="com.cashewteam.novatext.android.overlay" />
 
         <activity
+            android:name=".OcrLaunchActivity"
+            android:theme="@style/BaseStyleTrans"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode" />
+
+        <activity
             android:name=".BoomOcrActivity"
             android:theme="@style/BaseStyleTrans"
             android:exported="false"

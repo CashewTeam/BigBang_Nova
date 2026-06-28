@@ -98,6 +98,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
+import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import kotlin.math.ceil
@@ -182,6 +183,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
             touchX = width / 2,
             touchY = height / 2,
             isPreview = true,
+            animateLaunch = true,
         )
     }
 
@@ -192,14 +194,12 @@ class TextBoomSettingsActivity : ComponentActivity() {
     private fun openOcrDebug(uri: Uri) {
         val width = resources.displayMetrics.widthPixels
         val height = resources.displayMetrics.heightPixels
-        startActivity(
-            Intent(this, BoomOcrActivity::class.java).apply {
-                putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, uri.toString())
-                putExtra("boom_startx", width / 2)
-                putExtra("boom_starty", height / 2)
-                putExtra("boom_fullscreen", true)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            },
+        BoomOcrLauncher.open(
+            context = this,
+            imageUri = uri,
+            touchX = width / 2,
+            touchY = height / 2,
+            fullscreen = true,
         )
     }
 

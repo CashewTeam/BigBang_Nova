@@ -2,7 +2,9 @@ package com.cashewteam.novatext.android;
 
 import android.app.Activity;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -32,6 +34,7 @@ public class BoomChipPage {
     final BoomActionHandler mBoomActionHandler;
 
     private final SwipeSelectView mBoomConent;
+    private final boolean mEnableLegacyMask;
 
     Serializable mSavedData;
 
@@ -42,7 +45,7 @@ public class BoomChipPage {
         @Override
         public void onGlobalLayout() {
             mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(mDoBoomAnimation);
-            if (mScroller.canScrollVertically(1)) {
+            if (mEnableLegacyMask && mScroller.canScrollVertically(1)) {
                 mMask.setVisibility(View.VISIBLE);
             }
             if (restoreSelectedState()) {
@@ -92,14 +95,19 @@ public class BoomChipPage {
         }
     };
 
-    public BoomChipPage(Activity activity, View contentView) {
+    public BoomChipPage(Activity activity, View contentView, boolean enableLegacyMask) {
         mActivity = activity;
+        mEnableLegacyMask = enableLegacyMask;
         mBoomPage = contentView;
         mBoomTable = contentView.findViewById(R.id.boom_table);
         mBoomConent = (SwipeSelectView) contentView.findViewById(R.id.boom_content);
         mMask = contentView.findViewById(R.id.boom_mask);
         mCancel = contentView.findViewById(R.id.mask_cancel);
         mScroller = (CustomScrollView) contentView.findViewById(R.id.boom_scroller);
+        if (!mEnableLegacyMask) {
+            mMask.setVisibility(View.GONE);
+            removeLegacyChromeSpacing();
+        }
         mLayout = new BoomWordsLayout(mActivity);
         mBoomConent.setBoomPage(this);
         mBoomPage.setOnClickListener(new View.OnClickListener() {
@@ -126,8 +134,39 @@ public class BoomChipPage {
                 }
             }
         });
-        mBoomActionHandler = new BoomActionHandler(this);
+        mBoomActionHandler = new BoomActionHandler(this, mEnableLegacyMask);
         mScroller.setOnScrollListener(mBoomActionHandler);
+    }
+
+    private void removeLegacyChromeSpacing() {
+        int edgeInset = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                28,
+                mActivity.getResources().getDisplayMetrics()
+        );
+        ViewGroup.MarginLayoutParams scrollerParams = (ViewGroup.MarginLayoutParams) mScroller.getLayoutParams();
+        scrollerParams.topMargin = 0;
+        scrollerParams.bottomMargin = 0;
+        mScroller.setLayoutParams(scrollerParams);
+        mScroller.setClipToPadding(false);
+        mScroller.setPadding(
+                mScroller.getPaddingLeft(),
+                edgeInset,
+                mScroller.getPaddingRight(),
+                edgeInset
+        );
+
+        ViewGroup.MarginLayoutParams tableParams = (ViewGroup.MarginLayoutParams) mBoomTable.getLayoutParams();
+        tableParams.topMargin = 0;
+        tableParams.bottomMargin = 0;
+        mBoomTable.setLayoutParams(tableParams);
+
+        mBoomConent.setPadding(
+                mBoomConent.getPaddingLeft(),
+                0,
+                mBoomConent.getPaddingRight(),
+                0
+        );
     }
 
     public boolean initWords(int[] segment, String text, int touchedIndex, int touchedX, int touchedY) {
@@ -181,6 +220,10 @@ public class BoomChipPage {
     public void selectAll() {
         final int wordCount = mLayout.getWordCount();
         if (wordCount <= 0) {
+            return;
+        }
+        if (mBoomActionHandler != null && mBoomActionHandler.isAllSelected()) {
+            handleClick();
             return;
         }
         handleClick();

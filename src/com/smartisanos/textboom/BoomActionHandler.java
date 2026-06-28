@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Rect;
+import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.ImageView;
@@ -27,6 +28,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     private final int mChipRowHeight;
     private final int mSelectRectMarginTop;
     private final int mSelectRectTopOffset;
+    private final int mSelectBarYOffset;
     private final int mFakeSelectBarTop;
     private final int mFakeSelectBarBottom;
 
@@ -37,23 +39,40 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     LinearLayout mSelectRect;
     TreeSet<Integer> mSelectedId = new TreeSet<Integer>();
     private Rect mSelectBarRect = new Rect();
+    private final boolean mEnableFakeSelectBar;
 
-    public BoomActionHandler(BoomChipPage boomPage) {
+    public BoomActionHandler(BoomChipPage boomPage, boolean enableFakeSelectBar) {
         mBoomPage = boomPage;
+        mEnableFakeSelectBar = enableFakeSelectBar;
         mToast = Toast.makeText(boomPage.mActivity, "", Toast.LENGTH_SHORT);
 
         final Resources res = boomPage.mActivity.getResources();
         mRowMoveUpOffset = res.getDimensionPixelOffset(R.dimen.chip_row_move_up_offset);
         mRowMoveDownOffset = res.getDimensionPixelOffset(R.dimen.chip_row_move_down_offset);
         mChipRowHeight = res.getDimensionPixelOffset(R.dimen.chip_row_height);
-        mSelectRectMarginTop = res.getDimensionPixelOffset(R.dimen.select_rect_margin_top);
-        mSelectRectTopOffset = res.getDimensionPixelOffset(R.dimen.select_rect_top_offset);
+        if (mEnableFakeSelectBar) {
+            mSelectRectMarginTop = res.getDimensionPixelOffset(R.dimen.select_rect_margin_top);
+            mSelectRectTopOffset = res.getDimensionPixelOffset(R.dimen.select_rect_top_offset);
+            mSelectBarYOffset = 0;
+        } else {
+            int expand = res.getDimensionPixelOffset(R.dimen.chip_row_padding_top)
+                    + (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP,
+                    5,
+                    res.getDisplayMetrics()
+            );
+            mSelectRectMarginTop = -expand;
+            mSelectRectTopOffset = expand * 2;
+            mSelectBarYOffset = mRowMoveUpOffset;
+        }
 
         mFakeSelectBarTop = res.getDimensionPixelOffset(R.dimen.fake_select_bar_margin_top);
         mFakeSelectBarBottom = getScreenHeight() - res.getDimensionPixelOffset(R.dimen.fake_select_bar_margin_bottom);
 
         initViews(mBoomPage.mBoomTable);
-        initFakeViews(mBoomPage.mBoomPage);
+        if (mEnableFakeSelectBar) {
+            initFakeViews(mBoomPage.mBoomPage);
+        }
     }
 
     public void onSelect(TreeSet<Integer> savedState) {
@@ -249,6 +268,10 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         return mSelectedId.size() > 0;
     }
 
+    public boolean isAllSelected() {
+        return mSelectedId.size() == mBoomPage.mLayout.getWordCount() && mSelectedId.size() > 0;
+    }
+
     public String getSelectedText() {
         final int wordCount = mBoomPage.mLayout.getWordCount();
         if (mSelectedId.size() == wordCount) {
@@ -280,7 +303,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     private int getSelectBarY(int row) {
-        return row * mChipRowHeight;
+        return row * mChipRowHeight + mSelectBarYOffset;
     }
 
     private void showSelBarAndBgRect(int row) {

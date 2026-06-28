@@ -4,6 +4,8 @@
     <string name="share_title">分享以下文字</string>
     <string name="app_label">Nova Text</string>
     <string name="a_msg_no_words">未識別出文字</string>
+    <string name="ocr_recognize">識別中</string>
+    <string name="ocr_cancel">點擊螢幕任意處取消</string>
     <string name="ocr_title">图像文字识别</string>
     <string name="text_boom">大爆炸</string>
     <string name="text_boom_settings">大爆炸設定</string>

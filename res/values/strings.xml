@@ -4,8 +4,8 @@
     <string name="share_title">Share This Text</string>
     <string name="app_label">Nova Text</string>
     <string name="a_msg_no_words">No text recognized</string>
-    <string name="ocr_recognize">Recognizing</string>
-    <string name="ocr_cancel">Press to cancel</string>
+    <string name="ocr_recognize">Recognizing text</string>
+    <string name="ocr_cancel">Tap anywhere to cancel</string>
     <string name="scanner_unavailable">OCR is unavailable</string>
     <string name="ocr_image_unavailable">Unable to open the selected image</string>
     <string name="ocr_tips">Offline OCR is enabled in app.</string>

@@ -47,7 +47,7 @@ class BoomActivity : ComponentActivity() {
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
             BoomAnimator.makeFadeIn(this, BoomAnimator.BOOM_DURATION)
         }
-        boomChipPage = BoomChipPage(this, legacyContentView).also { page ->
+        boomChipPage = BoomChipPage(this, legacyContentView, false).also { page ->
             page.restoreSelectedState(savedInstanceState?.getSerializable(SELECTED_STATE))
         }
 

@@ -3,6 +3,7 @@ package com.cashewteam.novatext.android.service
 import android.content.Context
 import android.content.Intent
 import com.cashewteam.novatext.android.BoomActivity
+import com.cashewteam.novatext.android.OcrLaunchActivity
 import com.cashewteam.novatext.android.OverlayActivity
 
 object BoomActivityLauncher {
@@ -13,8 +14,10 @@ object BoomActivityLauncher {
         touchX: Int,
         touchY: Int,
         isPreview: Boolean = false,
+        animateLaunch: Boolean = false,
     ) {
-        val intent = Intent(context, OverlayActivity::class.java).apply {
+        val activityClass = if (animateLaunch) OcrLaunchActivity::class.java else OverlayActivity::class.java
+        val intent = Intent(context, activityClass).apply {
             putExtra(Intent.EXTRA_TEXT, text)
             putExtra("boom_index", -1)
             putExtra("boom_startx", touchX)

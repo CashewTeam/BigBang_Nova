@@ -24,7 +24,7 @@ object BigBangCaptureDispatcher {
             NovaTextLogger.d("capture failed: no accessible text")
             return false
         }
-        BoomActivityLauncher.openText(context, text, touchX, touchY)
+        BoomActivityLauncher.openText(context, text, touchX, touchY, animateLaunch = true)
         return true
     }
 }
