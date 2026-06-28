@@ -1,6 +1,7 @@
 package com.cashewteam.novatext.android.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.graphics.Bitmap
 import android.hardware.HardwareBuffer
 import android.net.Uri
@@ -17,10 +18,8 @@ object AccessibilityScreenshotCapture {
     private val captureInFlight = AtomicBoolean(false)
 
     fun captureToOcr(
-        launchContext: android.content.Context,
-        callerPackage: String,
-        touchX: Int,
-        touchY: Int,
+        context: Context,
+        onCaptured: (Uri) -> Unit,
     ): Boolean {
         val service = NovaTextAccessibilityService.activeInstance ?: return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -45,14 +44,7 @@ object AccessibilityScreenshotCapture {
                             Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                             return
                         }
-                        BoomOcrLauncher.open(
-                            context = launchContext,
-                            imageUri = uri,
-                            touchX = touchX,
-                            touchY = touchY,
-                            fullscreen = true,
-                            callerPackage = callerPackage,
-                        )
+                        onCaptured(uri)
                     }
 
                     override fun onFailure(errorCode: Int) {
@@ -65,7 +57,7 @@ object AccessibilityScreenshotCapture {
         } catch (_: SecurityException) {
             captureInFlight.set(false)
             FloatingBallService.restoreAfterScreenshot()
-            Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
             return false
         }
         return true

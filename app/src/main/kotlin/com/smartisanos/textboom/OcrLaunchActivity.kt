@@ -5,15 +5,19 @@ import android.animation.AnimatorSet
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.core.view.WindowCompat
+import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
+import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.util.LogUtils
 import kotlin.concurrent.thread
@@ -91,12 +95,9 @@ class OcrLaunchActivity : Activity() {
                 if (cancelled || isFinishing || isDestroyed) {
                     return@post
                 }
-                val callerPackage = intent.getStringExtra("caller_pkg").orEmpty()
                 val started = AccessibilityScreenshotCapture.captureToOcr(
-                    launchContext = this,
-                    callerPackage = callerPackage,
-                    touchX = touchX.toInt(),
-                    touchY = touchY.toInt(),
+                    context = this,
+                    onCaptured = { imageUri -> startNearestParagraphOcr(imageUri) },
                 )
                 if (!started) {
                     finish()
@@ -250,6 +251,71 @@ class OcrLaunchActivity : Activity() {
             },
         )
         finish()
+    }
+
+    private fun startNearestParagraphOcr(imageUri: Uri) {
+        thread(name = "bigbang-ocr-nearest") {
+            val settings = BigBangSettings.get(this)
+            val callerPackage = intent.getStringExtra("caller_pkg")
+            val fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
+            val offsetX = intent.getIntExtra("boom_offsetx", 0)
+            val offsetY = intent.getIntExtra("boom_offsety", 0)
+            val bitmap = try {
+                MlKitOcrEngine.decodeBitmap(this, imageUri)
+            } catch (exception: Exception) {
+                LogUtils.e("Failed to decode OCR screenshot", exception)
+                null
+            }
+            if (bitmap == null) {
+                runOnUiThread {
+                    if (!isFinishing) {
+                        Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                }
+                return@thread
+            }
+            val prepared = MlKitOcrEngine.prepareBitmap(
+                context = this,
+                screenshot = bitmap,
+                callerPackage = callerPackage,
+                fullscreen = fullscreen,
+                offsetX = offsetX,
+                offsetY = offsetY,
+                touchX = touchX.toInt(),
+                touchY = touchY.toInt(),
+            )
+            MlKitOcrEngine.recognize(prepared.bitmap, settings.ocrRecognizerMode)
+                .addOnSuccessListener(this) { result ->
+                    val nearestText = MlKitOcrEngine.findNearestTextBlock(result, prepared.touchX, prepared.touchY)
+                    prepared.bitmap.recycle()
+                    if (isFinishing) {
+                        return@addOnSuccessListener
+                    }
+                    if (nearestText.isEmpty()) {
+                        Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                        finish()
+                        return@addOnSuccessListener
+                    }
+                    BoomActivityLauncher.openText(
+                        context = this,
+                        text = nearestText,
+                        touchX = touchX.toInt(),
+                        touchY = touchY.toInt(),
+                        isPreview = false,
+                        animateLaunch = false,
+                    )
+                    finish()
+                }
+                .addOnFailureListener(this) { throwable ->
+                    prepared.bitmap.recycle()
+                    LogUtils.e("ML Kit OCR failed", throwable)
+                    if (!isFinishing) {
+                        Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                }
+        }
     }
 
     companion object {

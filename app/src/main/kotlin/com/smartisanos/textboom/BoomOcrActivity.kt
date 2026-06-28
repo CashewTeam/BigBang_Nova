@@ -3,9 +3,7 @@ package com.cashewteam.novatext.android
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Matrix
-import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.RectF
@@ -215,6 +213,7 @@ class BoomOcrActivity : ComponentActivity() {
         ocrStarted = false
         stage = OcrStage.Selecting
         BoomActivityLauncher.openText(this, ocrText, launchTouchX, launchTouchY, false, false)
+        finish()
     }
 
     private fun stopOcr() {
@@ -230,11 +229,17 @@ class BoomOcrActivity : ComponentActivity() {
         }
         try {
             val bitmap = MlKitOcrEngine.decodeBitmap(this, imageUri)
-            if (bitmap == null) {
-                showImageUnavailableAndFinish()
-                return
-            }
-            preparedBitmap = if (shouldAdjustScreenshot()) adjustScreenshotFor(bitmap) else bitmap
+            val prepared = MlKitOcrEngine.prepareBitmap(
+                context = this,
+                screenshot = bitmap,
+                callerPackage = callerPackage,
+                fullscreen = fullscreen,
+                offsetX = offset[0],
+                offsetY = offset[1],
+                touchX = touchX.toInt(),
+                touchY = touchY.toInt(),
+            )
+            preparedBitmap = prepared.bitmap
         } catch (exception: Exception) {
             LogUtils.e("Failed to decode OCR image", exception)
             showImageUnavailableAndFinish()
@@ -257,81 +262,9 @@ class BoomOcrActivity : ComponentActivity() {
         return if (horizontal) resources.displayMetrics.widthPixels / 2f else resources.displayMetrics.heightPixels / 2f
     }
 
-    private fun shouldAdjustScreenshot(): Boolean {
-        return !callerPackage.isNullOrEmpty() || offset[0] != 0 || offset[1] != 0
-    }
-
     private fun showImageUnavailableAndFinish() {
         Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
         stopOcr()
-    }
-
-    private fun adjustScreenshotFor(screenshot: Bitmap): Bitmap {
-        val w = resources.getInteger(R.integer.screen_width)
-        val h = resources.getInteger(R.integer.screen_height)
-        val statusBarHeight = resources.getInteger(R.integer.status_bar_height)
-        var top = statusBarHeight
-        var bottom = 0
-        var left = 0
-        var right = 0
-        if (offset[0] == 0 && offset[1] == 0) {
-            if (PKG_GALLERY == callerPackage && !fullscreen) {
-                top = resources.getInteger(R.integer.gallery_top)
-                bottom = resources.getInteger(R.integer.gallery_bottom)
-            }
-        } else {
-            val scaleFactor = offset[1] / h.toFloat()
-            val sideH = offset[1]
-            val sideW = (scaleFactor * w).toInt()
-            if (PKG_GALLERY == callerPackage && !fullscreen) {
-                val galleryTop = (resources.getInteger(R.integer.gallery_top) * (1 - scaleFactor)).toInt()
-                val galleryBottom = (resources.getInteger(R.integer.gallery_bottom) * (1 - scaleFactor)).toInt()
-                top = sideH + galleryTop
-                bottom = galleryBottom
-            } else {
-                top = sideH + ((1 - scaleFactor) * statusBarHeight).toInt()
-            }
-            if (offset[0] == 0) {
-                right = sideW
-            } else {
-                left = sideW
-            }
-        }
-        val sourceWidth = screenshot.width
-        val sourceHeight = screenshot.height
-        if (sourceWidth <= left + right || sourceHeight <= top + bottom) {
-            return screenshot
-        }
-        val scale = screenshotScale()
-        val aw = (sourceWidth - left - right) / scale
-        val ah = (sourceHeight - top - bottom) / scale
-        if (aw <= 0 || ah <= 0) {
-            return screenshot
-        }
-        val bitmap = Bitmap.createBitmap(aw, ah, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint().apply {
-            isFilterBitmap = true
-            isAntiAlias = true
-        }
-        canvas.drawBitmap(
-            screenshot,
-            Rect(left, top, sourceWidth - right, sourceHeight - bottom),
-            Rect(0, 0, aw, ah),
-            paint,
-        )
-        screenshot.recycle()
-        return bitmap
-    }
-
-    private fun screenshotScale(): Int {
-        if (offset[0] != 0 || offset[1] != 0) {
-            return SCALE_SCREENSHOT
-        }
-        if (PKG_GALLERY == callerPackage && !fullscreen) {
-            return SCALE_SCREENSHOT
-        }
-        return 1
     }
 
     private fun recycleBitmap(bitmap: Bitmap?, allowPrepared: Boolean) {
@@ -342,8 +275,6 @@ class BoomOcrActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OCR_IMAGE_URI = "ocr_image_uri"
-        private const val PKG_GALLERY = "com.android.gallery3d"
-        const val SCALE_SCREENSHOT = 2
 
         @JvmField
         var sBoomCancel: Boolean = false
