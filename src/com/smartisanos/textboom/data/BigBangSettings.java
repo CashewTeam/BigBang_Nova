@@ -14,6 +14,9 @@ public final class BigBangSettings {
     public static final String KEY_TRIGGER_AREA = "trigger_area";
     public static final String KEY_DEBUG_PRESET_TEXT = "debug_preset_text";
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
+    public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
+    public static final String KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = "floating_ball_active_alpha_percent";
+    public static final String KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT = "floating_ball_idle_alpha_percent";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -38,6 +41,9 @@ public final class BigBangSettings {
     private static final int DEFAULT_WEB_SEARCH_TYPE = TYPE_SHENMA;
     private static final int DEFAULT_DICT_SEARCH_TYPE = TYPE_BINGDICT;
     private static final int DEFAULT_WIKI_SEARCH_TYPE = TYPE_WIKI;
+    private static final int DEFAULT_FLOATING_BALL_SIZE_PERCENT = 75;
+    private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
+    private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
 
     private final SharedPreferences preferences;
 
@@ -112,5 +118,42 @@ public final class BigBangSettings {
 
     public void setDebugPreviewText(String text) {
         preferences.edit().putString(KEY_DEBUG_PREVIEW_TEXT, text).apply();
+    }
+
+    public int getFloatingBallSizePercent() {
+        return clampPercent(preferences.getInt(
+                KEY_FLOATING_BALL_SIZE_PERCENT,
+                DEFAULT_FLOATING_BALL_SIZE_PERCENT
+        ));
+    }
+
+    public void setFloatingBallSizePercent(int value) {
+        preferences.edit().putInt(KEY_FLOATING_BALL_SIZE_PERCENT, clampPercent(value)).apply();
+    }
+
+    public int getFloatingBallActiveAlphaPercent() {
+        return clampPercent(preferences.getInt(
+                KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT,
+                DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT
+        ));
+    }
+
+    public void setFloatingBallActiveAlphaPercent(int value) {
+        preferences.edit().putInt(KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT, clampPercent(value)).apply();
+    }
+
+    public int getFloatingBallIdleAlphaPercent() {
+        return clampPercent(preferences.getInt(
+                KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT,
+                DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT
+        ));
+    }
+
+    public void setFloatingBallIdleAlphaPercent(int value) {
+        preferences.edit().putInt(KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT, clampPercent(value)).apply();
+    }
+
+    private static int clampPercent(int value) {
+        return Math.max(0, Math.min(100, value));
     }
 }

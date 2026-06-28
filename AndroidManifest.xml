@@ -15,7 +15,8 @@
     <application
         android:name="com.cashewteam.novatext.android.BoomApplication"
         android:label="@string/app_label"
-        android:icon="@drawable/icon_bigbang"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="true" >
         <activity
             android:name=".BoomActivity"

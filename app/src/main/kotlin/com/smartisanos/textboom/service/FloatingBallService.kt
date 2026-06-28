@@ -29,6 +29,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.cashewteam.novatext.android.R
 import com.cashewteam.novatext.android.data.BigBangPreferences
+import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,11 +39,12 @@ import kotlin.math.roundToInt
 class FloatingBallService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var preferences: BigBangPreferences
+    private lateinit var settings: BigBangSettings
     private var bubbleView: View? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
     private val bubbleHandler = Handler(Looper.getMainLooper())
     private val fadeBubbleRunnable = Runnable {
-        bubbleView?.animate()?.alpha(IDLE_ALPHA)?.setDuration(FADE_DURATION_MS)?.start()
+        bubbleView?.animate()?.alpha(idleAlpha())?.setDuration(FADE_DURATION_MS)?.start()
     }
 
     private var downRawX = 0f
@@ -59,6 +61,7 @@ class FloatingBallService : Service() {
         isRunning = true
         activeState.value = true
         preferences = BigBangPreferences(this)
+        settings = BigBangSettings.get(this)
         preferences.setFloatingBallEnabled(true)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         prepare(this)
@@ -111,12 +114,13 @@ class FloatingBallService : Service() {
             }
             clipToOutline = true
             elevation = 18f
-            alpha = IDLE_ALPHA
+            alpha = idleAlpha()
         }
 
+        val bubbleSizePx = bubbleSizePx()
         layoutParams = WindowManager.LayoutParams(
-            BUBBLE_SIZE_PX,
-            BUBBLE_SIZE_PX,
+            bubbleSizePx,
+            bubbleSizePx,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -184,8 +188,8 @@ class FloatingBallService : Service() {
                     saveCurrentPositionAsAnchor()
                     mode = MODE_IDLE
                 } else {
-                    val sampleX = layoutParams.x + BUBBLE_SIZE_PX / 2
-                    val sampleY = layoutParams.y + BUBBLE_SIZE_PX / 2
+                    val sampleX = layoutParams.x + layoutParams.width / 2
+                    val sampleY = layoutParams.y + layoutParams.height / 2
                     layoutParams.x = anchorX
                     layoutParams.y = anchorY
                     clampPositionInPlace(layoutParams)
@@ -208,7 +212,7 @@ class FloatingBallService : Service() {
     private fun showActiveBubble() {
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
         bubbleView?.animate()?.cancel()
-        bubbleView?.alpha = 1f
+        bubbleView?.alpha = activeAlpha()
     }
 
     private fun scheduleBubbleFade() {
@@ -232,19 +236,21 @@ class FloatingBallService : Service() {
 
     private fun clampPositionInPlace(params: WindowManager.LayoutParams) {
         val safeArea = getSafeArea()
-        val safeOutsideOffset = (BUBBLE_SIZE_PX * MAX_OFFSCREEN_RATIO).roundToInt()
+        val bubbleSizePx = params.width
+        val safeOutsideOffset = (bubbleSizePx * MAX_OFFSCREEN_RATIO).roundToInt()
         val minX = safeArea.left - safeOutsideOffset
-        val maxX = safeArea.right - BUBBLE_SIZE_PX + safeOutsideOffset
+        val maxX = safeArea.right - bubbleSizePx + safeOutsideOffset
         val minY = safeArea.top - safeOutsideOffset
-        val maxY = safeArea.bottom - BUBBLE_SIZE_PX + safeOutsideOffset
+        val maxY = safeArea.bottom - bubbleSizePx + safeOutsideOffset
         params.x = params.x.coerceIn(minX, maxX)
         params.y = params.y.coerceIn(minY, maxY)
     }
 
     private fun moveToDefaultPosition() {
         val safeArea = getSafeArea()
-        val offset = (BUBBLE_SIZE_PX * MAX_OFFSCREEN_RATIO).roundToInt()
-        layoutParams.x = safeArea.right - BUBBLE_SIZE_PX + offset
+        val bubbleSizePx = layoutParams.width
+        val offset = (bubbleSizePx * MAX_OFFSCREEN_RATIO).roundToInt()
+        layoutParams.x = safeArea.right - bubbleSizePx + offset
         layoutParams.y = safeArea.top + DEFAULT_TOP_MARGIN_PX
         clampPositionInPlace(layoutParams)
         anchorX = layoutParams.x
@@ -296,6 +302,30 @@ class FloatingBallService : Service() {
         bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
     }
 
+    private fun bubbleSizePx(): Int {
+        return (BASE_BUBBLE_SIZE_PX * (settings.floatingBallSizePercent / 100f))
+            .roundToInt()
+            .coerceAtLeast(MIN_BUBBLE_SIZE_PX)
+    }
+
+    private fun activeAlpha(): Float {
+        return (settings.floatingBallActiveAlphaPercent / 100f).coerceIn(0f, 1f)
+    }
+
+    private fun idleAlpha(): Float {
+        return (settings.floatingBallIdleAlphaPercent / 100f).coerceIn(0f, 1f)
+    }
+
+    private fun refreshBubbleAppearance() {
+        if (!::layoutParams.isInitialized) return
+        val bubbleSizePx = bubbleSizePx()
+        layoutParams.width = bubbleSizePx
+        layoutParams.height = bubbleSizePx
+        clampPositionInPlace(layoutParams)
+        bubbleView?.alpha = idleAlpha()
+        updateBubbleLayout()
+    }
+
     companion object {
         private const val CHANNEL_ID = "bigbang.overlay"
         private const val NOTIFICATION_ID = 1001
@@ -303,8 +333,8 @@ class FloatingBallService : Service() {
         private const val MOVE_THRESHOLD_PX = 8f
         private const val IDLE_FADE_DELAY_MS = 3_000L
         private const val FADE_DURATION_MS = 240L
-        private const val IDLE_ALPHA = 0.15f
-        private const val BUBBLE_SIZE_PX = 160
+        private const val BASE_BUBBLE_SIZE_PX = 160
+        private const val MIN_BUBBLE_SIZE_PX = 80
         private const val MAX_OFFSCREEN_RATIO = 0.25f
         private const val DEFAULT_ANCHOR_X = 0
         private const val DEFAULT_ANCHOR_Y = 280
@@ -370,6 +400,12 @@ class FloatingBallService : Service() {
         fun isActive(): Boolean = isRunning
 
         fun getActiveStateFlow(): StateFlow<Boolean> = activeState
+
+        fun refreshAppearance(context: Context) {
+            if (!isRunning) return
+            activeService?.settings = BigBangSettings.get(context)
+            activeService?.refreshBubbleAppearance()
+        }
 
         private fun prepare(context: Context) {
             if (prepared) return

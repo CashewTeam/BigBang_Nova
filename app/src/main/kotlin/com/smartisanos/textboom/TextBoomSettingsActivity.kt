@@ -45,6 +45,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -98,6 +100,7 @@ import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class TextBoomSettingsActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
@@ -134,6 +137,9 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onStartFloatingBall = { startFloatingBall() },
                     onStopFloatingBall = { stopFloatingBall() },
                     onResetFloatingBall = { resetFloatingBall() },
+                    onFloatingBallSizeChange = { updateFloatingBallSizePercent(it) },
+                    onFloatingBallActiveAlphaChange = { updateFloatingBallActiveAlphaPercent(it) },
+                    onFloatingBallIdleAlphaChange = { updateFloatingBallIdleAlphaPercent(it) },
                 )
             }
         }
@@ -196,6 +202,21 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun resetFloatingBall() {
         FloatingBallService.resetPosition(this)
+    }
+
+    private fun updateFloatingBallSizePercent(value: Int) {
+        settings.setFloatingBallSizePercent(value)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallActiveAlphaPercent(value: Int) {
+        settings.setFloatingBallActiveAlphaPercent(value)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallIdleAlphaPercent(value: Int) {
+        settings.setFloatingBallIdleAlphaPercent(value)
+        FloatingBallService.refreshAppearance(this)
     }
 }
 
@@ -389,6 +410,9 @@ private fun SettingsScreen(
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
     onResetFloatingBall: () -> Unit,
+    onFloatingBallSizeChange: (Int) -> Unit,
+    onFloatingBallActiveAlphaChange: (Int) -> Unit,
+    onFloatingBallIdleAlphaChange: (Int) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     ApplySystemBars()
@@ -423,6 +447,15 @@ private fun SettingsScreen(
     }
     var permissionState by remember {
         mutableStateOf(currentPermissionState())
+    }
+    var floatingBallSizePercent by rememberSaveable {
+        mutableIntStateOf(settings.floatingBallSizePercent)
+    }
+    var floatingBallActiveAlphaPercent by rememberSaveable {
+        mutableIntStateOf(settings.floatingBallActiveAlphaPercent)
+    }
+    var floatingBallIdleAlphaPercent by rememberSaveable {
+        mutableIntStateOf(settings.floatingBallIdleAlphaPercent)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -467,6 +500,28 @@ private fun SettingsScreen(
                         onStartFloatingBall = onStartFloatingBall,
                         onStopFloatingBall = onStopFloatingBall,
                         onResetFloatingBall = onResetFloatingBall,
+                    )
+                }
+            }
+
+            item {
+                SettingsSectionCard {
+                    FloatingBallSection(
+                        floatingBallSizePercent = floatingBallSizePercent,
+                        floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
+                        floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
+                        onFloatingBallSizeChange = {
+                            floatingBallSizePercent = it
+                            onFloatingBallSizeChange(it)
+                        },
+                        onFloatingBallActiveAlphaChange = {
+                            floatingBallActiveAlphaPercent = it
+                            onFloatingBallActiveAlphaChange(it)
+                        },
+                        onFloatingBallIdleAlphaChange = {
+                            floatingBallIdleAlphaPercent = it
+                            onFloatingBallIdleAlphaChange(it)
+                        },
                     )
                 }
             }
@@ -787,6 +842,91 @@ private fun PermissionSection(
                 onClick = onResetFloatingBall,
             )
         }
+    }
+}
+
+@Composable
+private fun FloatingBallSection(
+    floatingBallSizePercent: Int,
+    floatingBallActiveAlphaPercent: Int,
+    floatingBallIdleAlphaPercent: Int,
+    onFloatingBallSizeChange: (Int) -> Unit,
+    onFloatingBallActiveAlphaChange: (Int) -> Unit,
+    onFloatingBallIdleAlphaChange: (Int) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.floating_ball_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.floating_ball_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        FloatingBallSlider(
+            title = stringResource(R.string.permission_floating_ball_size_title),
+            value = floatingBallSizePercent,
+            valueRange = 40f..100f,
+            onValueChange = onFloatingBallSizeChange,
+        )
+        FloatingBallSlider(
+            title = stringResource(R.string.permission_floating_ball_active_alpha_title),
+            value = floatingBallActiveAlphaPercent,
+            valueRange = 0f..100f,
+            onValueChange = onFloatingBallActiveAlphaChange,
+        )
+        FloatingBallSlider(
+            title = stringResource(R.string.permission_floating_ball_idle_alpha_title),
+            value = floatingBallIdleAlphaPercent,
+            valueRange = 0f..100f,
+            onValueChange = onFloatingBallIdleAlphaChange,
+        )
+    }
+}
+
+@Composable
+private fun FloatingBallSlider(
+    title: String,
+    value: Int,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Int) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                color = palette.textPrimary,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "$value%",
+                color = palette.textSecondary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.roundToInt()) },
+            valueRange = valueRange,
+            colors = SliderDefaults.colors(
+                thumbColor = palette.accent,
+                activeTrackColor = palette.accent,
+                inactiveTrackColor = palette.cardBorder,
+                activeTickColor = palette.accent,
+                inactiveTickColor = palette.cardBorder,
+            ),
+        )
     }
 }
 
