@@ -83,7 +83,9 @@ public class OcrSelectionView extends View {
         if (mImageBounds.isEmpty()) {
             return;
         }
-        float selectionHeight = Math.max(mMinSelectionSizePx, mImageBounds.height() * 0.30f);
+        float aspectRatio = mImageBounds.width() / mImageBounds.height();
+        float defaultHeightRatio = aspectRatio > 0.75f ? 0.80f : 0.30f;
+        float selectionHeight = Math.max(mMinSelectionSizePx, mImageBounds.height() * defaultHeightRatio);
         float centerY = mImageBounds.centerY();
         mSelectionRect.set(
                 mImageBounds.left,
