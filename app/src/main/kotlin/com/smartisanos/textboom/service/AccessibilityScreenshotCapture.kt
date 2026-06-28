@@ -30,33 +30,39 @@ object AccessibilityScreenshotCapture {
             Toast.makeText(service, R.string.ocr_capture_in_progress, Toast.LENGTH_SHORT).show()
             return true
         }
-        service.takeScreenshot(
-            Display.DEFAULT_DISPLAY,
-            service.mainExecutor,
-            object : AccessibilityService.TakeScreenshotCallback {
-                override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                    val uri = saveScreenshot(service, screenshot.hardwareBuffer, screenshot.colorSpace)
-                    captureInFlight.set(false)
-                    if (uri == null) {
-                        Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
-                        return
+        try {
+            service.takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                service.mainExecutor,
+                object : AccessibilityService.TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                        val uri = saveScreenshot(service, screenshot.hardwareBuffer, screenshot.colorSpace)
+                        captureInFlight.set(false)
+                        if (uri == null) {
+                            Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                            return
+                        }
+                        BoomOcrLauncher.open(
+                            context = service,
+                            imageUri = uri,
+                            touchX = touchX,
+                            touchY = touchY,
+                            fullscreen = true,
+                            callerPackage = callerPackage,
+                        )
                     }
-                    BoomOcrLauncher.open(
-                        context = service,
-                        imageUri = uri,
-                        touchX = touchX,
-                        touchY = touchY,
-                        fullscreen = true,
-                        callerPackage = callerPackage,
-                    )
-                }
 
-                override fun onFailure(errorCode: Int) {
-                    captureInFlight.set(false)
-                    Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
-                }
-            },
-        )
+                    override fun onFailure(errorCode: Int) {
+                        captureInFlight.set(false)
+                        Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                    }
+                },
+            )
+        } catch (_: SecurityException) {
+            captureInFlight.set(false)
+            Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+            return false
+        }
         return true
     }
 
