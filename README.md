@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-截至当前仓库状态，项目已经不再是“只能编译骨架”的阶段，已经具备可调试、可预览、可本地分词、可通过悬浮球触发的主链路基础。
+截至当前仓库状态，项目已经不再是“只能编译骨架”的阶段，已经具备可调试、可预览、可本地分词、可通过悬浮球触发、可本地 OCR 的主链路基础。
 
 **已完成的核心能力**
 
@@ -23,10 +23,12 @@
 - 搜索页已改为 Compose + 原生 WebView 浮层页，直接叠加在大爆炸界面之上
 - 悬浮球服务、无障碍服务、基础文本捕获分发链路已接入
 - BigBang 拉起链路已改为 `OverlayActivity -> BoomActivity`，避免从三方 App 返回到设置页
+- ML Kit OCR V2 已接入，支持离线中文 / 日语 / 韩语 / 英语识别
+- OCR 识别区域选择页已接入，支持设置页调试入口和系统图片分享入口
 
 **当前仍未完成或仍属过渡态的部分**
 
-- OCR 仍未迁移完成，旧 `BoomOcrActivity` 中的 CamScanner 路径目前处于禁用状态
+- OCR 底层已接通，但还没有接入悬浮球触发链路，也还没有做免区域框选识别与多场景体验优化
 - 大爆炸原版 feature 还未补齐，尤其是“炸了又炸”、编辑模式等
 - 无障碍文本提取链路已接通，但三方 App 兼容性和命中率还需要继续打磨
 - 搜索页和设置页已现代化，但内部大爆炸词块布局仍主要沿用 legacy Java/View 实现
@@ -41,6 +43,9 @@
 - 大爆炸选词、滑动多选、搜索 / 词典 / 分享 / 复制等基础操作
 - 搜索 / 词典 / 百科浮层页
 - 悬浮球触发文本捕获主链路
+- OCR 调试入口
+- OCR 图片分享入口
+- OCR 识别区域框选 + 本地识别 + 结果进入大爆炸
 
 ## 使用说明
 
@@ -88,6 +93,26 @@
 - 切换默认搜索源
 - 在外部浏览器中打开当前页面
 
+### 4. OCR
+
+当前 OCR 支持两条稳定入口：
+
+1. 设置页中的 OCR 调试入口
+2. 系统分享图片到 `Nova Text`
+
+当前流程为：
+
+- 图片输入
+- 识别区域框选
+- 本地 ML Kit OCR 识别
+- 结果进入 BigBang
+
+当前还未完成的部分：
+
+- 悬浮球交互接入 OCR
+- 免区域框选识别
+- 针对不同场景的自动裁切和多场景优化
+
 ## 开发环境
 
 - Android Studio / IntelliJ with Android plugin
@@ -119,12 +144,13 @@ BigBang_Nova/
 │           ├── BoomActivity.kt            # Compose 外层壳 + legacy BigBang 内核接入
 │           ├── BoomSearchOverlayActivity.kt
 │           ├── TextBoomSettingsActivity.kt
+│           ├── BoomOcrActivity.kt
 │           ├── OverlayActivity.kt
 │           ├── OverlayPanelUi.kt
 │           ├── service/                   # 悬浮球 / 无障碍 / 捕获分发
 │           ├── domain/capture/            # 捕获会话数据结构
 │           └── data/                      # 新增偏好与存储
-├── src/com/smartisanos/textboom/          # legacy Java BigBang 主逻辑
+├── src/com/smartisanos/textboom/          # legacy Java BigBang 主逻辑 + 选框控件等残留
 ├── src/smartisanos/                       # 过渡期兼容 stub
 ├── res/                                   # legacy 资源
 ├── libs/                                  # 旧 jar 依赖（含 csopensdk）
@@ -152,18 +178,19 @@ BigBang_Nova/
 
 下一阶段开发重点已经收敛为三条：
 
-1. 接入 Android 原生 ML Kit OCR 识别
+1. 继续补完 OCR 交互，包括悬浮球接入、免区域框选识别和多场景优化
 2. 继续补齐原版大爆炸功能 feature，例如“炸了又炸”和编辑模式
+   “炸了又炸”指大爆炸识别一段文本后，用户上滑或下滑松手，直接提取上一段或下一段文本
 3. 做三方应用适配与性能调优
 
 详细计划见：[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)
 
 ## 已知限制
 
-- OCR 入口目前不可用，旧 CamScanner 代码仅作为迁移残留保留
 - 搜索页中个别站点在浮层 WebView 中仍存在兼容性问题
 - 大爆炸内部仍有部分 legacy View 交互与视觉细节待继续对齐原版
 - 多厂商 ROM 下的无障碍文本提取稳定性还没有完整收敛
+- OCR 虽已可用，但悬浮球联动、免框选和复杂场景识别还未收敛
 
 ## 致谢
 
