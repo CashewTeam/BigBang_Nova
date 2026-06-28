@@ -3,6 +3,7 @@
     <string name="copy_tips">Выбранные тексты уже скопированы</string>
     <string name="share_title">Поделиться тексты</string>
     <string name="a_msg_no_words">Неразличенные тексты</string>
+    <string name="app_label">Nova Text</string>
     <string name="text_boom_settings">Big Bang Настройка</string>
     <string name="default_search_way">Поиск по умолчанию</string>
     <string name="search_via_baidu">Baidu</string>

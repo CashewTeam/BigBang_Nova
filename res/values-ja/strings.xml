@@ -3,6 +3,7 @@
     <string name="copy_tips">選択したテキストはクリップボードにコピーされました</string>
     <string name="share_title">以下のテキストをシェア</string>
     <string name="a_msg_no_words">文字は識別していない</string>
+    <string name="app_label">Nova Text</string>
     <string name="text_boom_settings">Big Bang 設定</string>
     <string name="default_search_way">デフォルトサーチ方法</string>
     <string name="search_via_baidu">baidu検索</string>

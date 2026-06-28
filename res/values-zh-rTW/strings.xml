@@ -2,7 +2,7 @@
 
     <string name="copy_tips">所選的文字已複製到剪貼板</string>
     <string name="share_title">分享以下文字</string>
-    <string name="app_label">大爆炸</string>
+    <string name="app_label">Nova Text</string>
     <string name="a_msg_no_words">未識別出文字</string>
     <string name="ocr_title">图像文字识别</string>
     <string name="text_boom">大爆炸</string>

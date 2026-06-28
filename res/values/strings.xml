@@ -2,7 +2,7 @@
 
     <string name="copy_tips">The selected text has already been copied</string>
     <string name="share_title">Share This Text</string>
-    <string name="app_label">BigBang</string>
+    <string name="app_label">Nova Text</string>
     <string name="a_msg_no_words">No text recognized</string>
     <string name="ocr_recognize">Recognizing</string>
     <string name="ocr_cancel">Press to cancel</string>
@@ -59,9 +59,9 @@
     <string name="permission_start_floating_ball">启动悬浮球</string>
     <string name="permission_stop_floating_ball">关闭悬浮球</string>
     <string name="permission_reset_floating_ball">重置悬浮球位置</string>
-    <string name="overlay_notification_title">BigBang 悬浮球</string>
+    <string name="overlay_notification_title">Nova Text 悬浮球</string>
     <string name="overlay_notification_text">悬浮球服务正在运行</string>
-    <string name="overlay_channel_name">BigBang 悬浮球</string>
+    <string name="overlay_channel_name">Nova Text 悬浮球</string>
     <string name="overlay_channel_description">悬浮球与全局文本捕获状态</string>
     <string name="accessibility_service_summary">提取屏幕文本并交给大爆炸分词</string>
     <string name="search_overlay_close">关闭</string>
