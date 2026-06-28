@@ -9,11 +9,6 @@ import java.io.File;
 import java.util.ArrayList;
 
 public final class CppJiebaTokenizer {
-    public static final int WARM_UP_IDLE = 0;
-    public static final int WARM_UP_RUNNING = 1;
-    public static final int WARM_UP_READY = 2;
-    public static final int WARM_UP_FAILED = 3;
-
     private static final String DICT_DIR = "dict";
     private static final String[] REQUIRED_DICT_FILES = {
             "jieba.dict.utf8",
@@ -29,7 +24,6 @@ public final class CppJiebaTokenizer {
 
     private final Context appContext;
     private boolean initialized;
-    private volatile int warmUpState = WARM_UP_IDLE;
 
     private CppJiebaTokenizer(Context context) {
         appContext = context.getApplicationContext();
@@ -62,30 +56,18 @@ public final class CppJiebaTokenizer {
         ensureInitialized();
     }
 
-    public int getWarmUpState() {
-        return warmUpState;
-    }
-
     private void ensureInitialized() {
         if (initialized) {
-            warmUpState = WARM_UP_READY;
             return;
         }
-        warmUpState = WARM_UP_RUNNING;
-        try {
-            File dictDir = ensureDictDirectory();
-            if (!nativeInit(dictDir.getAbsolutePath())) {
-                throw new IllegalStateException("cppjieba init failed");
-            }
-            if (BuildConfig.DEBUG) {
-                selfCheck();
-            }
-            initialized = true;
-            warmUpState = WARM_UP_READY;
-        } catch (RuntimeException e) {
-            warmUpState = WARM_UP_FAILED;
-            throw e;
+        File dictDir = ensureDictDirectory();
+        if (!nativeInit(dictDir.getAbsolutePath())) {
+            throw new IllegalStateException("cppjieba init failed");
         }
+        if (BuildConfig.DEBUG) {
+            selfCheck();
+        }
+        initialized = true;
     }
 
     private File ensureDictDirectory() {

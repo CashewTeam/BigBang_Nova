@@ -136,6 +136,7 @@ private data class SearchPalette(
     val panel: Color,
     val topBar: Color,
     val bottomBar: Color,
+    val selectedBackground: Color,
     val border: Color,
     val divider: Color,
     val primaryText: Color,
@@ -167,6 +168,7 @@ private fun SearchOverlayScreen(
             panel = Color(0xFF171A1F),
             topBar = Color(0xFF1E2328),
             bottomBar = Color(0xFF1A1F24),
+            selectedBackground = Color.White.copy(alpha = 0.10f),
             border = Color(0xFF2E343C),
             divider = Color(0xFF2A3138),
             primaryText = Color(0xFFF2F5F8),
@@ -180,6 +182,7 @@ private fun SearchOverlayScreen(
             panel = Color(0xFFF3F3F4),
             topBar = Color(0xFFFFFFFF),
             bottomBar = Color(0xFFECECEE),
+            selectedBackground = Color.Black.copy(alpha = 0.10f),
             border = Color(0xFFD7D7DA),
             divider = Color(0xFFD8D8DB),
             primaryText = Color(0xFF6C6760),
@@ -489,6 +492,7 @@ private fun SearchBottomBar(
             horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
         ) {
             SearchProviderButton(
+                palette = palette,
                 provider = webProvider,
                 selected = activeKind == SearchKind.Web,
                 onClick = { onKindClick(SearchKind.Web) },
@@ -500,6 +504,7 @@ private fun SearchBottomBar(
                 contentDescription = stringResource(R.string.search_overlay_web),
             )
             SearchProviderButton(
+                palette = palette,
                 provider = dictProvider,
                 selected = activeKind == SearchKind.Dict,
                 onClick = { onKindClick(SearchKind.Dict) },
@@ -511,6 +516,7 @@ private fun SearchBottomBar(
                 contentDescription = stringResource(R.string.search_overlay_dict),
             )
             SearchProviderButton(
+                palette = palette,
                 provider = wikiProvider,
                 selected = activeKind == SearchKind.Wiki,
                 onClick = { onKindClick(SearchKind.Wiki) },
@@ -608,6 +614,7 @@ private fun ToolbarIconButton(
 
 @Composable
 private fun SearchProviderButton(
+    palette: SearchPalette,
     provider: SearchProvider,
     selected: Boolean,
     onClick: () -> Unit,
@@ -634,7 +641,7 @@ private fun SearchProviderButton(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
-                            color = Color(0xFFE5E5E8),
+                            color = palette.selectedBackground,
                             shape = RoundedCornerShape(10.dp),
                         ),
                 )

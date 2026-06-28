@@ -51,8 +51,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,11 +93,10 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.smartisanos.textboom.data.BigBangSettings
-import com.smartisanos.textboom.data.CppJiebaTokenizer
+import com.smartisanos.textboom.data.JiebaWarmUpTracker
 import com.smartisanos.textboom.service.BoomActivityLauncher
 import com.smartisanos.textboom.service.FloatingBallService
 import com.smartisanos.textboom.service.NovaTextAccessibilityService
-import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
 class TextBoomSettingsActivity : ComponentActivity() {
@@ -127,7 +126,6 @@ class TextBoomSettingsActivity : ComponentActivity() {
             BigBangSettingsTheme {
                 SettingsScreen(
                     settings = settings,
-                    tokenizer = CppJiebaTokenizer.get(this),
                     searchOptions = searchOptions,
                     dictionaryOptions = dictionaryOptions,
                     onOpenPreview = { openBigBangPreview(it) },
@@ -383,7 +381,6 @@ private fun ApplySystemBars() {
 @Composable
 private fun SettingsScreen(
     settings: BigBangSettings,
-    tokenizer: CppJiebaTokenizer,
     searchOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
     onOpenPreview: (String) -> Unit,
@@ -411,12 +408,17 @@ private fun SettingsScreen(
     }
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
-    var warmUpState by remember { mutableIntStateOf(tokenizer.warmUpState) }
+    val warmUpState by JiebaWarmUpTracker.getStateFlow().collectAsState(
+        initial = JiebaWarmUpTracker.getCurrentState(),
+    )
+    val floatingBallRunning by FloatingBallService.getActiveStateFlow().collectAsState(
+        initial = FloatingBallService.isActive(),
+    )
     val currentPermissionState = {
         PermissionState(
             overlayGranted = canDrawOverlays(context),
             accessibilityEnabled = isAccessibilityServiceEnabled(context),
-            floatingBallRunning = FloatingBallService.isActive(),
+            floatingBallRunning = floatingBallRunning,
         )
     }
     var permissionState by remember {
@@ -426,16 +428,9 @@ private fun SettingsScreen(
     val density = LocalDensity.current
     val listTopPadding = with(density) { topBarHeightPx.toDp() } + 10.dp
 
-    LaunchedEffect(tokenizer) {
-        while (true) {
-            warmUpState = tokenizer.warmUpState
-            if (warmUpState == CppJiebaTokenizer.WARM_UP_READY
-                || warmUpState == CppJiebaTokenizer.WARM_UP_FAILED
-            ) {
-                break
-            }
-            delay(250)
-        }
+    DisposableEffect(floatingBallRunning) {
+        permissionState = currentPermissionState()
+        onDispose { }
     }
 
     DisposableEffect(lifecycleOwner, context) {
@@ -799,9 +794,9 @@ private fun PermissionSection(
 private fun WarmUpBadge(state: Int) {
     val palette = LocalSettingsPalette.current
     val statusText = when (state) {
-        CppJiebaTokenizer.WARM_UP_RUNNING -> R.string.debug_warm_up_status_running
-        CppJiebaTokenizer.WARM_UP_READY -> R.string.debug_warm_up_status_ready
-        CppJiebaTokenizer.WARM_UP_FAILED -> R.string.debug_warm_up_status_failed
+        JiebaWarmUpTracker.STATE_RUNNING -> R.string.debug_warm_up_status_running
+        JiebaWarmUpTracker.STATE_READY -> R.string.debug_warm_up_status_ready
+        JiebaWarmUpTracker.STATE_FAILED -> R.string.debug_warm_up_status_failed
         else -> R.string.debug_warm_up_status_idle
     }
     Surface(
@@ -820,7 +815,7 @@ private fun WarmUpBadge(state: Int) {
                     .size(10.dp)
                     .background(
                         color = when (state) {
-                            CppJiebaTokenizer.WARM_UP_FAILED -> Color(0xFFF07070)
+                            JiebaWarmUpTracker.STATE_FAILED -> Color(0xFFF07070)
                             else -> palette.accent
                         },
                         shape = CircleShape,

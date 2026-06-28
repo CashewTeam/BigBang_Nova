@@ -30,6 +30,8 @@ import androidx.core.content.ContextCompat
 import com.smartisanos.textboom.R
 import com.smartisanos.textboom.data.BigBangPreferences
 import com.smartisanos.textboom.util.NovaTextLogger
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -55,6 +57,7 @@ class FloatingBallService : Service() {
         super.onCreate()
         activeService = this
         isRunning = true
+        activeState.value = true
         preferences = BigBangPreferences(this)
         preferences.setFloatingBallEnabled(true)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -89,6 +92,7 @@ class FloatingBallService : Service() {
         bubbleView?.let { windowManager.removeView(it) }
         bubbleView = null
         isRunning = false
+        activeState.value = false
         activeService = null
         NovaTextLogger.d("floating ball service destroyed")
         super.onDestroy()
@@ -331,6 +335,8 @@ class FloatingBallService : Service() {
         @Volatile
         private var prepared = false
 
+        private val activeState = MutableStateFlow(false)
+
         fun start(context: Context) {
             if (!Settings.canDrawOverlays(context)) {
                 NovaTextLogger.d("overlay permission missing, skip starting floating ball")
@@ -344,6 +350,7 @@ class FloatingBallService : Service() {
         fun stop(context: Context) {
             if (!isRunning) {
                 BigBangPreferences(context).setFloatingBallEnabled(false)
+                activeState.value = false
                 return
             }
             val intent = Intent(context, FloatingBallService::class.java).setAction(ACTION_STOP)
@@ -361,6 +368,8 @@ class FloatingBallService : Service() {
         }
 
         fun isActive(): Boolean = isRunning
+
+        fun getActiveStateFlow(): StateFlow<Boolean> = activeState
 
         private fun prepare(context: Context) {
             if (prepared) return

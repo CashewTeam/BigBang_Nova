@@ -1,8 +1,10 @@
 package com.smartisanos.textboom;
 
 import android.app.Application;
+import android.os.Process;
 
 import com.smartisanos.textboom.data.CppJiebaTokenizer;
+import com.smartisanos.textboom.data.JiebaWarmUpTracker;
 import com.smartisanos.textboom.util.ConfigUtils;
 import com.smartisanos.textboom.util.LogUtils;
 
@@ -21,10 +23,14 @@ public class BoomApplication extends Application {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                JiebaWarmUpTracker.markRunning();
                 try {
                     CppJiebaTokenizer.get(app).warmUp();
+                    JiebaWarmUpTracker.markReady();
                     LogUtils.d(TAG, "cppjieba warm-up complete");
                 } catch (RuntimeException e) {
+                    JiebaWarmUpTracker.markFailed();
                     LogUtils.e(TAG, "cppjieba warm-up failed");
                     LogUtils.e(e.getMessage(), e);
                 }
