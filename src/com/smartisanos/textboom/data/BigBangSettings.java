@@ -3,6 +3,9 @@ package com.cashewteam.novatext.android.data;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public final class BigBangSettings {
     public static final String PREF_NAME = "bigbang_settings";
 
@@ -16,6 +19,7 @@ public final class BigBangSettings {
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
     public static final String KEY_DEBUG_SKIP_ACCESSIBILITY = "debug_skip_accessibility";
     public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
+    public static final String KEY_OCR_WHITELIST_PACKAGES = "ocr_whitelist_packages";
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
     public static final String KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = "floating_ball_active_alpha_percent";
     public static final String KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT = "floating_ball_idle_alpha_percent";
@@ -136,6 +140,20 @@ public final class BigBangSettings {
         preferences.edit().putBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, enabled).apply();
     }
 
+    public Set<String> getOcrWhitelistPackages() {
+        Set<String> stored = preferences.getStringSet(
+                KEY_OCR_WHITELIST_PACKAGES,
+                defaultOcrWhitelistPackages()
+        );
+        return new HashSet<>(stored);
+    }
+
+    public void setOcrWhitelistPackages(Set<String> packages) {
+        preferences.edit()
+                .putStringSet(KEY_OCR_WHITELIST_PACKAGES, new HashSet<>(packages))
+                .apply();
+    }
+
     public String getOcrRecognizerMode() {
         return normalizeOcrRecognizerMode(
                 preferences.getString(KEY_OCR_RECOGNIZER_MODE, DEFAULT_OCR_RECOGNIZER_MODE)
@@ -183,6 +201,13 @@ public final class BigBangSettings {
 
     private static int clampPercent(int value) {
         return Math.max(0, Math.min(100, value));
+    }
+
+    private static Set<String> defaultOcrWhitelistPackages() {
+        HashSet<String> packages = new HashSet<>();
+        packages.add("com.tencent.mm");
+        packages.add("com.tencent.mobileqq");
+        return packages;
     }
 
     private static String normalizeOcrRecognizerMode(String value) {

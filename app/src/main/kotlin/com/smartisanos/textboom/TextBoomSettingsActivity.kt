@@ -1,6 +1,7 @@
 package com.cashewteam.novatext.android
 
 import android.content.ComponentName
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.content.Intent
@@ -13,6 +14,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.annotation.ArrayRes
 import androidx.annotation.DrawableRes
@@ -38,10 +40,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -56,6 +62,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,6 +97,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,6 +109,7 @@ import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
+import com.cashewteam.novatext.android.service.ForegroundAppResolver
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import kotlin.math.ceil
@@ -108,6 +117,7 @@ import kotlin.math.roundToInt
 
 class TextBoomSettingsActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
+    private var initialPage by mutableStateOf(resolveStartPage(null))
     private val pickOcrImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             uri?.let(::openOcrDebug)
@@ -116,6 +126,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = BigBangSettings.get(this)
+        initialPage = resolveStartPage(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -137,11 +148,13 @@ class TextBoomSettingsActivity : ComponentActivity() {
             BigBangSettingsTheme {
                 SettingsScreen(
                     settings = settings,
+                    initialPage = initialPage,
                     searchOptions = searchOptions,
                     dictionaryOptions = dictionaryOptions,
                     onOpenPreview = { openBigBangPreview(it) },
                     onOpenOverlayPermission = { openOverlayPermission() },
                     onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                    onOpenUsageAccessSettings = { openUsageAccessSettings() },
                     onStartFloatingBall = { startFloatingBall() },
                     onStopFloatingBall = { stopFloatingBall() },
                     onResetFloatingBall = { resetFloatingBall() },
@@ -152,6 +165,12 @@ class TextBoomSettingsActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        initialPage = resolveStartPage(intent)
     }
 
     private fun loadOptions(
@@ -218,6 +237,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
+    private fun openUsageAccessSettings() {
+        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+    }
+
     private fun startFloatingBall() {
         FloatingBallService.start(this)
     }
@@ -244,6 +267,28 @@ class TextBoomSettingsActivity : ComponentActivity() {
         settings.setFloatingBallIdleAlphaPercent(value)
         FloatingBallService.refreshAppearance(this)
     }
+
+    private fun resolveStartPage(intent: Intent?): SettingsPage {
+        return if (intent?.getStringExtra(EXTRA_START_PAGE) == START_PAGE_OCR_WHITELIST) {
+            SettingsPage.OcrWhitelist
+        } else {
+            SettingsPage.Main
+        }
+    }
+
+    companion object {
+        private const val EXTRA_START_PAGE = "extra_start_page"
+        private const val START_PAGE_OCR_WHITELIST = "ocr_whitelist"
+
+        fun createOcrWhitelistIntent(context: Context): Intent {
+            return Intent(context, TextBoomSettingsActivity::class.java).apply {
+                putExtra(EXTRA_START_PAGE, START_PAGE_OCR_WHITELIST)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+        }
+    }
 }
 
 private data class OptionItem(
@@ -262,6 +307,16 @@ private data class OcrModeItem(
     val title: String,
     val value: String,
 )
+
+private data class WhitelistAppItem(
+    val label: String,
+    val packageName: String,
+)
+
+private enum class SettingsPage {
+    Main,
+    OcrWhitelist,
+}
 
 private data class SettingsPalette(
     val background: Color,
@@ -433,11 +488,13 @@ private fun ApplySystemBars() {
 @Composable
 private fun SettingsScreen(
     settings: BigBangSettings,
+    initialPage: SettingsPage,
     searchOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
     onOpenPreview: (String) -> Unit,
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
+    onOpenUsageAccessSettings: () -> Unit,
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
     onResetFloatingBall: () -> Unit,
@@ -465,8 +522,12 @@ private fun SettingsScreen(
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
+    var currentPage by rememberSaveable { mutableStateOf(initialPage.name) }
     var debugSkipAccessibility by rememberSaveable {
         mutableStateOf(settings.isDebugSkipAccessibilityEnabled)
+    }
+    var ocrWhitelistPackages by remember {
+        mutableStateOf(settings.ocrWhitelistPackages.toSet())
     }
     val warmUpState by JiebaWarmUpTracker.getStateFlow().collectAsState(
         initial = JiebaWarmUpTracker.getCurrentState(),
@@ -484,6 +545,9 @@ private fun SettingsScreen(
     var permissionState by remember {
         mutableStateOf(currentPermissionState())
     }
+    var usageAccessEnabled by remember {
+        mutableStateOf(ForegroundAppResolver.hasUsageAccess(context))
+    }
     var floatingBallSizePercent by rememberSaveable {
         mutableIntStateOf(settings.floatingBallSizePercent)
     }
@@ -496,6 +560,9 @@ private fun SettingsScreen(
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val listTopPadding = with(density) { topBarHeightPx.toDp() } + 10.dp
+    val launcherApps = remember(context, layoutDirection) {
+        loadLauncherApps(context)
+    }
     val ocrModes = remember {
         listOf(
             OcrModeItem(title = context.getString(R.string.ocr_mode_chinese), value = BigBangSettings.OCR_MODE_CHINESE),
@@ -504,16 +571,22 @@ private fun SettingsScreen(
             OcrModeItem(title = context.getString(R.string.ocr_mode_latin), value = BigBangSettings.OCR_MODE_LATIN),
         )
     }
+    val selectedCount = ocrWhitelistPackages.size
 
     DisposableEffect(floatingBallRunning) {
         permissionState = currentPermissionState()
         onDispose { }
     }
 
+    LaunchedEffect(initialPage) {
+        currentPage = initialPage.name
+    }
+
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permissionState = currentPermissionState()
+                usageAccessEnabled = ForegroundAppResolver.hasUsageAccess(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -528,125 +601,154 @@ private fun SettingsScreen(
             .background(palette.background)
             .background(stripeBrush),
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = listTopPadding, bottom = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                SettingsSectionCard {
-                    PermissionSection(
-                        state = permissionState,
-                        onOpenOverlayPermission = onOpenOverlayPermission,
-                        onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                        onStartFloatingBall = onStartFloatingBall,
-                        onStopFloatingBall = onStopFloatingBall,
-                        onResetFloatingBall = onResetFloatingBall,
-                    )
+        if (currentPage == SettingsPage.OcrWhitelist.name) {
+            OcrWhitelistPage(
+                topPadding = listTopPadding,
+                usageAccessEnabled = usageAccessEnabled,
+                whitelistPackages = ocrWhitelistPackages,
+                apps = launcherApps,
+                onBack = { currentPage = SettingsPage.Main.name },
+                onOpenUsageAccessSettings = onOpenUsageAccessSettings,
+                onTogglePackage = { packageName ->
+                    val next = ocrWhitelistPackages.toMutableSet()
+                    if (!next.add(packageName)) {
+                        next.remove(packageName)
+                    }
+                    ocrWhitelistPackages = next
+                    settings.setOcrWhitelistPackages(next)
+                },
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(top = listTopPadding, bottom = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    SettingsSectionCard {
+                        PermissionSection(
+                            state = permissionState,
+                            onOpenOverlayPermission = onOpenOverlayPermission,
+                            onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                            onStartFloatingBall = onStartFloatingBall,
+                            onStopFloatingBall = onStopFloatingBall,
+                            onResetFloatingBall = onResetFloatingBall,
+                        )
+                    }
                 }
-            }
 
-            item {
-                SettingsSectionCard {
-                    FloatingBallSection(
-                        floatingBallSizePercent = floatingBallSizePercent,
-                        floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
-                        floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
-                        onFloatingBallSizeChange = {
-                            floatingBallSizePercent = it
-                            onFloatingBallSizeChange(it)
-                        },
-                        onFloatingBallActiveAlphaChange = {
-                            floatingBallActiveAlphaPercent = it
-                            onFloatingBallActiveAlphaChange(it)
-                        },
-                        onFloatingBallIdleAlphaChange = {
-                            floatingBallIdleAlphaPercent = it
-                            onFloatingBallIdleAlphaChange(it)
-                        },
-                    )
+                item {
+                    SettingsSectionCard {
+                        FloatingBallSection(
+                            floatingBallSizePercent = floatingBallSizePercent,
+                            floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
+                            floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
+                            onFloatingBallSizeChange = {
+                                floatingBallSizePercent = it
+                                onFloatingBallSizeChange(it)
+                            },
+                            onFloatingBallActiveAlphaChange = {
+                                floatingBallActiveAlphaPercent = it
+                                onFloatingBallActiveAlphaChange(it)
+                            },
+                            onFloatingBallIdleAlphaChange = {
+                                floatingBallIdleAlphaPercent = it
+                                onFloatingBallIdleAlphaChange(it)
+                            },
+                        )
+                    }
                 }
-            }
 
-            item {
-                SettingsSectionCard {
-                    OcrSection(
-                        selectedMode = selectedOcrMode,
-                        modes = ocrModes,
-                        onModeSelected = {
-                            selectedOcrMode = it
-                            settings.setOcrRecognizerMode(it)
-                        },
-                        onPickImage = onOpenOcrDebugPicker,
-                    )
+                item {
+                    SettingsSectionCard {
+                        OcrSection(
+                            selectedMode = selectedOcrMode,
+                            modes = ocrModes,
+                            whitelistCount = selectedCount,
+                            usageAccessEnabled = usageAccessEnabled,
+                            onModeSelected = {
+                                selectedOcrMode = it
+                                settings.setOcrRecognizerMode(it)
+                            },
+                            onPickImage = onOpenOcrDebugPicker,
+                            onManageWhitelist = { currentPage = SettingsPage.OcrWhitelist.name },
+                        )
+                    }
                 }
-            }
 
-            item {
-                SettingsSectionCard {
-                    DebugSection(
-                        previewText = previewText,
-                        selectedPresetIndex = selectedPresetIndex,
-                        presetLabels = presetLabels,
-                        warmUpState = warmUpState,
-                        debugSkipAccessibility = debugSkipAccessibility,
-                        onPresetSelected = { index ->
-                            val text = presetTexts[index]
-                            selectedPresetIndex = index
-                            previewText = text
-                            settings.setDebugPresetText(text)
-                            settings.setDebugPreviewText(text)
-                        },
-                        onPreviewTextChange = {
-                            previewText = it
-                            settings.setDebugPreviewText(it)
-                        },
-                        onPreviewClick = {
-                            settings.setDebugPreviewText(previewText)
-                            onOpenPreview(previewText)
-                        },
-                        onDebugSkipAccessibilityChange = {
-                            debugSkipAccessibility = it
-                            settings.setDebugSkipAccessibilityEnabled(it)
-                        },
-                    )
+                item {
+                    SettingsSectionCard {
+                        DebugSection(
+                            previewText = previewText,
+                            selectedPresetIndex = selectedPresetIndex,
+                            presetLabels = presetLabels,
+                            warmUpState = warmUpState,
+                            debugSkipAccessibility = debugSkipAccessibility,
+                            onPresetSelected = { index ->
+                                val text = presetTexts[index]
+                                selectedPresetIndex = index
+                                previewText = text
+                                settings.setDebugPresetText(text)
+                                settings.setDebugPreviewText(text)
+                            },
+                            onPreviewTextChange = {
+                                previewText = it
+                                settings.setDebugPreviewText(it)
+                            },
+                            onPreviewClick = {
+                                settings.setDebugPreviewText(previewText)
+                                onOpenPreview(previewText)
+                            },
+                            onDebugSkipAccessibilityChange = {
+                                debugSkipAccessibility = it
+                                settings.setDebugSkipAccessibilityEnabled(it)
+                            },
+                        )
+                    }
                 }
-            }
 
-            item {
-                SettingsSectionCard {
-                    OptionSection(
-                        title = stringResource(R.string.default_search_way),
-                        subtitle = stringResource(R.string.settings_search_summary),
-                        options = searchOptions,
-                        selectedValue = selectedSearch,
-                        onSelect = {
-                            selectedSearch = it
-                            settings.setWebSearchType(it)
-                        },
-                    )
+                item {
+                    SettingsSectionCard {
+                        OptionSection(
+                            title = stringResource(R.string.default_search_way),
+                            subtitle = stringResource(R.string.settings_search_summary),
+                            options = searchOptions,
+                            selectedValue = selectedSearch,
+                            onSelect = {
+                                selectedSearch = it
+                                settings.setWebSearchType(it)
+                            },
+                        )
+                    }
                 }
-            }
 
-            item {
-                SettingsSectionCard {
-                    OptionSection(
-                        title = stringResource(R.string.default_dict),
-                        subtitle = stringResource(R.string.settings_dict_summary),
-                        options = dictionaryOptions,
-                        selectedValue = selectedDictionary,
-                        onSelect = {
-                            selectedDictionary = it
-                            settings.setDictSearchType(it)
-                        },
-                    )
+                item {
+                    SettingsSectionCard {
+                        OptionSection(
+                            title = stringResource(R.string.default_dict),
+                            subtitle = stringResource(R.string.settings_dict_summary),
+                            options = dictionaryOptions,
+                            selectedValue = selectedDictionary,
+                            onSelect = {
+                                selectedDictionary = it
+                                settings.setDictSearchType(it)
+                            },
+                        )
+                    }
                 }
             }
         }
 
         SettingsTopBar(
+            title = if (currentPage == SettingsPage.OcrWhitelist.name) {
+                stringResource(R.string.ocr_whitelist_title)
+            } else {
+                stringResource(R.string.text_boom_settings)
+            },
+            showBack = currentPage == SettingsPage.OcrWhitelist.name,
+            onBack = { currentPage = SettingsPage.Main.name },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
@@ -659,8 +761,11 @@ private fun SettingsScreen(
 private fun OcrSection(
     selectedMode: String,
     modes: List<OcrModeItem>,
+    whitelistCount: Int,
+    usageAccessEnabled: Boolean,
     onModeSelected: (String) -> Unit,
     onPickImage: () -> Unit,
+    onManageWhitelist: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -708,6 +813,15 @@ private fun OcrSection(
         }
         SecondaryActionButton(
             modifier = Modifier.fillMaxWidth(),
+            text = stringResource(
+                R.string.ocr_whitelist_summary,
+                whitelistCount,
+                statusText(usageAccessEnabled),
+            ),
+            onClick = onManageWhitelist,
+        )
+        SecondaryActionButton(
+            modifier = Modifier.fillMaxWidth(),
             text = stringResource(R.string.ocr_debug_pick_image_button),
             onClick = onPickImage,
         )
@@ -734,7 +848,12 @@ private fun isAccessibilityServiceEnabled(context: android.content.Context): Boo
 }
 
 @Composable
-private fun SettingsTopBar(modifier: Modifier = Modifier) {
+private fun SettingsTopBar(
+    title: String,
+    showBack: Boolean,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val palette = LocalSettingsPalette.current
     val shape = RoundedCornerShape(0.dp)
     Box(
@@ -754,16 +873,180 @@ private fun SettingsTopBar(modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 14.dp),
-                contentAlignment = Alignment.Center,
             ) {
+                if (showBack) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(32.dp)
+                            .clickable(onClick = onBack),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = null,
+                            tint = palette.topBarText,
+                        )
+                    }
+                }
                 Text(
-                    text = stringResource(R.string.text_boom_settings),
+                    text = title,
                     color = palette.topBarText,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun OcrWhitelistPage(
+    topPadding: androidx.compose.ui.unit.Dp,
+    usageAccessEnabled: Boolean,
+    whitelistPackages: Set<String>,
+    apps: List<WhitelistAppItem>,
+    onBack: () -> Unit,
+    onOpenUsageAccessSettings: () -> Unit,
+    onTogglePackage: (String) -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    var query by rememberSaveable { mutableStateOf("") }
+    val filteredApps = remember(query, apps) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isEmpty()) {
+            apps
+        } else {
+            apps.filter {
+                it.label.contains(normalizedQuery, ignoreCase = true) ||
+                    it.packageName.contains(normalizedQuery, ignoreCase = true)
+            }
+        }
+    }
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(top = topPadding, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            SettingsSectionCard {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        text = stringResource(R.string.ocr_whitelist_button),
+                        color = LocalSettingsPalette.current.textPrimary,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    PermissionStatusRow(
+                        title = stringResource(R.string.ocr_usage_access_title),
+                        granted = usageAccessEnabled,
+                    )
+                    SecondaryActionButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.ocr_usage_access_action),
+                        onClick = onOpenUsageAccessSettings,
+                    )
+                }
+            }
+        }
+        item {
+            SettingsSectionCard {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        singleLine = true,
+                        placeholder = {
+                            Text(text = stringResource(R.string.ocr_whitelist_search_hint))
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = LocalSettingsPalette.current.cardInset,
+                            unfocusedContainerColor = LocalSettingsPalette.current.cardInset,
+                            disabledContainerColor = LocalSettingsPalette.current.cardInset,
+                            focusedIndicatorColor = LocalSettingsPalette.current.accent,
+                            unfocusedIndicatorColor = LocalSettingsPalette.current.cardBorder,
+                        ),
+                    )
+                    if (filteredApps.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.ocr_whitelist_empty),
+                            color = LocalSettingsPalette.current.textSecondary,
+                            fontSize = 14.sp,
+                        )
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = LocalSettingsPalette.current.cardInset,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                LocalSettingsPalette.current.cardBorder,
+                            ),
+                        ) {
+                            Column {
+                                filteredApps.forEachIndexed { index, item ->
+                                    WhitelistAppRow(
+                                        item = item,
+                                        checked = whitelistPackages.contains(item.packageName),
+                                        onClick = { onTogglePackage(item.packageName) },
+                                    )
+                                    if (index != filteredApps.lastIndex) {
+                                        HorizontalDivider(
+                                            color = LocalSettingsPalette.current.divider,
+                                            modifier = Modifier.padding(start = 18.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WhitelistAppRow(
+    item: WhitelistAppItem,
+    checked: Boolean,
+    onClick: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onClick() },
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.label,
+                color = palette.textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = item.packageName,
+                color = palette.textSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -1248,6 +1531,26 @@ private fun SecondaryActionButton(
             )
         }
     }
+}
+
+private fun statusText(granted: Boolean): String {
+    return if (granted) "已授权" else "未授权"
+}
+
+private fun loadLauncherApps(context: Context): List<WhitelistAppItem> {
+    val packageManager = context.packageManager
+    val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return packageManager.queryIntentActivities(launcherIntent, 0)
+        .asSequence()
+        .mapNotNull { resolveInfo ->
+            val packageName = resolveInfo.activityInfo?.packageName ?: return@mapNotNull null
+            val label = resolveInfo.loadLabel(packageManager)?.toString().orEmpty().ifBlank { packageName }
+            WhitelistAppItem(label = label, packageName = packageName)
+        }
+        .distinctBy { it.packageName }
+        .filterNot { it.packageName == context.packageName }
+        .sortedWith(compareBy<WhitelistAppItem> { it.label.lowercase() }.thenBy { it.packageName })
+        .toList()
 }
 
 @Composable
