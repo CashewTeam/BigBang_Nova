@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -405,34 +406,48 @@ private fun OcrOverlayScreen(
                     .background(palette.bar)
                     .statusBarsPadding(),
             ) {
-                OverlayHeaderBar(
-                    backgroundColor = Color.Transparent,
-                    leading = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier.requiredWidth(48.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
                         OverlayIconAction(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             tint = palette.text,
                             onClick = onBack,
                             contentDescription = stringResource(R.string.ocr_action_cancel),
                         )
-                    },
-                    center = {
+                    }
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = stringResource(R.string.ocr_select_region_title),
                                 color = palette.text,
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
                                 text = currentLanguage.title,
                                 color = palette.secondaryText,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                             )
                         }
-                    },
-                    trailing = {
+                    }
+                    Box(
+                        modifier = Modifier.requiredWidth(48.dp),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
                         Box {
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.Settings,
@@ -478,8 +493,8 @@ private fun OcrOverlayScreen(
                                 }
                             }
                         }
-                    },
-                )
+                    }
+                }
             }
             HorizontalDivider(color = palette.barBorder)
 

@@ -47,19 +47,19 @@ public class OcrSelectionView extends View {
 
     public OcrSelectionView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        mTouchThresholdPx = dp(24);
-        mHandleRadiusPx = dp(9);
+        mTouchThresholdPx = dp(26);
+        mHandleRadiusPx = dp(13);
         mMinSelectionSizePx = dp(96);
 
         mScrimPaint.setColor(0x7A000000);
-        mBorderPaint.setColor(0xFFFFFFFF);
+        mBorderPaint.setColor(0xFF6FA0FF);
         mBorderPaint.setStyle(Paint.Style.STROKE);
         mBorderPaint.setStrokeWidth(dp(2));
 
-        mHandlePaint.setColor(0xFFFFFFFF);
+        mHandlePaint.setColor(0xFF8DB7FF);
         mHandlePaint.setStyle(Paint.Style.FILL);
 
-        mGridPaint.setColor(0x66FFFFFF);
+        mGridPaint.setColor(0x556FA0FF);
         mGridPaint.setStyle(Paint.Style.STROKE);
         mGridPaint.setStrokeWidth(dp(1));
     }
@@ -81,13 +81,13 @@ public class OcrSelectionView extends View {
         if (mImageBounds.isEmpty()) {
             return;
         }
-        float insetX = Math.max(dp(18), mImageBounds.width() * 0.12f);
-        float insetY = Math.max(dp(18), mImageBounds.height() * 0.12f);
+        float selectionHeight = Math.max(mMinSelectionSizePx, mImageBounds.height() * 0.30f);
+        float centerY = mImageBounds.centerY();
         mSelectionRect.set(
-                mImageBounds.left + insetX,
-                mImageBounds.top + insetY,
-                mImageBounds.right - insetX,
-                mImageBounds.bottom - insetY
+                mImageBounds.left,
+                centerY - selectionHeight / 2f,
+                mImageBounds.right,
+                centerY + selectionHeight / 2f
         );
         ensureMinimumSize(mSelectionRect);
         clampRect(mSelectionRect);
