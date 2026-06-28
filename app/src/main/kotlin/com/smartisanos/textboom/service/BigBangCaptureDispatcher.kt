@@ -10,21 +10,8 @@ object BigBangCaptureDispatcher {
         context: Context,
         touchX: Int,
         touchY: Int,
-    ): Boolean {
-        val snapshot = TextSessionCoordinator.runAccessibilityFirst(
-            CaptureRequestContract(
-                touchX = touchX.toDouble(),
-                touchY = touchY.toDouble(),
-                packageName = context.packageName,
-                allowOcrFallback = false,
-            )
-        )
-        val text = snapshot.originalText.trim()
-        if (text.isEmpty()) {
-            NovaTextLogger.d("capture failed: no accessible text")
-            return false
-        }
-        BoomActivityLauncher.openText(context, text, touchX, touchY, animateLaunch = true)
-        return true
+    ) {
+        NovaTextLogger.d("capture queued at x=$touchX y=$touchY")
+        BoomActivityLauncher.launchCapture(context, touchX, touchY)
     }
 }

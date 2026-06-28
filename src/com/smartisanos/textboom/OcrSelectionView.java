@@ -118,6 +118,14 @@ public class OcrSelectionView extends View {
         return new Rect(left, top, right, bottom);
     }
 
+    public boolean hasSelectionRect() {
+        return !mSelectionRect.isEmpty();
+    }
+
+    public RectF getSelectionRectInView() {
+        return new RectF(mSelectionRect);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);

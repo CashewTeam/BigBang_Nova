@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
@@ -89,6 +90,8 @@ class BoomOcrActivity : ComponentActivity() {
     private var selectionContainer: OcrSelectionContainer? = null
     private var stage by mutableStateOf(OcrStage.Selecting)
     private var ocrStarted = false
+    private var launchTouchX = 0
+    private var launchTouchY = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +107,8 @@ class BoomOcrActivity : ComponentActivity() {
 
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
+        launchTouchX = touchX.toInt()
+        launchTouchY = touchY.toInt()
         fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
         callerPackage = intent.getStringExtra("caller_pkg")
         offset = intArrayOf(
@@ -167,9 +172,14 @@ class BoomOcrActivity : ComponentActivity() {
         if (ocrStarted) return
         val container = selectionContainer ?: return
         val selectionRect = container.getSelectionRectInBitmap()
+        val selectionCenter = container.getSelectionCenterOnScreen()
         if (selectionRect.width() <= 0 || selectionRect.height() <= 0) {
             Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
             return
+        }
+        if (selectionCenter != null) {
+            launchTouchX = selectionCenter.x
+            launchTouchY = selectionCenter.y
         }
         recycleBitmap(ocrBitmap, false)
         ocrBitmap = Bitmap.createBitmap(
@@ -202,9 +212,9 @@ class BoomOcrActivity : ComponentActivity() {
             stage = OcrStage.Selecting
             return
         }
-        BoomActivityLauncher.openText(this, ocrText, touchX.toInt(), touchY.toInt(), false, false)
         ocrStarted = false
-        finish()
+        stage = OcrStage.Selecting
+        BoomActivityLauncher.openText(this, ocrText, launchTouchX, launchTouchY, false, false)
     }
 
     private fun stopOcr() {
@@ -506,7 +516,7 @@ private fun OcrOverlayScreen(
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (stage == OcrStage.Selecting && bitmap != null) {
+                if (bitmap != null) {
                     AndroidView(
                         modifier = Modifier
                             .fillMaxSize()
@@ -521,37 +531,6 @@ private fun OcrOverlayScreen(
                             container.bindBitmap(bitmap)
                         },
                     )
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(26.dp),
-                        color = Color(0xCC202226),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .width(220.dp)
-                                .padding(horizontal = 24.dp, vertical = 22.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(34.dp),
-                                color = palette.accent,
-                                strokeWidth = 3.dp,
-                            )
-                            Text(
-                                text = stringResource(R.string.ocr_recognize),
-                                color = palette.text,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(top = 14.dp),
-                            )
-                            Text(
-                                text = stringResource(R.string.ocr_cancel),
-                                color = palette.secondaryText,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                    }
                 }
             }
 
@@ -694,6 +673,19 @@ private class OcrSelectionContainer(context: android.content.Context) : FrameLay
     fun getSelectionRectInBitmap(): Rect {
         val bitmap = boundBitmap ?: return Rect()
         return selectionView.getSelectionRectInBitmap(bitmap.width, bitmap.height)
+    }
+
+    fun getSelectionCenterOnScreen(): Point? {
+        if (!selectionView.hasSelectionRect()) {
+            return null
+        }
+        val rect = selectionView.getSelectionRectInView()
+        val location = IntArray(2)
+        selectionView.getLocationOnScreen(location)
+        return Point(
+            (location[0] + rect.centerX()).toInt(),
+            (location[1] + rect.centerY()).toInt(),
+        )
     }
 
     private fun updateSelectionBounds() {

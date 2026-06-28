@@ -8,6 +8,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -21,8 +24,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,17 +47,26 @@ import com.cashewteam.novatext.android.util.LogUtils
 class BoomActivity : ComponentActivity() {
     private var boomChipPage: BoomChipPage? = null
     private lateinit var legacyContentView: View
+    private var launchTouchX = -1
+    private var launchTouchY = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        launchTouchX = intent.getIntExtra("boom_startx", -1)
+        launchTouchY = intent.getIntExtra("boom_starty", -1)
 
         legacyContentView = layoutInflater.inflate(R.layout.boom_activity_layout, null, false)
         legacyContentView.findViewById<View>(R.id.boom_page).apply {
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            BoomAnimator.makeFadeIn(this, BoomAnimator.BOOM_DURATION)
+            if (intent.getBooleanExtra(OcrLaunchActivity.EXTRA_SKIP_LEGACY_FADE_IN, false)) {
+                visibility = View.VISIBLE
+                alpha = 1f
+            } else {
+                BoomAnimator.makeFadeIn(this, BoomAnimator.BOOM_DURATION)
+            }
         }
         boomChipPage = BoomChipPage(this, legacyContentView, false).also { page ->
             page.restoreSelectedState(savedInstanceState?.getSerializable(SELECTED_STATE))
@@ -54,6 +75,8 @@ class BoomActivity : ComponentActivity() {
         setContent {
             BigBangOverlayContent(
                 contentView = legacyContentView,
+                touchX = launchTouchX,
+                touchY = launchTouchY,
                 onDismiss = { dismissPage() },
                 onEditMode = { showPlaceholder() },
                 onSelectAll = { selectAll() },
@@ -160,6 +183,8 @@ class BoomActivity : ComponentActivity() {
 @Composable
 private fun BigBangOverlayContent(
     contentView: View,
+    touchX: Int,
+    touchY: Int,
     onDismiss: () -> Unit,
     onEditMode: () -> Unit,
     onSelectAll: () -> Unit,
@@ -173,13 +198,50 @@ private fun BigBangOverlayContent(
     val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.48f)
     val shadowColor = Color.Black.copy(alpha = 0.5f)
     val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(panelMetrics.cornerRadius)
+    var enterAnimationStarted by remember { mutableStateOf(false) }
+    var panelBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    val enterProgress by animateFloatAsState(
+        targetValue = if (enterAnimationStarted) 1f else 0f,
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "bigbang_panel_enter",
+    )
+    val scrimProgress by animateFloatAsState(
+        targetValue = if (enterAnimationStarted) 1f else 0f,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "bigbang_scrim_enter",
+    )
+    val transformOrigin = remember(panelBounds, touchX, touchY) {
+        val bounds = panelBounds
+        if (bounds == null || touchX < 0 || touchY < 0) {
+            TransformOrigin.Center
+        } else {
+            TransformOrigin(
+                pivotFractionX = ((touchX - bounds.left) / bounds.width).coerceIn(0f, 1f),
+                pivotFractionY = ((touchY - bounds.top) / bounds.height).coerceIn(0f, 1f),
+            )
+        }
+    }
+    val panelScale = 0.84f + (0.16f * enterProgress)
+
+    LaunchedEffect(Unit) {
+        enterAnimationStarted = true
+    }
 
     BackHandler(onBack = onDismiss)
-    OverlayScene(scrimColor = scrimColor, onDismiss = onDismiss) {
+    OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = onDismiss) {
         FloatingPanel(
             width = panelMetrics.width,
             height = panelMetrics.height,
-            modifier = overlayPanelPlacement(panelMetrics),
+            modifier = overlayPanelPlacement(panelMetrics)
+                .onGloballyPositioned { coordinates ->
+                    panelBounds = coordinates.boundsInWindow()
+                }
+                .graphicsLayer {
+                    alpha = enterProgress
+                    scaleX = panelScale
+                    scaleY = panelScale
+                    this.transformOrigin = transformOrigin
+                },
             shape = panelShape,
             backgroundColor = panelBackground,
             borderColor = panelBorder,

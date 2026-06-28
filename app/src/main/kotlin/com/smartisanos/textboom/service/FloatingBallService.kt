@@ -188,8 +188,9 @@ class FloatingBallService : Service() {
                     saveCurrentPositionAsAnchor()
                     mode = MODE_IDLE
                 } else {
-                    val sampleX = layoutParams.x + layoutParams.width / 2
-                    val sampleY = layoutParams.y + layoutParams.height / 2
+                    val bubbleCenter = getBubbleCenterOnScreen()
+                    val sampleX = bubbleCenter?.x ?: (layoutParams.x + layoutParams.width / 2)
+                    val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
                     layoutParams.x = anchorX
                     layoutParams.y = anchorY
                     clampPositionInPlace(layoutParams)
@@ -300,6 +301,16 @@ class FloatingBallService : Service() {
 
     private fun updateBubbleLayout() {
         bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
+    }
+
+    private fun getBubbleCenterOnScreen(): Point? {
+        val view = bubbleView ?: return null
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        return Point(
+            location[0] + view.width / 2,
+            location[1] + view.height / 2,
+        )
     }
 
     private fun bubbleSizePx(): Int {

@@ -41,7 +41,7 @@
 
         <activity
             android:name=".OcrLaunchActivity"
-            android:theme="@style/BaseStyleTrans"
+            android:theme="@style/OverlayActivityTheme"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
