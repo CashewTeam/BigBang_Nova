@@ -53,9 +53,13 @@ object BigBangCaptureDispatcher {
             return
         }
         if (settings.ocrWhitelistPackages.contains(foregroundPackage)) {
-            if (!AccessibilityScreenshotCapture.captureToOcr(foregroundPackage, touchX, touchY)) {
-                Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
-            }
+            BoomOcrLauncher.launchCapture(
+                context = context,
+                touchX = touchX,
+                touchY = touchY,
+                fullscreen = true,
+                callerPackage = foregroundPackage,
+            )
             return
         }
         NovaTextLogger.d("capture queued at x=$touchX y=$touchY")

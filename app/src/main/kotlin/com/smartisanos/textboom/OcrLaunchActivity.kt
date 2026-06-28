@@ -13,6 +13,8 @@ import android.widget.ImageView
 import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
+import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
+import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.util.LogUtils
 import kotlin.concurrent.thread
 
@@ -29,18 +31,34 @@ class OcrLaunchActivity : Activity() {
     private var touchY = 0f
     private var pendingText: String? = null
     private var captureRequested = false
+    private var captureOcrScreenshotRequested = false
+    private var captureOcrScreenshotStarted = false
+    private var pendingOcrSelectionLaunch = false
+    private var ocrSelectionLaunched = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
+        pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty()
+        if (captureOcrScreenshotRequested) {
+            touchX = readTouchCoordinate("boom_startx", true)
+            touchY = readTouchCoordinate("boom_starty", false)
+            return
+        }
         setContentView(R.layout.boom_ocr_launch_layout)
         loopAnimFrame = findViewById(R.id.anim_loop)
         loopRotateImage = findViewById(R.id.loop_rotate)
         contentFrame = findViewById(R.id.click_layout)
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
+        if (pendingOcrSelectionLaunch) {
+            loopRotateImage?.visibility = View.INVISIBLE
+            loopAnimFrame?.visibility = View.INVISIBLE
+            return
+        }
         captureRequested = intent.getBooleanExtra(EXTRA_CAPTURE_ACCESSIBILITY, false)
         pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -62,6 +80,36 @@ class OcrLaunchActivity : Activity() {
         }
         if (captureRequested) {
             startAccessibilityCapture()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (captureOcrScreenshotRequested && !captureOcrScreenshotStarted && !cancelled) {
+            captureOcrScreenshotStarted = true
+            window.decorView.post {
+                if (cancelled || isFinishing || isDestroyed) {
+                    return@post
+                }
+                val callerPackage = intent.getStringExtra("caller_pkg").orEmpty()
+                val started = AccessibilityScreenshotCapture.captureToOcr(
+                    launchContext = this,
+                    callerPackage = callerPackage,
+                    touchX = touchX.toInt(),
+                    touchY = touchY.toInt(),
+                )
+                if (!started) {
+                    finish()
+                }
+            }
+            return
+        }
+        if (pendingOcrSelectionLaunch && !ocrSelectionLaunched && !cancelled) {
+            window.decorView.post {
+                if (pendingOcrSelectionLaunch && !ocrSelectionLaunched && !cancelled && !isFinishing && !isDestroyed) {
+                    launchOcrSelection()
+                }
+            }
         }
     }
 
@@ -186,6 +234,19 @@ class OcrLaunchActivity : Activity() {
                 putExtra(Intent.EXTRA_TEXT, text)
                 putExtra(EXTRA_SKIP_LEGACY_FADE_IN, true)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            },
+        )
+        finish()
+    }
+
+    private fun launchOcrSelection() {
+        pendingOcrSelectionLaunch = false
+        ocrSelectionLaunched = true
+        startActivity(
+            Intent(this, BoomOcrActivity::class.java).apply {
+                replaceExtras(this@OcrLaunchActivity.intent)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             },
         )
         finish()

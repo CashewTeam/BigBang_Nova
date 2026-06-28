@@ -17,6 +17,7 @@ object AccessibilityScreenshotCapture {
     private val captureInFlight = AtomicBoolean(false)
 
     fun captureToOcr(
+        launchContext: android.content.Context,
         callerPackage: String,
         touchX: Int,
         touchY: Int,
@@ -45,7 +46,7 @@ object AccessibilityScreenshotCapture {
                             return
                         }
                         BoomOcrLauncher.open(
-                            context = service,
+                            context = launchContext,
                             imageUri = uri,
                             touchX = touchX,
                             touchY = touchY,
