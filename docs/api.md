@@ -256,6 +256,21 @@ OCR 白名单默认值：
 
 ## 8. 识别能力边界
 
+### `AccessibilityTextSession`
+
+当前职责：
+
+- 从 `NovaTextAccessibilityService.rootInActiveWindow` 遍历无障碍节点
+- 生成原始文本块、段落窗口和最近段落
+- 缓存上一段 / 下一段，供“炸了又炸”使用
+
+说明：
+
+- 普通父容器如果只是重复子节点文本，会被过滤，避免重复文本块
+- 可点击 / 可聚焦且 `contentDescription` 信息更完整的卡片节点会保留
+- 被完整卡片节点覆盖的子文本块会从候选中移除，避免统计数字、时长、按钮碎片抢中
+- 纯数字、播放量等低信息量统计文本会在最近块评分中降权
+
 ### `MlKitOcrEngine`
 
 当前职责：

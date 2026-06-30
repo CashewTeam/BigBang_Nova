@@ -45,7 +45,8 @@ private class AccessibilityTextSessionRunner(
             traverse(root, request.touchX, request.touchY, candidates)
             root.recycle()
         }
-        val sortedCandidates = candidates
+        val prunedCandidates = pruneChildrenCoveredByRichParents(candidates)
+        val sortedCandidates = prunedCandidates
             .distinctBy { "${it.text}\u0000${it.bounds.flattenToString()}" }
             .sortedWith(
                 compareBy<AccessibilityTextCandidate> { it.bounds.top }
@@ -147,11 +148,13 @@ private class AccessibilityTextSessionRunner(
         if (text != null && node.isVisibleToUser) {
             val bounds = Rect()
             node.getBoundsInScreen(bounds)
-            if (!bounds.isEmpty && shouldIncludeNode(node, text, bounds)) {
+            val richDescription = isRichContentDescriptionNode(node, text)
+            if (!bounds.isEmpty && shouldIncludeNode(node, text, bounds, richDescription)) {
                 candidates += AccessibilityTextCandidate(
                     text = text,
                     bounds = bounds,
-                    distanceSquared = distanceSquared(bounds, touchX, touchY),
+                    distanceSquared = adjustedDistanceSquared(bounds, text, touchX, touchY),
+                    richDescription = richDescription,
                 )
             }
         }
@@ -167,7 +170,9 @@ private class AccessibilityTextSessionRunner(
         node: AccessibilityNodeInfo,
         text: String,
         bounds: Rect,
+        richDescription: Boolean,
     ): Boolean {
+        if (richDescription) return true
         for (index in 0 until node.childCount) {
             val child = node.getChild(index) ?: continue
             try {
@@ -185,6 +190,30 @@ private class AccessibilityTextSessionRunner(
             }
         }
         return true
+    }
+
+    private fun isRichContentDescriptionNode(
+        node: AccessibilityNodeInfo,
+        text: String,
+    ): Boolean {
+        val description = node.contentDescription?.toString()?.let(::normalizeLine) ?: return false
+        if (description != text) return false
+        if (!node.isClickable && !node.isFocusable && !node.isLongClickable) return false
+        if (description.length < RICH_CONTENT_DESCRIPTION_MIN_LENGTH) return false
+        val separators = description.count { it == ',' || it == '，' }
+        return separators >= RICH_CONTENT_DESCRIPTION_MIN_SEPARATORS
+    }
+
+    private fun pruneChildrenCoveredByRichParents(
+        candidates: List<AccessibilityTextCandidate>,
+    ): List<AccessibilityTextCandidate> {
+        val richParents = candidates.filter { it.richDescription }
+        if (richParents.isEmpty()) return candidates
+        return candidates.filter { candidate ->
+            candidate.richDescription || richParents.none { parent ->
+                parent.bounds != candidate.bounds && parent.bounds.contains(candidate.bounds)
+            }
+        }
     }
 
     private fun extractCleanText(node: AccessibilityNodeInfo): String? {
@@ -227,10 +256,31 @@ private class AccessibilityTextSessionRunner(
         return dx * dx + dy * dy
     }
 
+    private fun adjustedDistanceSquared(
+        bounds: Rect,
+        text: String,
+        touchX: Double,
+        touchY: Double,
+    ): Double {
+        val distance = distanceSquared(bounds, touchX, touchY)
+        return if (isLowValueStatisticText(text)) {
+            distance + STATISTIC_TEXT_PENALTY_PX * STATISTIC_TEXT_PENALTY_PX
+        } else {
+            distance
+        }
+    }
+
+    private fun isLowValueStatisticText(text: String): Boolean {
+        val compact = text.replace(" ", "")
+        if (compact.length > MAX_STATISTIC_TEXT_LENGTH) return false
+        return compact.all { it.isDigit() || it == '.' || it == '-' || it == '万' || it == '亿' }
+    }
+
     private data class AccessibilityTextCandidate(
         val text: String,
         val bounds: Rect,
         val distanceSquared: Double,
+        val richDescription: Boolean,
     ) {
         fun toContract(): CaptureTextBlockContract {
             return CaptureTextBlockContract(
@@ -256,6 +306,10 @@ private class AccessibilityTextSessionRunner(
         const val PARAGRAPH_GAP_MULTIPLIER = 1.1
         const val SAME_COLUMN_TOLERANCE_PX = 72.0
         const val SAME_LINE_TOP_DELTA_PX = 12.0
+        const val RICH_CONTENT_DESCRIPTION_MIN_LENGTH = 16
+        const val RICH_CONTENT_DESCRIPTION_MIN_SEPARATORS = 2
+        const val MAX_STATISTIC_TEXT_LENGTH = 8
+        const val STATISTIC_TEXT_PENALTY_PX = 240.0
     }
 }
 
