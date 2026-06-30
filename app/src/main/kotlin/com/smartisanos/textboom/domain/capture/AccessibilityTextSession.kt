@@ -78,7 +78,7 @@ private class AccessibilityTextSessionRunner(
         if (text != null && node.isVisibleToUser) {
             val bounds = Rect()
             node.getBoundsInScreen(bounds)
-            if (!bounds.isEmpty) {
+            if (!bounds.isEmpty && shouldIncludeNode(node, text, bounds)) {
                 candidates += AccessibilityTextCandidate(
                     text = text,
                     bounds = bounds,
@@ -92,6 +92,30 @@ private class AccessibilityTextSessionRunner(
             traverse(child, touchX, touchY, candidates)
             child.recycle()
         }
+    }
+
+    private fun shouldIncludeNode(
+        node: AccessibilityNodeInfo,
+        text: String,
+        bounds: Rect,
+    ): Boolean {
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            try {
+                if (!child.isVisibleToUser) continue
+                val childText = extractCleanText(child) ?: continue
+                val childBounds = Rect()
+                child.getBoundsInScreen(childBounds)
+                if (childBounds.isEmpty || childBounds == bounds) continue
+                if (!bounds.contains(childBounds)) continue
+                if (text.contains(childText)) {
+                    return false
+                }
+            } finally {
+                child.recycle()
+            }
+        }
+        return true
     }
 
     private fun extractCleanText(node: AccessibilityNodeInfo): String? {
