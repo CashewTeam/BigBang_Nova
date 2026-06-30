@@ -1,18 +1,10 @@
 package com.cashewteam.novatext.android.service
 
-import android.app.AppOpsManager
 import android.content.Context
 
 object ForegroundAppResolver {
-    fun hasUsageAccess(context: Context): Boolean {
-        val appOps = context.getSystemService(AppOpsManager::class.java) ?: return false
-        val mode = appOps.unsafeCheckOpNoThrow(
-            AppOpsManager.OPSTR_GET_USAGE_STATS,
-            android.os.Process.myUid(),
-            context.packageName,
-        )
-        return mode == AppOpsManager.MODE_ALLOWED
-    }
+    @Volatile
+    private var cachedPackage: String? = null
 
     fun resolveForegroundPackage(context: Context): String? {
         val selfPackage = context.packageName
@@ -21,6 +13,14 @@ object ForegroundAppResolver {
             ?.packageName
             ?.toString()
             ?.takeIf { it.isNotBlank() && it != selfPackage }
-        return windowPackage ?: NovaTextAccessibilityService.latestActivePackage(selfPackage)
+        val resolved = windowPackage ?: NovaTextAccessibilityService.latestActivePackage(selfPackage)
+        if (!resolved.isNullOrBlank()) {
+            cachedPackage = resolved
+        }
+        return resolved
+    }
+
+    fun cachedForegroundPackage(context: Context): String? {
+        return cachedPackage?.takeIf { it.isNotBlank() && it != context.packageName }
     }
 }

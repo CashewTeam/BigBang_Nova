@@ -1,3 +1,0 @@
-/Users/con11/Documents/GitHub/BigBang_Nova/app/.cxx/Debug/5q57234k/x86/CMakeFiles/textboom_jieba.dir
-/Users/con11/Documents/GitHub/BigBang_Nova/app/.cxx/Debug/5q57234k/x86/CMakeFiles/edit_cache.dir
-/Users/con11/Documents/GitHub/BigBang_Nova/app/.cxx/Debug/5q57234k/x86/CMakeFiles/rebuild_cache.dir

@@ -71,6 +71,7 @@
 
 - 这里负责“决定走哪条链路”
 - 这里不负责实现 BigBang 选词逻辑本身
+- `ForegroundAppResolver` 只使用无障碍活跃窗口和最近事件缓存；无法解析包名时由分流层直接走 OCR
 
 ### 4. `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`
 

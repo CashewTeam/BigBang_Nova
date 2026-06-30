@@ -28,7 +28,7 @@ object BigBangCaptureDispatcher {
                     "phase=dispatcher",
                     "touch=($touchX,$touchY)",
                     "accessibility=false",
-                    "usageAccess=skipped",
+                    "foregroundResolver=accessibility",
                     "foregroundPackage=unknown",
                     "whitelistHit=false",
                     "route=debug_text",
@@ -53,7 +53,7 @@ object BigBangCaptureDispatcher {
                     "phase=dispatcher",
                     "touch=($touchX,$touchY)",
                     "accessibility=false",
-                    "usageAccess=skipped",
+                    "foregroundResolver=accessibility",
                     "foregroundPackage=unknown",
                     "whitelistHit=false",
                     "route=blocked",
@@ -68,7 +68,8 @@ object BigBangCaptureDispatcher {
             )
             return
         }
-        val foregroundPackage = ForegroundAppResolver.resolveForegroundPackage(context)
+        val resolvedPackage = ForegroundAppResolver.resolveForegroundPackage(context)
+        val foregroundPackage = resolvedPackage ?: ForegroundAppResolver.cachedForegroundPackage(context)
         if (foregroundPackage.isNullOrBlank()) {
             logTrace(
                 enabled = traceEnabled,
@@ -77,14 +78,22 @@ object BigBangCaptureDispatcher {
                     "phase=dispatcher",
                     "touch=($touchX,$touchY)",
                     "accessibility=true",
-                    "usageAccess=skipped",
+                    "foregroundResolver=accessibility",
                     "foregroundPackage=unknown",
                     "whitelistHit=false",
-                    "route=blocked",
+                    "route=ocr",
                     "reason=foreground_package_missing",
                 ),
             )
-            Toast.makeText(context, R.string.ocr_foreground_package_missing, Toast.LENGTH_SHORT).show()
+            BoomOcrLauncher.launchCapture(
+                context = context,
+                touchX = touchX,
+                touchY = touchY,
+                fullscreen = true,
+                callerPackage = null,
+                traceId = traceId,
+                traceEnabled = traceEnabled,
+            )
             return
         }
         val whitelistHit = settings.ocrWhitelistPackages.contains(foregroundPackage)
@@ -96,8 +105,9 @@ object BigBangCaptureDispatcher {
                     "phase=dispatcher",
                     "touch=($touchX,$touchY)",
                     "accessibility=true",
-                    "usageAccess=skipped",
+                    "foregroundResolver=accessibility",
                     "foregroundPackage=$foregroundPackage",
+                    "foregroundPackageSource=${if (resolvedPackage == null) "cache" else "current"}",
                     "whitelistHit=true",
                     "route=ocr",
                 ),
@@ -120,8 +130,9 @@ object BigBangCaptureDispatcher {
                 "phase=dispatcher",
                 "touch=($touchX,$touchY)",
                 "accessibility=true",
-                "usageAccess=skipped",
+                "foregroundResolver=accessibility",
                 "foregroundPackage=$foregroundPackage",
+                "foregroundPackageSource=${if (resolvedPackage == null) "cache" else "current"}",
                 "whitelistHit=false",
                 "route=accessibility",
             ),

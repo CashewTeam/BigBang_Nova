@@ -1,11 +1,9 @@
 .gradle/
 /build/
 /app/build/
-/app/.cxx/Debug/
+/app/.cxx/
 /local.properties
 *.iml
 *.apk
 *.ap_
 .DS_Store
-/app/.cxx/Debug
-/app/.cxx

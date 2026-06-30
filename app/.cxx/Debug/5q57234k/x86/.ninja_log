@@ -1,7 +1,0 @@
-# ninja log v5
-0	1234	1782542942849447512	CMakeFiles/textboom_jieba.dir/jieba_jni.cpp.o	7887123eed4df41c
-1236	1302	1782542942929951940	/Users/con11/Documents/GitHub/BigBang_Nova/app/build/intermediates/cxx/Debug/5q57234k/obj/x86/libtextboom_jieba.so	aebc06525a9e2fce
-2	1185	1782543455229930689	CMakeFiles/textboom_jieba.dir/jieba_jni.cpp.o	7887123eed4df41c
-1185	1259	1782543455316148400	/Users/con11/Documents/GitHub/BigBang_Nova/app/build/intermediates/cxx/Debug/5q57234k/obj/x86/libtextboom_jieba.so	aebc06525a9e2fce
-2	1761	1782619689547210377	CMakeFiles/textboom_jieba.dir/jieba_jni.cpp.o	7887123eed4df41c
-1761	1839	1782619689638005394	/Users/con11/Documents/GitHub/BigBang_Nova/app/build/intermediates/cxx/Debug/5q57234k/obj/x86/libtextboom_jieba.so	aebc06525a9e2fce

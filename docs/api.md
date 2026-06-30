@@ -41,15 +41,15 @@
 
 - `SYSTEM_ALERT_WINDOW`
 - `BIND_ACCESSIBILITY_SERVICE`
-- `PACKAGE_USAGE_STATS`
 - `FOREGROUND_SERVICE`
 - `FOREGROUND_SERVICE_SPECIAL_USE`
 - `POST_NOTIFICATIONS`
 
 说明：
 
-- 白名单 OCR 分流依赖 `PACKAGE_USAGE_STATS`
 - 无障碍文本抓取与无障碍截图都依赖 `NovaTextAccessibilityService`
+- 前台应用识别依赖无障碍活跃窗口和最近事件缓存，不再依赖使用情况访问权限
+- 前台应用识别失败时，悬浮球链路会直接进入 OCR 截图识别
 
 ## 3. Activity Intent 契约
 

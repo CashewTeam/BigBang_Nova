@@ -109,7 +109,6 @@ import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
-import com.cashewteam.novatext.android.service.ForegroundAppResolver
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import kotlin.math.ceil
@@ -154,7 +153,6 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onOpenPreview = { openBigBangPreview(it) },
                     onOpenOverlayPermission = { openOverlayPermission() },
                     onOpenAccessibilitySettings = { openAccessibilitySettings() },
-                    onOpenUsageAccessSettings = { openUsageAccessSettings() },
                     onStartFloatingBall = { startFloatingBall() },
                     onStopFloatingBall = { stopFloatingBall() },
                     onResetFloatingBall = { resetFloatingBall() },
@@ -235,10 +233,6 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun openAccessibilitySettings() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    }
-
-    private fun openUsageAccessSettings() {
-        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
     }
 
     private fun startFloatingBall() {
@@ -494,7 +488,6 @@ private fun SettingsScreen(
     onOpenPreview: (String) -> Unit,
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
-    onOpenUsageAccessSettings: () -> Unit,
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
     onResetFloatingBall: () -> Unit,
@@ -548,9 +541,6 @@ private fun SettingsScreen(
     var permissionState by remember {
         mutableStateOf(currentPermissionState())
     }
-    var usageAccessEnabled by remember {
-        mutableStateOf(ForegroundAppResolver.hasUsageAccess(context))
-    }
     var floatingBallSizePercent by rememberSaveable {
         mutableIntStateOf(settings.floatingBallSizePercent)
     }
@@ -589,7 +579,6 @@ private fun SettingsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permissionState = currentPermissionState()
-                usageAccessEnabled = ForegroundAppResolver.hasUsageAccess(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -607,11 +596,9 @@ private fun SettingsScreen(
         if (currentPage == SettingsPage.OcrWhitelist.name) {
             OcrWhitelistPage(
                 topPadding = listTopPadding,
-                usageAccessEnabled = usageAccessEnabled,
                 whitelistPackages = ocrWhitelistPackages,
                 apps = launcherApps,
                 onBack = { currentPage = SettingsPage.Main.name },
-                onOpenUsageAccessSettings = onOpenUsageAccessSettings,
                 onTogglePackage = { packageName ->
                     val next = ocrWhitelistPackages.toMutableSet()
                     if (!next.add(packageName)) {
@@ -670,7 +657,6 @@ private fun SettingsScreen(
                             selectedMode = selectedOcrMode,
                             modes = ocrModes,
                             whitelistCount = selectedCount,
-                            usageAccessEnabled = usageAccessEnabled,
                             onModeSelected = {
                                 selectedOcrMode = it
                                 settings.setOcrRecognizerMode(it)
@@ -770,7 +756,6 @@ private fun OcrSection(
     selectedMode: String,
     modes: List<OcrModeItem>,
     whitelistCount: Int,
-    usageAccessEnabled: Boolean,
     onModeSelected: (String) -> Unit,
     onPickImage: () -> Unit,
     onManageWhitelist: () -> Unit,
@@ -821,11 +806,7 @@ private fun OcrSection(
         }
         SecondaryActionButton(
             modifier = Modifier.fillMaxWidth(),
-            text = stringResource(
-                R.string.ocr_whitelist_summary,
-                whitelistCount,
-                statusText(usageAccessEnabled),
-            ),
+            text = stringResource(R.string.ocr_whitelist_button),
             onClick = onManageWhitelist,
         )
         SecondaryActionButton(
@@ -913,11 +894,9 @@ private fun SettingsTopBar(
 @Composable
 private fun OcrWhitelistPage(
     topPadding: androidx.compose.ui.unit.Dp,
-    usageAccessEnabled: Boolean,
     whitelistPackages: Set<String>,
     apps: List<WhitelistAppItem>,
     onBack: () -> Unit,
-    onOpenUsageAccessSettings: () -> Unit,
     onTogglePackage: (String) -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -949,14 +928,11 @@ private fun OcrWhitelistPage(
                         fontSize = 24.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    PermissionStatusRow(
-                        title = stringResource(R.string.ocr_usage_access_title),
-                        granted = usageAccessEnabled,
-                    )
-                    SecondaryActionButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = stringResource(R.string.ocr_usage_access_action),
-                        onClick = onOpenUsageAccessSettings,
+                    Text(
+                        text = stringResource(R.string.ocr_whitelist_summary, whitelistPackages.size),
+                        color = LocalSettingsPalette.current.textSecondary,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
                     )
                 }
             }
@@ -1210,11 +1186,13 @@ private fun PermissionSection(
     val palette = LocalSettingsPalette.current
     val primaryActionText = when {
         !state.overlayGranted -> stringResource(R.string.permission_overlay_action)
+        !state.accessibilityEnabled -> stringResource(R.string.permission_accessibility_action)
         state.floatingBallRunning -> stringResource(R.string.permission_stop_floating_ball)
         else -> stringResource(R.string.permission_start_floating_ball)
     }
     val primaryAction = when {
         !state.overlayGranted -> onOpenOverlayPermission
+        !state.accessibilityEnabled -> onOpenAccessibilitySettings
         state.floatingBallRunning -> onStopFloatingBall
         else -> onStartFloatingBall
     }
@@ -1548,10 +1526,6 @@ private fun SecondaryActionButton(
             )
         }
     }
-}
-
-private fun statusText(granted: Boolean): String {
-    return if (granted) "已授权" else "未授权"
 }
 
 private fun loadLauncherApps(context: Context): List<WhitelistAppItem> {

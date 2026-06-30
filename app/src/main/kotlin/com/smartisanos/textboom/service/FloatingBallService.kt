@@ -383,6 +383,10 @@ class FloatingBallService : Service() {
                 NovaTextLogger.d("overlay permission missing, skip starting floating ball")
                 return
             }
+            if (NovaTextAccessibilityService.activeInstance == null) {
+                NovaTextLogger.d("accessibility service missing, skip starting floating ball")
+                return
+            }
             if (isRunning) return
             val intent = Intent(context, FloatingBallService::class.java).setAction(ACTION_START)
             ContextCompat.startForegroundService(context, intent)
