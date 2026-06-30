@@ -7,10 +7,13 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
+import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -23,6 +26,7 @@ import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -41,6 +45,7 @@ class FloatingBallService : Service() {
     private lateinit var preferences: BigBangPreferences
     private lateinit var settings: BigBangSettings
     private var bubbleView: View? = null
+    private var bubbleIconView: ImageView? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
     private val bubbleHandler = Handler(Looper.getMainLooper())
     private val fadeBubbleRunnable = Runnable {
@@ -103,24 +108,30 @@ class FloatingBallService : Service() {
 
     private fun attachBubble() {
         if (bubbleView != null) return
-        val bubble = ImageView(this).apply {
+        val iconSizePx = bubbleSizePx()
+        val bubble = FrameLayout(this).apply {
+            contentDescription = getString(R.string.overlay_notification_title)
+            elevation = 18f
+            alpha = idleAlpha()
+        }
+        val icon = ImageView(this).apply {
             setImageResource(R.drawable.icon_bigbang)
             scaleType = ImageView.ScaleType.CENTER_CROP
-            contentDescription = getString(R.string.overlay_notification_title)
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
                     outline.setOval(0, 0, view.width, view.height)
                 }
             }
             clipToOutline = true
-            elevation = 18f
-            alpha = idleAlpha()
         }
+        bubble.addView(icon)
+        bubbleView = bubble
+        bubbleIconView = icon
+        updateBubbleChrome()
 
-        val bubbleSizePx = bubbleSizePx()
         layoutParams = WindowManager.LayoutParams(
-            bubbleSizePx,
-            bubbleSizePx,
+            capsuleWidthPx(iconSizePx),
+            iconSizePx,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -130,17 +141,16 @@ class FloatingBallService : Service() {
             x = anchorX
             y = anchorY
         }
-        if (anchorX == DEFAULT_ANCHOR_X && anchorY == DEFAULT_ANCHOR_Y) {
+        if (!anchorInitialized) {
             moveToDefaultPosition()
         } else {
-            clampPositionInPlace(layoutParams)
+            dockToSide(dockedSide, anchorY)
         }
 
         bubble.setOnClickListener {
             showActiveBubble()
         }
         bubble.setOnTouchListener { _, event -> handleTouch(event) }
-        bubbleView = bubble
         windowManager.addView(bubble, layoutParams)
         scheduleBubbleFade()
     }
@@ -167,10 +177,6 @@ class FloatingBallService : Service() {
                 layoutParams.x = downX + (event.rawX - downRawX).toInt()
                 layoutParams.y = downY + (event.rawY - downRawY).toInt()
                 clampPositionInPlace(layoutParams)
-                if (mode == MODE_RELOCATE) {
-                    anchorX = layoutParams.x
-                    anchorY = layoutParams.y
-                }
                 updateBubbleLayout()
                 return true
             }
@@ -188,12 +194,10 @@ class FloatingBallService : Service() {
                     saveCurrentPositionAsAnchor()
                     mode = MODE_IDLE
                 } else {
-                    val bubbleCenter = getBubbleCenterOnScreen()
+                    val bubbleCenter = getBubbleIconCenterOnScreen()
                     val sampleX = bubbleCenter?.x ?: (layoutParams.x + layoutParams.width / 2)
                     val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
-                    layoutParams.x = anchorX
-                    layoutParams.y = anchorY
-                    clampPositionInPlace(layoutParams)
+                    dockToNearestSide(sampleX, layoutParams.y)
                     updateBubbleLayout()
                     mode = MODE_IDLE
                     BigBangCaptureDispatcher.captureAt(applicationContext, sampleX, sampleY)
@@ -237,31 +241,47 @@ class FloatingBallService : Service() {
 
     private fun clampPositionInPlace(params: WindowManager.LayoutParams) {
         val safeArea = getSafeArea()
-        val bubbleSizePx = params.width
-        val safeOutsideOffset = (bubbleSizePx * MAX_OFFSCREEN_RATIO).roundToInt()
+        val safeOutsideOffset = edgeOffsetPx()
         val minX = safeArea.left - safeOutsideOffset
-        val maxX = safeArea.right - bubbleSizePx + safeOutsideOffset
+        val maxX = safeArea.right - params.width + safeOutsideOffset
         val minY = safeArea.top - safeOutsideOffset
-        val maxY = safeArea.bottom - bubbleSizePx + safeOutsideOffset
+        val maxY = safeArea.bottom - params.height + safeOutsideOffset
         params.x = params.x.coerceIn(minX, maxX)
         params.y = params.y.coerceIn(minY, maxY)
     }
 
     private fun moveToDefaultPosition() {
         val safeArea = getSafeArea()
-        val bubbleSizePx = layoutParams.width
-        val offset = (bubbleSizePx * MAX_OFFSCREEN_RATIO).roundToInt()
-        layoutParams.x = safeArea.right - bubbleSizePx + offset
-        layoutParams.y = safeArea.top + DEFAULT_TOP_MARGIN_PX
-        clampPositionInPlace(layoutParams)
-        anchorX = layoutParams.x
-        anchorY = layoutParams.y
+        dockToSide(DOCK_RIGHT, safeArea.top + DEFAULT_TOP_MARGIN_PX)
     }
 
     private fun saveCurrentPositionAsAnchor() {
+        dockToNearestSide(layoutParams.x + layoutParams.width / 2, layoutParams.y)
+    }
+
+    private fun dockToNearestSide(centerX: Int, y: Int) {
+        val safeArea = getSafeArea()
+        dockToSide(if (centerX < safeArea.centerX()) DOCK_LEFT else DOCK_RIGHT, y)
+    }
+
+    private fun dockToSide(side: Int, y: Int) {
+        dockedSide = side
+        val iconSizePx = bubbleSizePx()
+        layoutParams.width = capsuleWidthPx(iconSizePx)
+        layoutParams.height = iconSizePx
+        val safeArea = getSafeArea()
+        val offset = edgeOffsetPx(iconSizePx)
+        layoutParams.x = if (side == DOCK_LEFT) {
+            safeArea.left - offset
+        } else {
+            safeArea.right - layoutParams.width + offset
+        }
+        layoutParams.y = y
         clampPositionInPlace(layoutParams)
         anchorX = layoutParams.x
         anchorY = layoutParams.y
+        anchorInitialized = true
+        updateBubbleChrome()
     }
 
     @Suppress("DEPRECATION")
@@ -303,8 +323,8 @@ class FloatingBallService : Service() {
         bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
     }
 
-    private fun getBubbleCenterOnScreen(): Point? {
-        val view = bubbleView ?: return null
+    private fun getBubbleIconCenterOnScreen(): Point? {
+        val view = bubbleIconView ?: bubbleView ?: return null
         val location = IntArray(2)
         view.getLocationOnScreen(location)
         return Point(
@@ -319,6 +339,14 @@ class FloatingBallService : Service() {
             .coerceAtLeast(MIN_BUBBLE_SIZE_PX)
     }
 
+    private fun capsuleWidthPx(iconSizePx: Int): Int {
+        return (iconSizePx * CAPSULE_WIDTH_RATIO).roundToInt()
+    }
+
+    private fun edgeOffsetPx(iconSizePx: Int = bubbleSizePx()): Int {
+        return (iconSizePx * MAX_OFFSCREEN_RATIO).roundToInt()
+    }
+
     private fun activeAlpha(): Float {
         return (settings.floatingBallActiveAlphaPercent / 100f).coerceIn(0f, 1f)
     }
@@ -330,11 +358,33 @@ class FloatingBallService : Service() {
     private fun refreshBubbleAppearance() {
         if (!::layoutParams.isInitialized) return
         val bubbleSizePx = bubbleSizePx()
-        layoutParams.width = bubbleSizePx
+        layoutParams.width = capsuleWidthPx(bubbleSizePx)
         layoutParams.height = bubbleSizePx
         clampPositionInPlace(layoutParams)
+        dockToSide(dockedSide, layoutParams.y)
         bubbleView?.alpha = idleAlpha()
         updateBubbleLayout()
+    }
+
+    private fun updateBubbleChrome() {
+        val iconSizePx = bubbleSizePx()
+        bubbleView?.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = iconSizePx / 2f
+            setColor(if (isNightMode()) CAPSULE_DARK_COLOR else CAPSULE_LIGHT_COLOR)
+        }
+        bubbleIconView?.layoutParams = FrameLayout.LayoutParams(iconSizePx, iconSizePx).apply {
+            gravity = if (dockedSide == DOCK_LEFT) {
+                Gravity.START or Gravity.CENTER_VERTICAL
+            } else {
+                Gravity.END or Gravity.CENTER_VERTICAL
+            }
+        }
+    }
+
+    private fun isNightMode(): Boolean {
+        return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
     }
 
     companion object {
@@ -346,10 +396,15 @@ class FloatingBallService : Service() {
         private const val FADE_DURATION_MS = 240L
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80
+        private const val CAPSULE_WIDTH_RATIO = 1.45f
         private const val MAX_OFFSCREEN_RATIO = 0.25f
         private const val DEFAULT_ANCHOR_X = 0
         private const val DEFAULT_ANCHOR_Y = 280
         private const val DEFAULT_TOP_MARGIN_PX = 220
+        private const val DOCK_LEFT = 0
+        private const val DOCK_RIGHT = 1
+        private val CAPSULE_LIGHT_COLOR = Color.argb(150, 245, 247, 250)
+        private val CAPSULE_DARK_COLOR = Color.argb(150, 46, 48, 52)
         private const val MODE_IDLE = "idle"
         private const val MODE_DETECT = "detect"
         private const val MODE_RELOCATE = "relocate"
@@ -372,6 +427,12 @@ class FloatingBallService : Service() {
 
         @Volatile
         private var anchorY = DEFAULT_ANCHOR_Y
+
+        @Volatile
+        private var anchorInitialized = false
+
+        @Volatile
+        private var dockedSide = DOCK_RIGHT
 
         @Volatile
         private var prepared = false
@@ -406,6 +467,8 @@ class FloatingBallService : Service() {
             if (!isRunning) {
                 anchorX = DEFAULT_ANCHOR_X
                 anchorY = DEFAULT_ANCHOR_Y
+                anchorInitialized = false
+                dockedSide = DOCK_RIGHT
                 return
             }
             val intent = Intent(context, FloatingBallService::class.java).setAction(ACTION_RESET_POSITION)
