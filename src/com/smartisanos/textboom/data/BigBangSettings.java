@@ -50,7 +50,7 @@ public final class BigBangSettings {
     private static final String DEFAULT_PRESET_TEXT =
             "BigBang Nova lets you preview word chips before wiring the full capture flow.";
 
-    private static final int DEFAULT_WEB_SEARCH_TYPE = TYPE_SHENMA;
+    private static final int DEFAULT_WEB_SEARCH_TYPE = TYPE_BING;
     private static final int DEFAULT_DICT_SEARCH_TYPE = TYPE_BINGDICT;
     private static final int DEFAULT_WIKI_SEARCH_TYPE = TYPE_WIKI;
     private static final String DEFAULT_OCR_RECOGNIZER_MODE = OCR_MODE_CHINESE;

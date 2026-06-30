@@ -16,7 +16,7 @@
     <string name="search_via_baidu">百度搜索</string>
     <string name="search_via_google">谷歌搜索</string>
     <string name="search_via_bing">必应搜索</string>
-    <string name="search_via_shenma">神马搜索</string>
+    <string name="search_via_shenma">DuckDuckGo</string>
     <string name="search_via_youdao">有道词典</string>
     <string name="search_via_powerword">金山词霸</string>
     <string name="search_via_hudong">互动百科</string>

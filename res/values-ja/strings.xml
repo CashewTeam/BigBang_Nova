@@ -9,7 +9,7 @@
     <string name="search_via_baidu">baidu検索</string>
     <string name="search_via_google">Google検索</string>
     <string name="search_via_bing">bing検索</string>
-    <string name="search_via_shenma">shenma検索</string>
+    <string name="search_via_shenma">DuckDuckGo</string>
     <string name="search_via_powerword">Iciba</string>
     <string name="search_via_hudong">Baike検索</string>
     <string name="search_via_bingdict">Bing辞書</string>

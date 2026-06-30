@@ -198,7 +198,7 @@ private fun SearchOverlayScreen(
             SearchProvider(BigBangSettings.TYPE_BAIDU, "百度", R.drawable.boom_win_search_baidu),
             SearchProvider(BigBangSettings.TYPE_GOOGLE, "Google", R.drawable.boom_win_search_google),
             SearchProvider(BigBangSettings.TYPE_BING, "Bing", R.drawable.boom_win_search_bing),
-            SearchProvider(BigBangSettings.TYPE_SHENMA, "神马", R.drawable.boom_win_search_shenma),
+            SearchProvider(BigBangSettings.TYPE_SHENMA, "DuckDuckGo", R.drawable.boom_win_search_shenma),
         )
     }
     val dictProviders = remember {
@@ -743,13 +743,13 @@ private fun buildSearchUrl(type: Int, text: String): String {
     return when (type) {
         BigBangSettings.TYPE_GOOGLE -> "https://www.google.com/search?q=$query"
         BigBangSettings.TYPE_BING -> "https://www.bing.com/search?q=$query"
-        BigBangSettings.TYPE_SHENMA -> "http://m.yz.sm.cn/s?q=$query"
-        BigBangSettings.TYPE_WIKI -> "http://www.baike.com/gwiki/$query"
-        BigBangSettings.TYPE_BAIKE -> "http://wapbaike.baidu.com/search/word?word=$query"
-        BigBangSettings.TYPE_YOUDAO -> "http://m.youdao.com/dict?q=$query"
-        BigBangSettings.TYPE_KINGSOFT -> "http://www.iciba.com/$query"
-        BigBangSettings.TYPE_BINGDICT -> "http://cn.bing.com/dict/?q=$query"
-        BigBangSettings.TYPE_HIDICT -> "http://m.dict.cn/$query"
+        BigBangSettings.TYPE_SHENMA -> "https://duckduckgo.com/?q=$query"
+        BigBangSettings.TYPE_WIKI -> "https://www.baike.com/gwiki/$query"
+        BigBangSettings.TYPE_BAIKE -> "https://wapbaike.baidu.com/search/word?word=$query"
+        BigBangSettings.TYPE_YOUDAO -> "https://m.youdao.com/dict?q=$query"
+        BigBangSettings.TYPE_KINGSOFT -> "https://www.iciba.com/$query"
+        BigBangSettings.TYPE_BINGDICT -> "https://cn.bing.com/dict/?q=$query"
+        BigBangSettings.TYPE_HIDICT -> "https://m.dict.cn/$query"
         else -> "https://www.baidu.com/s?wd=$query"
     }
 }
