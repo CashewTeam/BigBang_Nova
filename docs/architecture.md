@@ -140,7 +140,8 @@
 -> `OcrLaunchActivity`
 -> `AccessibilityScreenshotCapture.captureToOcr(...)`
 -> `MlKitOcrEngine.recognize(...)`
--> 取最近 `TextBlock`
+-> 段落级结果合并
+-> 取最近段落
 -> `BoomActivityLauncher.openText(...)`
 -> `OcrLaunchActivity`
 -> `OverlayActivity`
@@ -149,8 +150,10 @@
 说明：
 
 - 当前不会进入范围选择页
-- 当前“最近段落”实现实际上以 ML Kit `TextBlock` 为主
-- 这条链路的下一步工作是把“最近文本块”收敛为更稳定的段落级提取
+- 最近文本选择统一收口在 `MlKitOcrEngine`
+- OCR 结果先做纵向段落合并，已识别出的多行段落锁定后不再参与后续碎块合并
+- 剩余碎块再按近似高度做横向合并，不使用左右距离阈值
+- 同一段落输出不保留内部换行符；不同段落之间才保留段落分隔
 
 ### D. 图片分享 / 设置页图片调试 OCR 链路
 

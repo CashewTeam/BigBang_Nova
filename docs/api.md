@@ -264,11 +264,18 @@ OCR 白名单默认值：
 - `recognize(...)`
 - `prepareBitmap(...)`
 - `findNearestTextBlock(...)`
+- `findParagraphs(...)`
+- `buildParagraphText(...)`
 
 说明：
 
-- “最近段落”主链路当前仍以 `TextBlock` 为最近块实现
-- 如果后续要改成 paragraph / line 级选择，应继续收口在这个类里
+- OCR 结构化输出统一在这里转换成 BigBang 可用文本
+- 合并顺序固定为先纵向识别段落，再横向处理剩余碎块
+- 纵向段落合并优先处理同列 / 重叠 / 纵向相邻的块，合并后的段落块不再进入横向碎块处理
+- 横向碎块合并只看近似视觉高度，不设置左右距离阈值，避免同一行碎块因为间距大而拆散
+- 同一段落输出必须压成一行，不保留内部换行符
+- 多个段落的最终文本由 `buildParagraphText(...)` 用段落分隔连接
+- 悬浮球白名单 OCR、图片调试 OCR、图片分享 OCR 都应复用这套段落合并规则
 
 ### `CppJiebaTokenizer`
 
