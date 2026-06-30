@@ -18,6 +18,7 @@ public final class BigBangSettings {
     public static final String KEY_DEBUG_PRESET_TEXT = "debug_preset_text";
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
     public static final String KEY_DEBUG_SKIP_ACCESSIBILITY = "debug_skip_accessibility";
+    public static final String KEY_DEBUG_CAPTURE_TRACE = "debug_capture_trace";
     public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
     public static final String KEY_OCR_WHITELIST_PACKAGES = "ocr_whitelist_packages";
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
@@ -138,6 +139,14 @@ public final class BigBangSettings {
 
     public void setDebugSkipAccessibilityEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, enabled).apply();
+    }
+
+    public boolean isDebugCaptureTraceEnabled() {
+        return preferences.getBoolean(KEY_DEBUG_CAPTURE_TRACE, false);
+    }
+
+    public void setDebugCaptureTraceEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_DEBUG_CAPTURE_TRACE, enabled).apply();
     }
 
     public Set<String> getOcrWhitelistPackages() {

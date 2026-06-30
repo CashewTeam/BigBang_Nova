@@ -20,7 +20,9 @@ import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.util.LogUtils
+import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlin.concurrent.thread
+import java.util.UUID
 
 class OcrLaunchActivity : Activity() {
     private var loopAnimFrame: FrameLayout? = null
@@ -39,6 +41,9 @@ class OcrLaunchActivity : Activity() {
     private var captureOcrScreenshotStarted = false
     private var pendingOcrSelectionLaunch = false
     private var ocrSelectionLaunched = false
+    private var callerPackage: String? = null
+    private var traceEnabled = false
+    private var traceId = UUID.randomUUID().toString().take(8)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +52,10 @@ class OcrLaunchActivity : Activity() {
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
         pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty()
+        callerPackage = intent.getStringExtra("caller_pkg")
+        traceEnabled = intent.getBooleanExtra(EXTRA_CAPTURE_TRACE_ENABLED, false)
+        traceId = intent.getStringExtra(EXTRA_CAPTURE_TRACE_ID)?.takeIf { it.isNotBlank() }
+            ?: traceId
         if (captureOcrScreenshotRequested) {
             touchX = readTouchCoordinate("boom_startx", true)
             touchY = readTouchCoordinate("boom_starty", false)
@@ -202,9 +211,11 @@ class OcrLaunchActivity : Activity() {
                 CaptureRequestContract(
                     touchX = touchX.toDouble(),
                     touchY = touchY.toDouble(),
-                    packageName = applicationContext.packageName,
+                    packageName = callerPackage ?: applicationContext.packageName,
                     allowOcrFallback = false,
                 ),
+                traceEnabled = traceEnabled,
+                traceId = traceId,
             )
             val text = snapshot.originalText.trim()
             runOnUiThread {
@@ -256,7 +267,6 @@ class OcrLaunchActivity : Activity() {
     private fun startNearestParagraphOcr(imageUri: Uri) {
         thread(name = "bigbang-ocr-nearest") {
             val settings = BigBangSettings.get(this)
-            val callerPackage = intent.getStringExtra("caller_pkg")
             val fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
             val offsetX = intent.getIntExtra("boom_offsetx", 0)
             val offsetY = intent.getIntExtra("boom_offsety", 0)
@@ -275,6 +285,8 @@ class OcrLaunchActivity : Activity() {
                 }
                 return@thread
             }
+            val rawWidth = bitmap.width
+            val rawHeight = bitmap.height
             val prepared = MlKitOcrEngine.prepareBitmap(
                 context = this,
                 screenshot = bitmap,
@@ -287,19 +299,28 @@ class OcrLaunchActivity : Activity() {
             )
             MlKitOcrEngine.recognize(prepared.bitmap, settings.ocrRecognizerMode)
                 .addOnSuccessListener(this) { result ->
-                    val nearestText = MlKitOcrEngine.findNearestTextBlock(result, prepared.touchX, prepared.touchY)
+                    val nearestMatch = MlKitOcrEngine.findNearestTextBlock(result, prepared.touchX, prepared.touchY)
+                    logOcrTrace(
+                        settings = settings,
+                        callerPackage = callerPackage,
+                        rawWidth = rawWidth,
+                        rawHeight = rawHeight,
+                        prepared = prepared,
+                        result = result,
+                        nearestMatch = nearestMatch,
+                    )
                     prepared.bitmap.recycle()
                     if (isFinishing) {
                         return@addOnSuccessListener
                     }
-                    if (nearestText.isEmpty()) {
+                    if (nearestMatch == null) {
                         Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
                         finish()
                         return@addOnSuccessListener
                     }
                     BoomActivityLauncher.openText(
                         context = this,
-                        text = nearestText,
+                        text = nearestMatch.text,
                         touchX = touchX.toInt(),
                         touchY = touchY.toInt(),
                         isPreview = false,
@@ -318,8 +339,60 @@ class OcrLaunchActivity : Activity() {
         }
     }
 
+    private fun logOcrTrace(
+        settings: BigBangSettings,
+        callerPackage: String?,
+        rawWidth: Int,
+        rawHeight: Int,
+        prepared: MlKitOcrEngine.PreparedBitmap,
+        result: com.google.mlkit.vision.text.Text,
+        nearestMatch: MlKitOcrEngine.NearestTextBlockMatch?,
+    ) {
+        if (!traceEnabled && !settings.isDebugCaptureTraceEnabled) {
+            return
+        }
+        NovaTextLogger.d("trace[$traceId] phase=ocr")
+        NovaTextLogger.d("trace[$traceId] package=${callerPackage ?: "unknown"}")
+        NovaTextLogger.d("trace[$traceId] touchRaw=(${touchX.toInt()},${touchY.toInt()})")
+        NovaTextLogger.d("trace[$traceId] touchMapped=(${prepared.touchX},${prepared.touchY})")
+        NovaTextLogger.d("trace[$traceId] mode=${settings.ocrRecognizerMode}")
+        NovaTextLogger.d("trace[$traceId] bitmapRaw=${rawWidth}x${rawHeight}")
+        NovaTextLogger.d("trace[$traceId] bitmapPrepared=${prepared.bitmap.width}x${prepared.bitmap.height}")
+        NovaTextLogger.d("trace[$traceId] textBlockCount=${result.textBlocks.size}")
+        result.textBlocks.forEachIndexed { index, block ->
+            val bounds = block.boundingBox
+            NovaTextLogger.d(
+                "trace[$traceId] raw[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(bounds)}"
+            )
+        }
+        if (nearestMatch == null) {
+            NovaTextLogger.d("trace[$traceId] selectedText=none")
+            NovaTextLogger.d("trace[$traceId] selectedBounds=none")
+            NovaTextLogger.d("trace[$traceId] selectedDistance=none")
+            return
+        }
+        NovaTextLogger.d("trace[$traceId] selectedText=${sanitizeForLog(nearestMatch.text)}")
+        NovaTextLogger.d("trace[$traceId] selectedBounds=${formatBounds(nearestMatch.bounds)}")
+        NovaTextLogger.d("trace[$traceId] selectedDistance=${nearestMatch.distanceSquared}")
+        NovaTextLogger.d("trace[$traceId] selectedBlockCount=${nearestMatch.blockCount}")
+    }
+
+    private fun formatBounds(bounds: android.graphics.Rect?): String {
+        return if (bounds == null) {
+            "none"
+        } else {
+            "[${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}]"
+        }
+    }
+
+    private fun sanitizeForLog(text: String): String {
+        return text.replace("\n", "\\n")
+    }
+
     companion object {
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
+        const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
+        const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
 
         private const val TOUCH_SCALE_FROM = 0.28f

@@ -36,12 +36,22 @@ object BoomActivityLauncher {
         context: Context,
         touchX: Int,
         touchY: Int,
+        callerPackage: String? = null,
+        traceId: String? = null,
+        traceEnabled: Boolean = false,
     ) {
         context.startActivity(
             Intent(context, OcrLaunchActivity::class.java).apply {
                 putExtra("boom_startx", touchX)
                 putExtra("boom_starty", touchY)
                 putExtra(OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY, true)
+                if (!callerPackage.isNullOrEmpty()) {
+                    putExtra("caller_pkg", callerPackage)
+                }
+                if (!traceId.isNullOrEmpty()) {
+                    putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID, traceId)
+                }
+                putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ENABLED, traceEnabled)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)

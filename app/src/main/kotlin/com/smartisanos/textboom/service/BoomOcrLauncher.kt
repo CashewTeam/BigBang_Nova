@@ -59,6 +59,8 @@ object BoomOcrLauncher {
         callerPackage: String? = null,
         offsetX: Int = 0,
         offsetY: Int = 0,
+        traceId: String? = null,
+        traceEnabled: Boolean = false,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
             putExtra(EXTRA_CAPTURE_OCR_SCREENSHOT, true)
@@ -70,6 +72,10 @@ object BoomOcrLauncher {
             if (!callerPackage.isNullOrEmpty()) {
                 putExtra("caller_pkg", callerPackage)
             }
+            if (!traceId.isNullOrEmpty()) {
+                putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID, traceId)
+            }
+            putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ENABLED, traceEnabled)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)

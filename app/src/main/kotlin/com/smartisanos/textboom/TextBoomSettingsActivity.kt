@@ -526,6 +526,9 @@ private fun SettingsScreen(
     var debugSkipAccessibility by rememberSaveable {
         mutableStateOf(settings.isDebugSkipAccessibilityEnabled)
     }
+    var debugCaptureTrace by rememberSaveable {
+        mutableStateOf(settings.isDebugCaptureTraceEnabled)
+    }
     var ocrWhitelistPackages by remember {
         mutableStateOf(settings.ocrWhitelistPackages.toSet())
     }
@@ -686,6 +689,7 @@ private fun SettingsScreen(
                             presetLabels = presetLabels,
                             warmUpState = warmUpState,
                             debugSkipAccessibility = debugSkipAccessibility,
+                            debugCaptureTrace = debugCaptureTrace,
                             onPresetSelected = { index ->
                                 val text = presetTexts[index]
                                 selectedPresetIndex = index
@@ -704,6 +708,10 @@ private fun SettingsScreen(
                             onDebugSkipAccessibilityChange = {
                                 debugSkipAccessibility = it
                                 settings.setDebugSkipAccessibilityEnabled(it)
+                            },
+                            onDebugCaptureTraceChange = {
+                                debugCaptureTrace = it
+                                settings.setDebugCaptureTraceEnabled(it)
                             },
                         )
                     }
@@ -1080,10 +1088,12 @@ private fun DebugSection(
     presetLabels: List<String>,
     warmUpState: Int,
     debugSkipAccessibility: Boolean,
+    debugCaptureTrace: Boolean,
     onPresetSelected: (Int) -> Unit,
     onPreviewTextChange: (String) -> Unit,
     onPreviewClick: () -> Unit,
     onDebugSkipAccessibilityChange: (Boolean) -> Unit,
+    onDebugCaptureTraceChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1172,6 +1182,13 @@ private fun DebugSection(
             subtitle = stringResource(R.string.debug_skip_accessibility_summary),
             checked = debugSkipAccessibility,
             onCheckedChange = onDebugSkipAccessibilityChange,
+        )
+
+        DebugSwitchRow(
+            title = stringResource(R.string.debug_capture_trace_title),
+            subtitle = stringResource(R.string.debug_capture_trace_summary),
+            checked = debugCaptureTrace,
+            onCheckedChange = onDebugCaptureTraceChange,
         )
 
         ShadowedPrimaryButton(

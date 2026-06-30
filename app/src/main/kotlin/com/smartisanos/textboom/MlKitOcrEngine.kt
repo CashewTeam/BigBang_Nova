@@ -18,16 +18,26 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 object MlKitOcrEngine {
     private const val MAX_BITMAP_EDGE = 2048
     private const val PKG_GALLERY = "com.android.gallery3d"
     private const val SCALE_SCREENSHOT = 2
+    private const val MIN_GROUP_GAP_PX = 24
+    private const val SAME_COLUMN_TOLERANCE_PX = 72
 
     data class PreparedBitmap(
         val bitmap: Bitmap,
         val touchX: Int,
         val touchY: Int,
+    )
+
+    data class NearestTextBlockMatch(
+        val text: String,
+        val bounds: Rect,
+        val distanceSquared: Double,
+        val blockCount: Int,
     )
 
     @JvmStatic
@@ -65,24 +75,30 @@ object MlKitOcrEngine {
         touchX: Int,
         touchY: Int,
     ): PreparedBitmap {
+        val sourceWidth = screenshot.width
+        val sourceHeight = screenshot.height
         if (callerPackage.isNullOrEmpty() && offsetX == 0 && offsetY == 0) {
             return PreparedBitmap(
                 bitmap = screenshot,
-                touchX = touchX.coerceIn(0, screenshot.width),
-                touchY = touchY.coerceIn(0, screenshot.height),
+                touchX = touchX.coerceIn(0, (sourceWidth - 1).coerceAtLeast(0)),
+                touchY = touchY.coerceIn(0, (sourceHeight - 1).coerceAtLeast(0)),
             )
         }
         val w = context.resources.getInteger(R.integer.screen_width)
         val h = context.resources.getInteger(R.integer.screen_height)
+        val scaleX = sourceWidth / w.toFloat()
+        val scaleY = sourceHeight / h.toFloat()
+        fun sourceX(value: Int): Int = (value * scaleX).roundToInt()
+        fun sourceY(value: Int): Int = (value * scaleY).roundToInt()
         val statusBarHeight = context.resources.getInteger(R.integer.status_bar_height)
-        var top = statusBarHeight
+        var top = sourceY(statusBarHeight)
         var bottom = 0
         var left = 0
         var right = 0
         if (offsetX == 0 && offsetY == 0) {
             if (callerPackage == PKG_GALLERY && !fullscreen) {
-                top = context.resources.getInteger(R.integer.gallery_top)
-                bottom = context.resources.getInteger(R.integer.gallery_bottom)
+                top = sourceY(context.resources.getInteger(R.integer.gallery_top))
+                bottom = sourceY(context.resources.getInteger(R.integer.gallery_bottom))
             }
         } else {
             val scaleFactor = offsetY / h.toFloat()
@@ -91,24 +107,22 @@ object MlKitOcrEngine {
             if (callerPackage == PKG_GALLERY && !fullscreen) {
                 val galleryTop = (context.resources.getInteger(R.integer.gallery_top) * (1 - scaleFactor)).toInt()
                 val galleryBottom = (context.resources.getInteger(R.integer.gallery_bottom) * (1 - scaleFactor)).toInt()
-                top = sideH + galleryTop
-                bottom = galleryBottom
+                top = sourceY(sideH + galleryTop)
+                bottom = sourceY(galleryBottom)
             } else {
-                top = sideH + ((1 - scaleFactor) * statusBarHeight).toInt()
+                top = sourceY(sideH + ((1 - scaleFactor) * statusBarHeight).toInt())
             }
             if (offsetX == 0) {
-                right = sideW
+                right = sourceX(sideW)
             } else {
-                left = sideW
+                left = sourceX(sideW)
             }
         }
-        val sourceWidth = screenshot.width
-        val sourceHeight = screenshot.height
         if (sourceWidth <= left + right || sourceHeight <= top + bottom) {
             return PreparedBitmap(
                 bitmap = screenshot,
-                touchX = touchX.coerceIn(0, screenshot.width),
-                touchY = touchY.coerceIn(0, screenshot.height),
+                touchX = sourceX(touchX).coerceIn(0, (sourceWidth - 1).coerceAtLeast(0)),
+                touchY = sourceY(touchY).coerceIn(0, (sourceHeight - 1).coerceAtLeast(0)),
             )
         }
         val scale = if (offsetX != 0 || offsetY != 0 || (callerPackage == PKG_GALLERY && !fullscreen)) {
@@ -121,8 +135,8 @@ object MlKitOcrEngine {
         if (aw <= 0 || ah <= 0) {
             return PreparedBitmap(
                 bitmap = screenshot,
-                touchX = touchX.coerceIn(0, screenshot.width),
-                touchY = touchY.coerceIn(0, screenshot.height),
+                touchX = touchX.coerceIn(0, (screenshot.width - 1).coerceAtLeast(0)),
+                touchY = touchY.coerceIn(0, (screenshot.height - 1).coerceAtLeast(0)),
             )
         }
         val bitmap = Bitmap.createBitmap(aw, ah, Bitmap.Config.ARGB_8888)
@@ -138,8 +152,10 @@ object MlKitOcrEngine {
             paint,
         )
         screenshot.recycle()
-        val mappedTouchX = ((touchX - left).toFloat() / scale).toInt().coerceIn(0, aw)
-        val mappedTouchY = ((touchY - top).toFloat() / scale).toInt().coerceIn(0, ah)
+        val mappedTouchX = ((sourceX(touchX) - left).toFloat() / scale).toInt()
+            .coerceIn(0, (aw - 1).coerceAtLeast(0))
+        val mappedTouchY = ((sourceY(touchY) - top).toFloat() / scale).toInt()
+            .coerceIn(0, (ah - 1).coerceAtLeast(0))
         return PreparedBitmap(bitmap = bitmap, touchX = mappedTouchX, touchY = mappedTouchY)
     }
 
@@ -148,20 +164,87 @@ object MlKitOcrEngine {
         result: Text,
         touchX: Int,
         touchY: Int,
-    ): String {
-        return result.textBlocks
-            .asSequence()
+    ): NearestTextBlockMatch? {
+        val rawBlocks = result.textBlocks
             .mapNotNull { block ->
                 val text = block.text.trim()
                 val bounds = block.boundingBox ?: return@mapNotNull null
                 if (text.isEmpty() || bounds.width() <= 0 || bounds.height() <= 0) {
                     return@mapNotNull null
                 }
-                Triple(text, bounds, distanceSquared(bounds, touchX.toDouble(), touchY.toDouble()))
+                OcrRawBlock(text = text, bounds = Rect(bounds))
             }
-            .minByOrNull { it.third }
-            ?.first
-            .orEmpty()
+            .sortedWith(compareBy<OcrRawBlock> { it.bounds.top }.thenBy { it.bounds.left })
+        if (rawBlocks.isEmpty()) {
+            return null
+        }
+        val groups = mutableListOf<OcrGroup>()
+        rawBlocks.forEach { block ->
+            val lastGroup = groups.lastOrNull()
+            if (lastGroup != null && shouldMerge(lastGroup, block)) {
+                lastGroup.add(block)
+            } else {
+                groups += OcrGroup(block)
+            }
+        }
+        return groups.minByOrNull { distanceSquared(it.bounds, touchX.toDouble(), touchY.toDouble()) }
+            ?.toMatch(touchX, touchY)
+    }
+
+    private fun shouldMerge(
+        group: OcrGroup,
+        block: OcrRawBlock,
+    ): Boolean {
+        val gap = block.bounds.top - group.bounds.bottom
+        if (gap > max(MIN_GROUP_GAP_PX, group.averageHeight)) {
+            return false
+        }
+        val sameColumn = kotlin.math.abs(block.bounds.left - group.anchorLeft) <= SAME_COLUMN_TOLERANCE_PX
+        val horizontalOverlap = min(group.bounds.right, block.bounds.right) - max(group.bounds.left, block.bounds.left)
+        return sameColumn || horizontalOverlap >= 0
+    }
+
+    private data class OcrRawBlock(
+        val text: String,
+        val bounds: Rect,
+    )
+
+    private class OcrGroup(first: OcrRawBlock) {
+        private val parts = mutableListOf(first)
+        val bounds = Rect(first.bounds)
+        var anchorLeft = first.bounds.left
+            private set
+        var averageHeight = first.bounds.height()
+            private set
+
+        fun add(block: OcrRawBlock) {
+            parts += block
+            bounds.union(block.bounds)
+            anchorLeft = ((anchorLeft * (parts.size - 1)) + block.bounds.left) / parts.size
+            averageHeight = parts.map { it.bounds.height() }.average().toInt().coerceAtLeast(1)
+        }
+
+        fun toMatch(touchX: Int, touchY: Int): NearestTextBlockMatch {
+            val text = buildString {
+                parts.forEachIndexed { index, part ->
+                    if (index > 0) {
+                        val previous = parts[index - 1]
+                        val sameLine = kotlin.math.abs(part.bounds.top - previous.bounds.top) <= max(
+                            12,
+                            min(previous.bounds.height(), part.bounds.height()) / 2,
+                        )
+                        append(if (sameLine) "" else "\n")
+                    }
+                    append(part.text)
+                }
+            }
+            return NearestTextBlockMatch(
+                text = text,
+                bounds = Rect(bounds),
+                distanceSquared = distanceSquared(bounds, touchX.toDouble(), touchY.toDouble()),
+                blockCount = parts.size,
+            )
+        }
     }
 
     private fun createRecognizer(mode: String): TextRecognizer {

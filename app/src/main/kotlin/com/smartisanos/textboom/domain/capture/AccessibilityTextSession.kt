@@ -208,7 +208,11 @@ object TextSessionCoordinator {
     private var lastSnapshot: TextSessionSnapshot = emptySnapshot()
 
     @Synchronized
-    fun runAccessibilityFirst(request: CaptureRequestContract): TextSessionSnapshot {
+    fun runAccessibilityFirst(
+        request: CaptureRequestContract,
+        traceEnabled: Boolean = false,
+        traceId: String = UUID.randomUUID().toString().take(8),
+    ): TextSessionSnapshot {
         val service = NovaTextAccessibilityService.activeInstance
         if (service == null) {
             paragraphWindow = ParagraphWindow(emptyList(), -1)
@@ -229,9 +233,13 @@ object TextSessionCoordinator {
             }
         }
         lastSnapshot = buildSnapshot()
-        NovaTextLogger.d(
-            "capture source=${lastSnapshot.captureResult.source} blocks=${paragraphWindow.blocks.size}"
-        )
+        if (traceEnabled) {
+            logTrace(traceId, request, lastSnapshot)
+        } else {
+            NovaTextLogger.d(
+                "capture source=${lastSnapshot.captureResult.source} blocks=${paragraphWindow.blocks.size}"
+            )
+        }
         return lastSnapshot
     }
 
@@ -243,6 +251,39 @@ object TextSessionCoordinator {
     }
 
     fun latestSnapshot(): TextSessionSnapshot = lastSnapshot
+
+    private fun logTrace(
+        traceId: String,
+        request: CaptureRequestContract,
+        snapshot: TextSessionSnapshot,
+    ) {
+        val allBounds = boundsOf(snapshot.captureResult.blocks)
+        NovaTextLogger.d("trace[$traceId] phase=accessibility")
+        NovaTextLogger.d("trace[$traceId] package=${request.packageName}")
+        NovaTextLogger.d("trace[$traceId] touch=(${request.touchX.toInt()},${request.touchY.toInt()})")
+        NovaTextLogger.d("trace[$traceId] durationMs=${snapshot.captureResult.durationMs}")
+        NovaTextLogger.d("trace[$traceId] source=${snapshot.captureResult.source}")
+        NovaTextLogger.d("trace[$traceId] rawBlockCount=${paragraphWindow.blocks.size}")
+        NovaTextLogger.d("trace[$traceId] selectedWindowCount=${snapshot.captureResult.blocks.size}")
+        NovaTextLogger.d("trace[$traceId] selectedRevision=${snapshot.revision}")
+        NovaTextLogger.d("trace[$traceId] debugMessage=${snapshot.captureResult.debugMessage}")
+        val nearestIndex = paragraphWindow.blocks.indexOfFirst { current ->
+            snapshot.captureResult.blocks.any { it === current }
+        }
+        NovaTextLogger.d("trace[$traceId] nearestIndex=$nearestIndex")
+        paragraphWindow.blocks.forEachIndexed { index, block ->
+            NovaTextLogger.d(
+                "trace[$traceId] raw[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(block)}"
+            )
+        }
+        snapshot.captureResult.blocks.forEachIndexed { index, block ->
+            NovaTextLogger.d(
+                "trace[$traceId] selected[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(block)}"
+            )
+        }
+        NovaTextLogger.d("trace[$traceId] selectedText=${sanitizeForLog(snapshot.originalText)}")
+        NovaTextLogger.d("trace[$traceId] selectedBounds=$allBounds")
+    }
 
     private fun buildSnapshot(): TextSessionSnapshot {
         val blocks = paragraphWindow.currentBlocks
@@ -280,5 +321,22 @@ object TextSessionCoordinator {
             hasNext = false,
             revision = 0,
         )
+    }
+
+    private fun boundsOf(blocks: List<CaptureTextBlockContract>): String {
+        if (blocks.isEmpty()) return "none"
+        val left = blocks.minOf { it.left }
+        val top = blocks.minOf { it.top }
+        val right = blocks.maxOf { it.right }
+        val bottom = blocks.maxOf { it.bottom }
+        return "[$left,$top,$right,$bottom]"
+    }
+
+    private fun formatBounds(block: CaptureTextBlockContract): String {
+        return "[${block.left},${block.top},${block.right},${block.bottom}]"
+    }
+
+    private fun sanitizeForLog(text: String): String {
+        return text.replace("\n", "\\n")
     }
 }
