@@ -11,12 +11,15 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,29 +41,38 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.core.view.WindowCompat
+import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.CppJiebaTokenizer
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
+import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
     private var boomChipPage: BoomChipPage? = null
     private lateinit var legacyContentView: View
+    private lateinit var settings: BigBangSettings
     private var launchTouchX = -1
     private var launchTouchY = -1
     private var currentText = ""
     private var currentSegment: IntArray? = null
+    private var manualOcrSourceToken: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        settings = BigBangSettings.get(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         launchTouchX = intent.getIntExtra("boom_startx", -1)
         launchTouchY = intent.getIntExtra("boom_starty", -1)
+        manualOcrSourceToken = intent.getStringExtra(EXTRA_MANUAL_OCR_SOURCE_TOKEN)
 
         legacyContentView = layoutInflater.inflate(R.layout.boom_activity_layout, null, false)
         legacyContentView.findViewById<View>(R.id.boom_page).apply {
@@ -85,7 +98,11 @@ class BoomActivity : ComponentActivity() {
                 contentView = legacyContentView,
                 touchX = launchTouchX,
                 touchY = launchTouchY,
+                manualOcrSourceToken = manualOcrSourceToken,
+                ocrRecognizerMode = settings.ocrRecognizerMode,
                 onDismiss = { dismissPage() },
+                onOcr = { reopenManualOcr() },
+                onLanguageSelected = { rerunOcrWithLanguage(it) },
                 onEditMode = { showPlaceholder() },
                 onSelectAll = { selectAll() },
                 onShareAll = { shareAll() },
@@ -129,6 +146,34 @@ class BoomActivity : ComponentActivity() {
 
     private fun showPlaceholder() {
         Toast.makeText(this, R.string.bigbang_action_placeholder, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun reopenManualOcr() {
+        val source = ManualOcrSourceStore.get(manualOcrSourceToken) ?: return
+        BoomOcrLauncher.open(
+            context = this,
+            imageUri = source.imageUri,
+            touchX = source.touchX,
+            touchY = source.touchY,
+            fullscreen = source.fullscreen,
+            callerPackage = source.callerPackage,
+            offsetX = source.offsetX,
+            offsetY = source.offsetY,
+            manualOcrSourceToken = source.token,
+        )
+    }
+
+    private fun rerunOcrWithLanguage(mode: String) {
+        val source = ManualOcrSourceStore.get(manualOcrSourceToken) ?: return
+        val replayMode = source.replayMode ?: return
+        BoomOcrLauncher.replayWithLanguage(
+            context = this,
+            sourceToken = source.token,
+            touchX = source.touchX,
+            touchY = source.touchY,
+            mode = mode,
+            replayMode = replayMode,
+        )
     }
 
     private fun segmentLocally(text: String) {
@@ -316,6 +361,7 @@ class BoomActivity : ComponentActivity() {
         const val DBG = true
         const val EXTRA_DEBUG_PREVIEW_TEXT = "extra_debug_preview_text"
         const val EXTRA_ENABLE_ADJACENT_SESSION = "extra_enable_adjacent_session"
+        const val EXTRA_MANUAL_OCR_SOURCE_TOKEN = "extra_manual_ocr_source_token"
 
         private const val TAG = "BoomActivity"
         private const val SELECTED_STATE = "selected_state"
@@ -327,7 +373,11 @@ private fun BigBangOverlayContent(
     contentView: View,
     touchX: Int,
     touchY: Int,
+    manualOcrSourceToken: String?,
+    ocrRecognizerMode: String,
     onDismiss: () -> Unit,
+    onOcr: () -> Unit,
+    onLanguageSelected: (String) -> Unit,
     onEditMode: () -> Unit,
     onSelectAll: () -> Unit,
     onShareAll: () -> Unit,
@@ -364,6 +414,20 @@ private fun BigBangOverlayContent(
         }
     }
     val panelScale = 0.84f + (0.16f * enterProgress)
+    val manualOcrRevision by ManualOcrSourceStore.revisionFlow().collectAsState()
+    val ocrSource = remember(manualOcrSourceToken, manualOcrRevision) {
+        ManualOcrSourceStore.get(manualOcrSourceToken)
+    }
+    val ocrEnabled = ocrSource != null
+    val languageEnabled = ocrSource?.replayMode != null
+    val activeOcrMode = ocrSource?.ocrMode ?: ocrRecognizerMode
+    var languageMenuExpanded by remember { mutableStateOf(false) }
+    val languageOptions = listOf(
+        stringResource(R.string.ocr_mode_chinese) to BigBangSettings.OCR_MODE_CHINESE,
+        stringResource(R.string.ocr_mode_japanese) to BigBangSettings.OCR_MODE_JAPANESE,
+        stringResource(R.string.ocr_mode_korean) to BigBangSettings.OCR_MODE_KOREAN,
+        stringResource(R.string.ocr_mode_latin) to BigBangSettings.OCR_MODE_LATIN,
+    )
 
     LaunchedEffect(Unit) {
         enterAnimationStarted = true
@@ -434,14 +498,64 @@ private fun BigBangOverlayContent(
                 bottomBar = {
                     OverlayBottomBar(
                         backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
-                    ) {
-                        OverlayIconAction(
-                            iconRes = R.drawable.boom_cancel,
-                            tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                            onClick = onDismiss,
-                            contentDescription = stringResource(R.string.search_overlay_close),
-                        )
-                    }
+                        leading = {
+                            OverlayIconAction(
+                                imageVector = Icons.Outlined.DocumentScanner,
+                                tint = if (ocrEnabled) {
+                                    if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                } else {
+                                    if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                },
+                                enabled = ocrEnabled,
+                                onClick = onOcr,
+                                contentDescription = stringResource(R.string.bigbang_action_ocr),
+                            )
+                        },
+                        center = {
+                            OverlayIconAction(
+                                iconRes = R.drawable.boom_cancel,
+                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                onClick = onDismiss,
+                                contentDescription = stringResource(R.string.search_overlay_close),
+                            )
+                        },
+                        trailing = {
+                            Box {
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.Language,
+                                    tint = if (languageEnabled) {
+                                        if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                    } else {
+                                        if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                    },
+                                    enabled = languageEnabled,
+                                    onClick = { languageMenuExpanded = true },
+                                    contentDescription = stringResource(R.string.bigbang_action_language),
+                                )
+                                DropdownMenu(
+                                    expanded = languageMenuExpanded,
+                                    onDismissRequest = { languageMenuExpanded = false },
+                                    containerColor = if (dark) Color(0xFF20252B) else Color.White,
+                                ) {
+                                    languageOptions.forEach { (title, value) ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                androidx.compose.material3.Text(
+                                                    text = title,
+                                                    color = if (dark) Color(0xFFF2F5F8) else Color(0xFF3B3B3B),
+                                                )
+                                            },
+                                            onClick = {
+                                                languageMenuExpanded = false
+                                                onLanguageSelected(value)
+                                            },
+                                            enabled = value != activeOcrMode,
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    )
                 },
             ) { bodyModifier ->
                 Column(modifier = bodyModifier.fillMaxSize()) {

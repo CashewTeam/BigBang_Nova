@@ -3,6 +3,8 @@ package com.cashewteam.novatext.android
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.Rect
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -45,6 +47,11 @@ class OcrLaunchActivity : Activity() {
     private var enableAdjacentSession = false
     private var traceEnabled = false
     private var traceId = UUID.randomUUID().toString().take(8)
+    private var manualOcrSourceToken: String? = null
+    private var silentManualOcrCaptureStarted = false
+    private var replayOcrMode: String? = null
+    private var replayMode: String? = null
+    private var replayStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,26 +62,56 @@ class OcrLaunchActivity : Activity() {
         pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty()
         callerPackage = intent.getStringExtra("caller_pkg")
         enableAdjacentSession = intent.getBooleanExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, false)
+        manualOcrSourceToken = intent.getStringExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN)
+        replayOcrMode = intent.getStringExtra(EXTRA_REPLAY_OCR_MODE)
+        replayMode = intent.getStringExtra(EXTRA_REPLAY_MODE)
         traceEnabled = intent.getBooleanExtra(EXTRA_CAPTURE_TRACE_ENABLED, false)
         traceId = intent.getStringExtra(EXTRA_CAPTURE_TRACE_ID)?.takeIf { it.isNotBlank() }
             ?: traceId
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
+        captureRequested = intent.getBooleanExtra(EXTRA_CAPTURE_ACCESSIBILITY, false)
+        pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
         ensureLaunchUi()
         if (pendingOcrSelectionLaunch) {
             loopRotateImage?.visibility = View.INVISIBLE
             loopAnimFrame?.visibility = View.INVISIBLE
             return
         }
-        captureRequested = intent.getBooleanExtra(EXTRA_CAPTURE_ACCESSIBILITY, false)
-        pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
+        if (isReplayRequested()) {
+            window.decorView.post {
+                val frame = loopAnimFrame ?: return@post
+                if (launched || cancelled || pendingOcrSelectionLaunch) {
+                    return@post
+                }
+                frame.translationX = touchX - frame.width / 2f
+                frame.translationY = touchY - frame.height / 2f
+                startLaunchAnimation()
+            }
+            return
+        }
         if (captureRequested) {
+            startSilentManualOcrCapture()
             startAccessibilityCapture()
+            window.decorView.post {
+                val frame = loopAnimFrame ?: return@post
+                if (launched || cancelled || pendingOcrSelectionLaunch) {
+                    return@post
+                }
+                frame.translationX = touchX - frame.width / 2f
+                frame.translationY = touchY - frame.height / 2f
+                startLaunchAnimation()
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
+        if (isReplayRequested() && !replayStarted && !cancelled) {
+            replayStarted = true
+            startReplayOcr()
+            return
+        }
         if (captureOcrScreenshotRequested && !captureOcrScreenshotStarted && !cancelled) {
             captureOcrScreenshotStarted = true
             window.decorView.post {
@@ -83,7 +120,26 @@ class OcrLaunchActivity : Activity() {
                 }
                 val started = AccessibilityScreenshotCapture.captureToOcr(
                     context = this,
-                    onCaptured = { imageUri -> startNearestParagraphOcr(imageUri) },
+                    onCaptured = { imageUri ->
+                        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken().also {
+                            manualOcrSourceToken = it
+                        }
+                        ManualOcrSourceStore.put(
+                            ManualOcrSourceStore.Source(
+                                token = sourceToken,
+                                imageUri = imageUri,
+                                touchX = touchX.toInt(),
+                                touchY = touchY.toInt(),
+                                callerPackage = callerPackage,
+                                fullscreen = intent.getBooleanExtra("boom_fullscreen", false),
+                                offsetX = intent.getIntExtra("boom_offsetx", 0),
+                                offsetY = intent.getIntExtra("boom_offsety", 0),
+                                sourceTag = "ocr_capture",
+                                replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
+                            ),
+                        )
+                        startNearestParagraphOcr(imageUri)
+                    },
                 )
                 if (!started) {
                     finish()
@@ -175,6 +231,9 @@ class OcrLaunchActivity : Activity() {
                 putExtra(Intent.EXTRA_TEXT, text)
                 putExtra(EXTRA_SKIP_LEGACY_FADE_IN, true)
                 putExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, enableAdjacentSession || captureRequested)
+                if (!manualOcrSourceToken.isNullOrEmpty()) {
+                    putExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN, manualOcrSourceToken)
+                }
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             },
         )
@@ -187,6 +246,9 @@ class OcrLaunchActivity : Activity() {
         startActivity(
             Intent(this, BoomOcrActivity::class.java).apply {
                 replaceExtras(this@OcrLaunchActivity.intent)
+                if (!manualOcrSourceToken.isNullOrEmpty()) {
+                    putExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN, manualOcrSourceToken)
+                }
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             },
@@ -195,6 +257,13 @@ class OcrLaunchActivity : Activity() {
     }
 
     private fun startNearestParagraphOcr(imageUri: Uri) {
+        startNearestParagraphOcr(imageUri, replayOcrMode ?: BigBangSettings.get(this).ocrRecognizerMode)
+    }
+
+    private fun startNearestParagraphOcr(
+        imageUri: Uri,
+        mode: String,
+    ) {
         thread(name = "bigbang-ocr-nearest") {
             val settings = BigBangSettings.get(this)
             val fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
@@ -227,12 +296,13 @@ class OcrLaunchActivity : Activity() {
                 touchX = touchX.toInt(),
                 touchY = touchY.toInt(),
             )
-            MlKitOcrEngine.recognize(prepared.bitmap, settings.ocrRecognizerMode)
+            MlKitOcrEngine.recognize(prepared.bitmap, mode)
                 .addOnSuccessListener(this) { result ->
                     val paragraphs = MlKitOcrEngine.findParagraphs(result)
                     val nearestMatch = MlKitOcrEngine.findNearestTextBlock(paragraphs, prepared.touchX, prepared.touchY)
                     logOcrTrace(
                         settings = settings,
+                        mode = mode,
                         callerPackage = callerPackage,
                         rawWidth = rawWidth,
                         rawHeight = rawHeight,
@@ -265,6 +335,7 @@ class OcrLaunchActivity : Activity() {
                         source = "ocr",
                         debugMessage = "channel=ocr; paragraphs=${paragraphs.size}; initial=1",
                     )
+                    updateDirectOcrReplayContext(sourceToken = manualOcrSourceToken, imageUri = imageUri)
                     enableAdjacentSession = true
                     pendingText = nearestMatch.text
                     maybeLaunchBigBang()
@@ -278,6 +349,189 @@ class OcrLaunchActivity : Activity() {
                     }
                 }
         }
+    }
+
+    private fun startReplayOcr() {
+        val source = ManualOcrSourceStore.get(manualOcrSourceToken)
+        val mode = replayOcrMode
+        if (source == null || mode.isNullOrBlank()) {
+            finish()
+            return
+        }
+        if (source.replayMode == ManualOcrSourceStore.REPLAY_MODE_SELECTION_RECT) {
+            startSelectionRectReplay(source, mode)
+        } else {
+            startNearestParagraphOcr(source.imageUri, mode)
+        }
+    }
+
+    private fun startSelectionRectReplay(
+        source: ManualOcrSourceStore.Source,
+        mode: String,
+    ) {
+        val selection = source.selectionRect ?: run {
+            finish()
+            return
+        }
+        thread(name = "bigbang-ocr-selection-replay") {
+            val bitmap = try {
+                MlKitOcrEngine.decodeBitmap(this, source.imageUri)
+            } catch (exception: Exception) {
+                LogUtils.e("Failed to decode OCR replay image", exception)
+                null
+            }
+            if (bitmap == null) {
+                runOnUiThread {
+                    if (!isFinishing) {
+                        Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                }
+                return@thread
+            }
+            val prepared = MlKitOcrEngine.prepareBitmap(
+                context = this,
+                screenshot = bitmap,
+                callerPackage = source.callerPackage,
+                fullscreen = source.fullscreen,
+                offsetX = source.offsetX,
+                offsetY = source.offsetY,
+                touchX = source.touchX,
+                touchY = source.touchY,
+            )
+            val safeSelection = Rect(
+                selection.left.coerceIn(0, prepared.bitmap.width.coerceAtLeast(1) - 1),
+                selection.top.coerceIn(0, prepared.bitmap.height.coerceAtLeast(1) - 1),
+                selection.right.coerceIn(1, prepared.bitmap.width),
+                selection.bottom.coerceIn(1, prepared.bitmap.height),
+            )
+            if (safeSelection.width() <= 0 || safeSelection.height() <= 0) {
+                prepared.bitmap.recycle()
+                runOnUiThread { finish() }
+                return@thread
+            }
+            val cropped = Bitmap.createBitmap(
+                prepared.bitmap,
+                safeSelection.left,
+                safeSelection.top,
+                safeSelection.width(),
+                safeSelection.height(),
+            )
+            MlKitOcrEngine.recognize(cropped, mode)
+                .addOnSuccessListener(this) { result ->
+                    prepared.bitmap.recycle()
+                    cropped.recycle()
+                    if (isFinishing) {
+                        return@addOnSuccessListener
+                    }
+                    val text = MlKitOcrEngine.buildParagraphText(result)
+                    if (text.isBlank()) {
+                        Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                        finish()
+                        return@addOnSuccessListener
+                    }
+                    val bounds = result.textBlocks.firstOrNull()?.boundingBox ?: Rect(safeSelection)
+                    TextSessionCoordinator.replaceSession(
+                        paragraphs = listOf(
+                            CaptureTextBlockContract(
+                                text = text,
+                                left = bounds.left.toDouble(),
+                                top = bounds.top.toDouble(),
+                                right = bounds.right.toDouble(),
+                                bottom = bounds.bottom.toDouble(),
+                                confidence = 1.0,
+                            ),
+                        ),
+                        initialIndex = 0,
+                        source = "ocr",
+                        debugMessage = "channel=ocr; paragraphs=1; initial=1",
+                    )
+                    ManualOcrSourceStore.put(
+                        source.copy(
+                            touchX = source.touchX,
+                            touchY = source.touchY,
+                            sourceTag = "ocr_selection",
+                            replayMode = ManualOcrSourceStore.REPLAY_MODE_SELECTION_RECT,
+                            selectionRect = Rect(selection),
+                            ocrMode = mode,
+                        ),
+                    )
+                    enableAdjacentSession = true
+                    pendingText = text
+                    maybeLaunchBigBang()
+                }
+                .addOnFailureListener(this) { throwable ->
+                    prepared.bitmap.recycle()
+                    cropped.recycle()
+                    LogUtils.e("ML Kit OCR replay failed", throwable)
+                    if (!isFinishing) {
+                        Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                }
+        }
+    }
+
+    private fun startSilentManualOcrCapture() {
+        if (silentManualOcrCaptureStarted || !captureRequested) {
+            return
+        }
+        silentManualOcrCaptureStarted = true
+        manualOcrSourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken()
+        val started = AccessibilityScreenshotCapture.captureToCache(
+            context = this,
+            onCaptured = { imageUri ->
+                val sourceToken = manualOcrSourceToken ?: return@captureToCache
+                ManualOcrSourceStore.put(
+                    ManualOcrSourceStore.Source(
+                        token = sourceToken,
+                        imageUri = imageUri,
+                        touchX = touchX.toInt(),
+                        touchY = touchY.toInt(),
+                        callerPackage = callerPackage,
+                        fullscreen = true,
+                        offsetX = 0,
+                        offsetY = 0,
+                        sourceTag = "accessibility_capture",
+                    ),
+                )
+            },
+        )
+        if (!started) {
+            LogUtils.d("OcrLaunchActivity", "silent OCR cache capture skipped")
+        }
+    }
+
+    private fun updateDirectOcrReplayContext(
+        sourceToken: String?,
+        imageUri: Uri,
+    ) {
+        val token = sourceToken ?: return
+        val source = ManualOcrSourceStore.get(token)
+        ManualOcrSourceStore.put(
+            (source ?: ManualOcrSourceStore.Source(
+                token = token,
+                imageUri = imageUri,
+                touchX = touchX.toInt(),
+                touchY = touchY.toInt(),
+                callerPackage = callerPackage,
+                fullscreen = intent.getBooleanExtra("boom_fullscreen", false),
+                offsetX = intent.getIntExtra("boom_offsetx", 0),
+                offsetY = intent.getIntExtra("boom_offsety", 0),
+                sourceTag = "ocr_capture",
+                ocrMode = replayOcrMode ?: BigBangSettings.get(this).ocrRecognizerMode,
+            )).copy(
+                imageUri = imageUri,
+                sourceTag = "ocr_direct",
+                replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
+                selectionRect = null,
+                ocrMode = replayOcrMode ?: BigBangSettings.get(this).ocrRecognizerMode,
+            ),
+        )
+    }
+
+    private fun isReplayRequested(): Boolean {
+        return !replayOcrMode.isNullOrBlank() && !replayMode.isNullOrBlank()
     }
 
     private fun ensureLaunchUi() {
@@ -294,7 +548,7 @@ class OcrLaunchActivity : Activity() {
         }
         loopRotateImage?.visibility = View.INVISIBLE
         loopAnimFrame?.visibility = View.INVISIBLE
-        if (pendingOcrSelectionLaunch) {
+        if (pendingOcrSelectionLaunch || captureRequested || isReplayRequested()) {
             return
         }
         loopAnimFrame?.post {
@@ -334,6 +588,7 @@ class OcrLaunchActivity : Activity() {
 
     private fun logOcrTrace(
         settings: BigBangSettings,
+        mode: String,
         callerPackage: String?,
         rawWidth: Int,
         rawHeight: Int,
@@ -348,7 +603,7 @@ class OcrLaunchActivity : Activity() {
         NovaTextLogger.d("trace[$traceId] package=${callerPackage ?: "unknown"}")
         NovaTextLogger.d("trace[$traceId] touchRaw=(${touchX.toInt()},${touchY.toInt()})")
         NovaTextLogger.d("trace[$traceId] touchMapped=(${prepared.touchX},${prepared.touchY})")
-        NovaTextLogger.d("trace[$traceId] mode=${settings.ocrRecognizerMode}")
+        NovaTextLogger.d("trace[$traceId] mode=$mode")
         NovaTextLogger.d("trace[$traceId] bitmapRaw=${rawWidth}x${rawHeight}")
         NovaTextLogger.d("trace[$traceId] bitmapPrepared=${prepared.bitmap.width}x${prepared.bitmap.height}")
         val rawBlocks = MlKitOcrEngine.collectRawBlocks(result)
@@ -389,5 +644,7 @@ class OcrLaunchActivity : Activity() {
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
+        const val EXTRA_REPLAY_OCR_MODE = "extra_replay_ocr_mode"
+        const val EXTRA_REPLAY_MODE = "extra_replay_mode"
     }
 }

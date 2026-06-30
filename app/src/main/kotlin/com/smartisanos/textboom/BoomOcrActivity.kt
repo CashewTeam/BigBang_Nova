@@ -92,6 +92,8 @@ class BoomOcrActivity : ComponentActivity() {
     private var ocrStarted = false
     private var launchTouchX = 0
     private var launchTouchY = 0
+    private var manualOcrSourceToken: String? = null
+    private var lastSelectionRect: Rect? = null
     private val traceId = UUID.randomUUID().toString().take(8)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,6 +114,7 @@ class BoomOcrActivity : ComponentActivity() {
         launchTouchY = touchY.toInt()
         fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
         callerPackage = intent.getStringExtra("caller_pkg")
+        manualOcrSourceToken = intent.getStringExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN)
         offset = intArrayOf(
             intent.getIntExtra("boom_offsetx", 0),
             intent.getIntExtra("boom_offsety", 0),
@@ -182,6 +185,7 @@ class BoomOcrActivity : ComponentActivity() {
             launchTouchX = selectionCenter.x
             launchTouchY = selectionCenter.y
         }
+        lastSelectionRect = Rect(selectionRect)
         recycleBitmap(ocrBitmap, false)
         ocrBitmap = Bitmap.createBitmap(
             bitmap,
@@ -218,7 +222,16 @@ class BoomOcrActivity : ComponentActivity() {
         }
         ocrStarted = false
         stage = OcrStage.Selecting
-        BoomActivityLauncher.openText(this, ocrText, launchTouchX, launchTouchY, false, true)
+        updateManualOcrReplayContext()
+        BoomActivityLauncher.openText(
+            this,
+            ocrText,
+            launchTouchX,
+            launchTouchY,
+            false,
+            true,
+            manualOcrSourceToken = manualOcrSourceToken,
+        )
         finish()
     }
 
@@ -259,6 +272,26 @@ class BoomOcrActivity : ComponentActivity() {
             showImageUnavailableAndFinish()
             return
         }
+        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken().also {
+            manualOcrSourceToken = it
+        }
+        val previous = ManualOcrSourceStore.get(sourceToken)
+        ManualOcrSourceStore.put(
+            ManualOcrSourceStore.Source(
+                token = sourceToken,
+                imageUri = imageUri,
+                touchX = touchX.toInt(),
+                touchY = touchY.toInt(),
+                callerPackage = callerPackage,
+                fullscreen = fullscreen,
+                offsetX = offset[0],
+                offsetY = offset[1],
+                sourceTag = if (Intent.ACTION_SEND == intent.action) "share_image" else "ocr_image",
+                replayMode = previous?.replayMode,
+                selectionRect = previous?.selectionRect?.let(::Rect),
+                ocrMode = previous?.ocrMode ?: settings.ocrRecognizerMode,
+            ),
+        )
         try {
             val bitmap = MlKitOcrEngine.decodeBitmap(this, imageUri)
             val prepared = MlKitOcrEngine.prepareBitmap(
@@ -311,6 +344,22 @@ class BoomOcrActivity : ComponentActivity() {
         if (bitmap == null || bitmap.isRecycled) return
         if (!allowPrepared && bitmap === preparedBitmap) return
         bitmap.recycle()
+    }
+
+    private fun updateManualOcrReplayContext() {
+        val token = manualOcrSourceToken ?: return
+        val source = ManualOcrSourceStore.get(token) ?: return
+        val selection = lastSelectionRect ?: return
+        ManualOcrSourceStore.put(
+            source.copy(
+                touchX = launchTouchX,
+                touchY = launchTouchY,
+                sourceTag = "ocr_selection",
+                replayMode = ManualOcrSourceStore.REPLAY_MODE_SELECTION_RECT,
+                selectionRect = Rect(selection),
+                ocrMode = settings.ocrRecognizerMode,
+            ),
+        )
     }
 
     companion object {

@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.ceil
 
+private val OverlayBottomBarContentOffset = (-2).dp
+
 @Composable
 internal fun OverlayScene(
     scrimColor: Color,
@@ -202,7 +204,9 @@ internal fun OverlayHeaderBar(
 @Composable
 internal fun OverlayBottomBar(
     backgroundColor: Color,
-    content: @Composable RowScope.() -> Unit,
+    leading: @Composable BoxScope.() -> Unit = {},
+    center: @Composable BoxScope.() -> Unit = {},
+    trailing: @Composable BoxScope.() -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -210,16 +214,37 @@ internal fun OverlayBottomBar(
             .height(52.dp)
             .background(backgroundColor)
             .padding(horizontal = 14.dp),
-        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
+    ) {
+        Box(
+            modifier = Modifier
+                .requiredWidth(72.dp)
+                .offset(y = OverlayBottomBarContentOffset),
+            contentAlignment = Alignment.CenterStart,
+            content = leading,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .offset(y = OverlayBottomBarContentOffset),
+            contentAlignment = Alignment.Center,
+            content = center,
+        )
+        Box(
+            modifier = Modifier
+                .requiredWidth(72.dp)
+                .offset(y = OverlayBottomBarContentOffset),
+            contentAlignment = Alignment.CenterEnd,
+            content = trailing,
+        )
+    }
 }
 
 @Composable
 internal fun OverlayIconAction(
     iconRes: Int,
     tint: Color,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     contentDescription: String,
 ) {
@@ -230,6 +255,7 @@ internal fun OverlayIconAction(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                enabled = enabled,
                 onClick = onClick,
             ),
         contentAlignment = Alignment.Center,
@@ -253,6 +279,7 @@ internal fun OverlayIconAction(
 internal fun OverlayIconAction(
     imageVector: ImageVector,
     tint: Color,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     contentDescription: String,
 ) {
@@ -263,6 +290,7 @@ internal fun OverlayIconAction(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                enabled = enabled,
                 onClick = onClick,
             ),
         contentAlignment = Alignment.Center,

@@ -477,67 +477,74 @@ private fun SearchBottomBar(
     onProviderSelected: (SearchProvider, SearchKind) -> Unit,
 ) {
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
-    OverlayBottomBar(backgroundColor = palette.bottomBar) {
-        ToolbarIconButton(
-            imageVector = Icons.Outlined.Close,
-            tint = palette.iconTint,
-            enabled = true,
-            onClick = onClose,
-            buttonSize = 48.dp,
-            contentDescription = stringResource(R.string.search_overlay_close),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Row(
-            modifier = Modifier.weight(1f).padding(bottom = navigationPadding.calculateBottomPadding()),
-            horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
-        ) {
-            SearchProviderButton(
-                palette = palette,
-                provider = webProvider,
-                selected = activeKind == SearchKind.Web,
-                onClick = { onKindClick(SearchKind.Web) },
-                onLongClick = { onKindLongPress(SearchKind.Web) },
-                menuExpanded = expandedKind == SearchKind.Web,
-                menuItems = providersForKind(SearchKind.Web),
-                onDismissMenu = onDismissMenu,
-                onProviderSelected = { onProviderSelected(it, SearchKind.Web) },
-                contentDescription = stringResource(R.string.search_overlay_web),
+    OverlayBottomBar(
+        backgroundColor = palette.bottomBar,
+        leading = {
+            ToolbarIconButton(
+                imageVector = Icons.Outlined.Close,
+                tint = palette.iconTint,
+                enabled = true,
+                onClick = onClose,
+                buttonSize = 48.dp,
+                contentDescription = stringResource(R.string.search_overlay_close),
             )
-            SearchProviderButton(
-                palette = palette,
-                provider = dictProvider,
-                selected = activeKind == SearchKind.Dict,
-                onClick = { onKindClick(SearchKind.Dict) },
-                onLongClick = { onKindLongPress(SearchKind.Dict) },
-                menuExpanded = expandedKind == SearchKind.Dict,
-                menuItems = providersForKind(SearchKind.Dict),
-                onDismissMenu = onDismissMenu,
-                onProviderSelected = { onProviderSelected(it, SearchKind.Dict) },
-                contentDescription = stringResource(R.string.search_overlay_dict),
+        },
+        center = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = navigationPadding.calculateBottomPadding()),
+                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+            ) {
+                SearchProviderButton(
+                    palette = palette,
+                    provider = webProvider,
+                    selected = activeKind == SearchKind.Web,
+                    onClick = { onKindClick(SearchKind.Web) },
+                    onLongClick = { onKindLongPress(SearchKind.Web) },
+                    menuExpanded = expandedKind == SearchKind.Web,
+                    menuItems = providersForKind(SearchKind.Web),
+                    onDismissMenu = onDismissMenu,
+                    onProviderSelected = { onProviderSelected(it, SearchKind.Web) },
+                    contentDescription = stringResource(R.string.search_overlay_web),
+                )
+                SearchProviderButton(
+                    palette = palette,
+                    provider = dictProvider,
+                    selected = activeKind == SearchKind.Dict,
+                    onClick = { onKindClick(SearchKind.Dict) },
+                    onLongClick = { onKindLongPress(SearchKind.Dict) },
+                    menuExpanded = expandedKind == SearchKind.Dict,
+                    menuItems = providersForKind(SearchKind.Dict),
+                    onDismissMenu = onDismissMenu,
+                    onProviderSelected = { onProviderSelected(it, SearchKind.Dict) },
+                    contentDescription = stringResource(R.string.search_overlay_dict),
+                )
+                SearchProviderButton(
+                    palette = palette,
+                    provider = wikiProvider,
+                    selected = activeKind == SearchKind.Wiki,
+                    onClick = { onKindClick(SearchKind.Wiki) },
+                    onLongClick = { onKindLongPress(SearchKind.Wiki) },
+                    menuExpanded = expandedKind == SearchKind.Wiki,
+                    menuItems = providersForKind(SearchKind.Wiki),
+                    onDismissMenu = onDismissMenu,
+                    onProviderSelected = { onProviderSelected(it, SearchKind.Wiki) },
+                    contentDescription = stringResource(R.string.search_overlay_wiki),
+                )
+            }
+        },
+        trailing = {
+            ToolbarIconButton(
+                iconRes = R.drawable.boom_win_browser,
+                tint = null,
+                enabled = true,
+                onClick = onBrowser,
+                buttonSize = 48.dp,
+                contentDescription = stringResource(R.string.search_overlay_browser),
             )
-            SearchProviderButton(
-                palette = palette,
-                provider = wikiProvider,
-                selected = activeKind == SearchKind.Wiki,
-                onClick = { onKindClick(SearchKind.Wiki) },
-                onLongClick = { onKindLongPress(SearchKind.Wiki) },
-                menuExpanded = expandedKind == SearchKind.Wiki,
-                menuItems = providersForKind(SearchKind.Wiki),
-                onDismissMenu = onDismissMenu,
-                onProviderSelected = { onProviderSelected(it, SearchKind.Wiki) },
-                contentDescription = stringResource(R.string.search_overlay_wiki),
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        ToolbarIconButton(
-            iconRes = R.drawable.boom_win_browser,
-            tint = null,
-            enabled = true,
-            onClick = onBrowser,
-            buttonSize = 48.dp,
-            contentDescription = stringResource(R.string.search_overlay_browser),
-        )
-    }
+        },
+    )
 }
 
 @Composable

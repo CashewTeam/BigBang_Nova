@@ -17,6 +17,7 @@ object BoomActivityLauncher {
         isPreview: Boolean = false,
         animateLaunch: Boolean = false,
         enableAdjacentSession: Boolean = false,
+        manualOcrSourceToken: String? = null,
     ) {
         val targetActivity =
             if (!animateLaunch && context is Activity) OverlayActivity::class.java
@@ -28,6 +29,9 @@ object BoomActivityLauncher {
             putExtra("boom_starty", touchY)
             putExtra(OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY, false)
             putExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, enableAdjacentSession)
+            if (!manualOcrSourceToken.isNullOrEmpty()) {
+                putExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN, manualOcrSourceToken)
+            }
             if (targetActivity == OverlayActivity::class.java) {
                 putExtra(OcrLaunchActivity.EXTRA_SKIP_LEGACY_FADE_IN, true)
             }
