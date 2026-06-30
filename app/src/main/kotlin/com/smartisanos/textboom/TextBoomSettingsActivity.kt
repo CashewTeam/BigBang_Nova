@@ -617,26 +617,27 @@ private fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item {
-                    Text(
-                        text = "Alpha ${BuildConfig.VERSION_NAME}",
-                        modifier = Modifier.fillMaxWidth(),
-                        color = palette.textSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                }
-
-                item {
-                    SettingsSectionCard {
-                        PermissionSection(
-                            state = permissionState,
-                            onOpenOverlayPermission = onOpenOverlayPermission,
-                            onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                            onStartFloatingBall = onStartFloatingBall,
-                            onStopFloatingBall = onStopFloatingBall,
-                            onResetFloatingBall = onResetFloatingBall,
+                    Column {
+                        Text(
+                            text = "Alpha ${BuildConfig.VERSION_NAME}",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 2.dp),
+                            color = palette.textSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
+                        SettingsSectionCard {
+                            PermissionSection(
+                                state = permissionState,
+                                onOpenOverlayPermission = onOpenOverlayPermission,
+                                onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                                onStartFloatingBall = onStartFloatingBall,
+                                onStopFloatingBall = onStopFloatingBall,
+                                onResetFloatingBall = onResetFloatingBall,
+                            )
+                        }
                     }
                 }
 
