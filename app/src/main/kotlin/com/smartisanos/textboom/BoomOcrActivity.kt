@@ -72,7 +72,9 @@ import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.util.LogUtils
+import com.cashewteam.novatext.android.util.NovaTextLogger
 import com.google.mlkit.vision.text.Text as MlKitText
+import java.util.UUID
 
 class BoomOcrActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
@@ -90,6 +92,7 @@ class BoomOcrActivity : ComponentActivity() {
     private var ocrStarted = false
     private var launchTouchX = 0
     private var launchTouchY = 0
+    private val traceId = UUID.randomUUID().toString().take(8)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -203,6 +206,9 @@ class BoomOcrActivity : ComponentActivity() {
 
     private fun handleOcrSuccess(result: MlKitText?) {
         if (isFinishing) return
+        if (result != null) {
+            logOcrTrace(result)
+        }
         ocrText = result?.let(MlKitOcrEngine::buildParagraphText).orEmpty()
         if (ocrText.isEmpty()) {
             Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
@@ -214,6 +220,32 @@ class BoomOcrActivity : ComponentActivity() {
         stage = OcrStage.Selecting
         BoomActivityLauncher.openText(this, ocrText, launchTouchX, launchTouchY, false, true)
         finish()
+    }
+
+    private fun logOcrTrace(result: MlKitText) {
+        if (!settings.isDebugCaptureTraceEnabled) {
+            return
+        }
+        val rawBlocks = MlKitOcrEngine.collectRawBlocks(result)
+        val paragraphs = MlKitOcrEngine.findParagraphs(result)
+        NovaTextLogger.d("trace[$traceId] phase=ocr_image_input")
+        NovaTextLogger.d("trace[$traceId] package=${callerPackage ?: "image_input"}")
+        NovaTextLogger.d("trace[$traceId] touchRaw=(${touchX.toInt()},${touchY.toInt()})")
+        NovaTextLogger.d("trace[$traceId] launchTouch=($launchTouchX,$launchTouchY)")
+        NovaTextLogger.d("trace[$traceId] mode=${settings.ocrRecognizerMode}")
+        NovaTextLogger.d("trace[$traceId] rawBlockCount=${rawBlocks.size}")
+        rawBlocks.forEachIndexed { index, block ->
+            NovaTextLogger.d(
+                "trace[$traceId] raw[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(block.bounds)}"
+            )
+        }
+        NovaTextLogger.d("trace[$traceId] paragraphCount=${paragraphs.size}")
+        paragraphs.forEachIndexed { index, paragraph ->
+            NovaTextLogger.d(
+                "trace[$traceId] paragraph[$index] text=${sanitizeForLog(paragraph.text)} bounds=${formatBounds(paragraph.bounds)}"
+            )
+        }
+        NovaTextLogger.d("trace[$traceId] finalText=${sanitizeForLog(MlKitOcrEngine.buildParagraphText(result))}")
     }
 
     private fun stopOcr() {
@@ -265,6 +297,14 @@ class BoomOcrActivity : ComponentActivity() {
     private fun showImageUnavailableAndFinish() {
         Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
         stopOcr()
+    }
+
+    private fun formatBounds(bounds: Rect?): String {
+        return if (bounds == null) "none" else "[${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}]"
+    }
+
+    private fun sanitizeForLog(text: String): String {
+        return text.replace("\n", "\\n")
     }
 
     private fun recycleBitmap(bitmap: Bitmap?, allowPrepared: Boolean) {

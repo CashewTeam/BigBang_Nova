@@ -351,13 +351,14 @@ class OcrLaunchActivity : Activity() {
         NovaTextLogger.d("trace[$traceId] mode=${settings.ocrRecognizerMode}")
         NovaTextLogger.d("trace[$traceId] bitmapRaw=${rawWidth}x${rawHeight}")
         NovaTextLogger.d("trace[$traceId] bitmapPrepared=${prepared.bitmap.width}x${prepared.bitmap.height}")
-        NovaTextLogger.d("trace[$traceId] textBlockCount=${result.textBlocks.size}")
-        result.textBlocks.forEachIndexed { index, block ->
-            val bounds = block.boundingBox
+        val rawBlocks = MlKitOcrEngine.collectRawBlocks(result)
+        NovaTextLogger.d("trace[$traceId] rawBlockCount=${rawBlocks.size}")
+        rawBlocks.forEachIndexed { index, block ->
             NovaTextLogger.d(
-                "trace[$traceId] raw[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(bounds)}"
+                "trace[$traceId] raw[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(block.bounds)}"
             )
         }
+        NovaTextLogger.d("trace[$traceId] paragraphCount=${MlKitOcrEngine.findParagraphs(result).size}")
         if (nearestMatch == null) {
             NovaTextLogger.d("trace[$traceId] selectedText=none")
             NovaTextLogger.d("trace[$traceId] selectedBounds=none")

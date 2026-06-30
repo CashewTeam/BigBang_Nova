@@ -16,7 +16,6 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -29,9 +28,8 @@ object MlKitOcrEngine {
     private const val MIN_GROUP_GAP_PX = 24
     private const val SAME_COLUMN_TOLERANCE_PX = 72
     private const val BELOW_TOUCH_PENALTY_MULTIPLIER = 4.0
-    private const val PARAGRAPH_MERGE_LINE_GAP_MULTIPLIER = 1.15
+    private const val PARAGRAPH_MERGE_LINE_GAP_MULTIPLIER = 1.45
     private const val SAME_VISUAL_LINE_TOLERANCE_RATIO = 0.45
-    private const val SAME_VISUAL_LINE_HORIZONTAL_GAP_RATIO = 0.8
 
     data class PreparedBitmap(
         val bitmap: Bitmap,
@@ -45,6 +43,11 @@ object MlKitOcrEngine {
         val distanceSquared: Double,
         val blockCount: Int,
         val score: Double,
+    )
+
+    data class RawTextBlock(
+        val text: String,
+        val bounds: Rect,
     )
 
     @JvmStatic
@@ -178,25 +181,47 @@ object MlKitOcrEngine {
 
     @JvmStatic
     fun findParagraphs(result: Text): List<NearestTextBlockMatch> {
-        val rawBlocks = result.textBlocks
-            .flatMap { block -> block.lines.flatMap(::collectRawBlocks) }
-            .sortedWith(compareBy<OcrRawBlock> { it.bounds.top }.thenBy { it.bounds.left })
-        if (rawBlocks.isEmpty()) {
+        val rawLines = collectRawLines(result)
+            .sortedWith(compareBy<OcrRawLine> { it.bounds.top }.thenBy { it.bounds.left })
+        if (rawLines.isEmpty()) {
             return emptyList()
         }
-        val groups = mutableListOf<OcrGroup>()
-        rawBlocks.forEach { block ->
+        val groups = mutableListOf<OcrParagraphGroup>()
+        rawLines.forEach { block ->
             val lastGroup = groups.lastOrNull()
             if (lastGroup != null && shouldMerge(lastGroup, block)) {
                 lastGroup.add(block)
             } else {
-                groups += OcrGroup(block)
+                groups += OcrParagraphGroup(block)
             }
         }
         return groups.map { it.toMatch() }
     }
 
-    private fun collectRawBlocks(line: Text.Line): List<OcrRawBlock> {
+    @JvmStatic
+    fun collectRawBlocks(result: Text): List<RawTextBlock> {
+        return result.textBlocks
+            .flatMap { block -> block.lines.flatMap(::collectLineRawBlocks) }
+            .map { RawTextBlock(it.text, Rect(it.bounds)) }
+    }
+
+    private fun collectRawLines(result: Text): List<OcrRawLine> {
+        val fragments = result.textBlocks
+            .flatMap { block -> block.lines.flatMap(::collectLineRawBlocks) }
+            .sortedWith(compareBy<OcrRawBlock> { it.bounds.top }.thenBy { it.bounds.left })
+        val lines = mutableListOf<OcrLineGroup>()
+        fragments.forEach { fragment ->
+            val line = lines.lastOrNull()
+            if (line != null && line.isSameVisualLine(fragment)) {
+                line.add(fragment)
+            } else {
+                lines += OcrLineGroup(fragment)
+            }
+        }
+        return lines.mapNotNull { it.toRawLine() }
+    }
+
+    private fun collectLineRawBlocks(line: Text.Line): List<OcrRawBlock> {
         val elementBlocks = line.elements.mapNotNull { element ->
             toRawBlock(element.text, element.boundingBox)
         }
@@ -216,6 +241,23 @@ object MlKitOcrEngine {
             return null
         }
         return OcrRawBlock(text = normalized, bounds = Rect(safeBounds))
+    }
+
+    private fun buildLineText(
+        fragments: List<OcrRawBlock>,
+        fallbackText: String,
+    ): String {
+        if (fragments.isEmpty()) {
+            return fallbackText.trim()
+        }
+        return buildString {
+            fragments.forEachIndexed { index, fragment ->
+                if (index > 0) {
+                    append(inlineSeparator(fragments[index - 1].text, fragment.text))
+                }
+                append(fragment.text)
+            }
+        }.trim()
     }
 
     @JvmStatic
@@ -256,19 +298,9 @@ object MlKitOcrEngine {
     }
 
     private fun shouldMerge(
-        group: OcrGroup,
-        block: OcrRawBlock,
+        group: OcrParagraphGroup,
+        block: OcrRawLine,
     ): Boolean {
-        if (isSameVisualLine(group.last.bounds, block.bounds)) {
-            val sameLineGapLimit = max(
-                MIN_GROUP_GAP_PX.toDouble(),
-                min(group.last.bounds.height(), block.bounds.height()) * SAME_VISUAL_LINE_HORIZONTAL_GAP_RATIO,
-            )
-            val horizontalGap = block.bounds.left - group.last.bounds.right
-            if (horizontalGap <= sameLineGapLimit) {
-                return true
-            }
-        }
         val gap = block.bounds.top - group.bounds.bottom
         val mergeGapLimit = max(
             MIN_GROUP_GAP_PX.toDouble(),
@@ -278,8 +310,11 @@ object MlKitOcrEngine {
             return false
         }
         val sameColumn = kotlin.math.abs(block.bounds.left - group.anchorLeft) <= SAME_COLUMN_TOLERANCE_PX
+        if (sameColumn) {
+            return true
+        }
         val horizontalOverlap = min(group.bounds.right, block.bounds.right) - max(group.bounds.left, block.bounds.left)
-        return sameColumn || horizontalOverlap >= 0
+        return horizontalOverlap >= -min(group.averageLineHeight, block.averageLineHeight)
     }
 
     private data class OcrRawBlock(
@@ -291,7 +326,48 @@ object MlKitOcrEngine {
             bounds.height().toDouble() / lineCount.coerceAtLeast(1).toDouble()
     }
 
-    private class OcrGroup(first: OcrRawBlock) {
+    private data class OcrRawLine(
+        val text: String,
+        val bounds: Rect,
+        val fragments: List<OcrRawBlock>,
+    ) {
+        val averageLineHeight: Double = bounds.height().toDouble()
+    }
+
+    private class OcrLineGroup(first: OcrRawBlock) {
+        private val fragments = mutableListOf(first)
+        private val bounds = Rect(first.bounds)
+
+        fun isSameVisualLine(block: OcrRawBlock): Boolean {
+            val currentCenterY = (bounds.top + bounds.bottom) / 2.0
+            val blockCenterY = (block.bounds.top + block.bounds.bottom) / 2.0
+            val tolerance = max(
+                10.0,
+                min(bounds.height(), block.bounds.height()) * SAME_VISUAL_LINE_TOLERANCE_RATIO,
+            )
+            return kotlin.math.abs(currentCenterY - blockCenterY) <= tolerance
+        }
+
+        fun add(block: OcrRawBlock) {
+            fragments += block
+            bounds.union(block.bounds)
+        }
+
+        fun toRawLine(): OcrRawLine? {
+            val sorted = fragments.sortedBy { it.bounds.left }
+            val text = buildLineText(sorted, "")
+            if (text.isEmpty()) {
+                return null
+            }
+            return OcrRawLine(
+                text = text,
+                bounds = Rect(bounds),
+                fragments = sorted,
+            )
+        }
+    }
+
+    private class OcrParagraphGroup(first: OcrRawLine) {
         private val parts = mutableListOf(first)
         val bounds = Rect(first.bounds)
         var anchorLeft = first.bounds.left
@@ -300,10 +376,8 @@ object MlKitOcrEngine {
             private set
         val blockCount: Int
             get() = parts.size
-        val last: OcrRawBlock
-            get() = parts.last()
 
-        fun add(block: OcrRawBlock) {
+        fun add(block: OcrRawLine) {
             parts += block
             bounds.union(block.bounds)
             anchorLeft = ((anchorLeft * (parts.size - 1)) + block.bounds.left) / parts.size
@@ -314,14 +388,7 @@ object MlKitOcrEngine {
             val text = buildString {
                 parts.forEachIndexed { index, part ->
                     if (index > 0) {
-                        val previous = parts[index - 1]
-                        append(
-                            if (isSameVisualLine(previous.bounds, part.bounds)) {
-                                inlineSeparator(previous.text, part.text)
-                            } else {
-                                "\n"
-                            }
-                        )
+                        append(inlineSeparator(parts[index - 1].text, part.text))
                     }
                     append(part.text)
                 }
@@ -336,29 +403,13 @@ object MlKitOcrEngine {
         }
     }
 
-    private fun isSameVisualLine(
-        previous: Rect,
-        current: Rect,
-    ): Boolean {
-        val previousCenterY = (previous.top + previous.bottom) / 2.0
-        val currentCenterY = (current.top + current.bottom) / 2.0
-        val tolerance = max(
-            10.0,
-            min(previous.height(), current.height()) * SAME_VISUAL_LINE_TOLERANCE_RATIO,
-        )
-        return abs(previousCenterY - currentCenterY) <= tolerance
-    }
-
     private fun inlineSeparator(previous: String, current: String): String {
         val previousChar = previous.lastOrNull() ?: return ""
         val currentChar = current.firstOrNull() ?: return ""
-        return if (previousChar.isLetterOrDigit() && currentChar.isLetterOrDigit() &&
-            previousChar.code < 128 && currentChar.code < 128
-        ) {
-            " "
-        } else {
-            ""
+        if (previousChar.isWhitespace() || currentChar.isWhitespace()) {
+            return ""
         }
+        return if (previousChar.isLetterOrDigit() && currentChar.isLetterOrDigit()) " " else ""
     }
 
     private fun createRecognizer(mode: String): TextRecognizer {
