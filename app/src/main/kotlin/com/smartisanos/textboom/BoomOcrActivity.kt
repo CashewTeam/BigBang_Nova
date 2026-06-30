@@ -212,7 +212,7 @@ class BoomOcrActivity : ComponentActivity() {
         }
         ocrStarted = false
         stage = OcrStage.Selecting
-        BoomActivityLauncher.openText(this, ocrText, launchTouchX, launchTouchY, false, false)
+        BoomActivityLauncher.openText(this, ocrText, launchTouchX, launchTouchY, false, true)
         finish()
     }
 

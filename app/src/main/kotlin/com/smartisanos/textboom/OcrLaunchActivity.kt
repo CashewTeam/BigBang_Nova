@@ -1,7 +1,5 @@
 package com.cashewteam.novatext.android
 
-import android.animation.Animator
-import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
@@ -31,9 +29,7 @@ class OcrLaunchActivity : Activity() {
     private var loopAnimFrame: FrameLayout? = null
     private var loopRotateImage: ImageView? = null
     private var contentFrame: FrameLayout? = null
-    private var touchAnimation: AnimatorSet? = null
     private var loadingAnimator: ObjectAnimator? = null
-    private var touchAnimating = false
     private var launchGateOpen = false
     private var launched = false
     private var cancelled = false
@@ -106,11 +102,8 @@ class OcrLaunchActivity : Activity() {
 
     override fun onDestroy() {
         cancelled = true
-        touchAnimation?.cancel()
         loadingAnimator?.cancel()
         loadingAnimator = null
-        touchAnimation = null
-        touchAnimating = false
         super.onDestroy()
     }
 
@@ -127,70 +120,17 @@ class OcrLaunchActivity : Activity() {
         return if (horizontal) metrics.widthPixels / 2f else metrics.heightPixels / 2f
     }
 
-    private fun startTouchBoomAnimation() {
+    private fun startLaunchAnimation() {
         val frame = loopAnimFrame ?: return
-        if (touchAnimating || launched || cancelled) {
+        if (launched || cancelled || pendingOcrSelectionLaunch) {
             return
         }
-        hideLoadingIndicator()
-        frame.visibility = View.INVISIBLE
-        frame.scaleX = TOUCH_SCALE_FROM
-        frame.scaleY = TOUCH_SCALE_FROM
-        frame.alpha = TOUCH_ALPHA_FROM
-        loopRotateImage?.visibility = View.GONE
-
-        val scaleAnimation = ValueAnimator.ofFloat(TOUCH_SCALE_FROM, TOUCH_SCALE_TO).apply {
-            duration = TOUCH_EXPAND_DURATION
-            addUpdateListener {
-                val value = it.animatedValue as Float
-                frame.scaleX = value
-                frame.scaleY = value
-            }
-            addListener(object : Animator.AnimatorListener {
-                override fun onAnimationStart(animation: Animator) {
-                    touchAnimating = true
-                    frame.visibility = View.VISIBLE
-                    frame.post {
-                        launchGateOpen = true
-                        maybeLaunchBigBang()
-                    }
-                }
-
-                override fun onAnimationEnd(animation: Animator) = Unit
-                override fun onAnimationCancel(animation: Animator) = Unit
-                override fun onAnimationRepeat(animation: Animator) = Unit
-            })
-        }
-
-        val alphaAnimation = ValueAnimator.ofFloat(TOUCH_ALPHA_FROM, TOUCH_ALPHA_TO).apply {
-            duration = TOUCH_EXPAND_DURATION
-            addUpdateListener { frame.alpha = it.animatedValue as Float }
-        }
-
-        touchAnimation = AnimatorSet().apply {
-            interpolator = CubicInInterpolator()
-            playTogether(scaleAnimation, alphaAnimation)
-            addListener(object : Animator.AnimatorListener {
-                override fun onAnimationStart(animation: Animator) = Unit
-
-                override fun onAnimationEnd(animation: Animator) {
-                    touchAnimating = false
-                    if (pendingText == null && !launched && !cancelled) {
-                        showLoadingIndicator()
-                    } else {
-                        frame.visibility = View.INVISIBLE
-                    }
-                    maybeLaunchBigBang()
-                }
-
-                override fun onAnimationCancel(animation: Animator) {
-                    touchAnimating = false
-                }
-
-                override fun onAnimationRepeat(animation: Animator) = Unit
-            })
-            start()
-        }
+        frame.alpha = 1f
+        frame.scaleX = 1f
+        frame.scaleY = 1f
+        showLoadingIndicator()
+        launchGateOpen = true
+        maybeLaunchBigBang()
     }
 
     private fun startAccessibilityCapture() {
@@ -354,15 +294,17 @@ class OcrLaunchActivity : Activity() {
         }
         loopRotateImage?.visibility = View.INVISIBLE
         loopAnimFrame?.visibility = View.INVISIBLE
-        loopAnimFrame?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            if (touchAnimating || launched || cancelled) {
-                return@addOnLayoutChangeListener
+        if (pendingOcrSelectionLaunch) {
+            return
+        }
+        loopAnimFrame?.post {
+            val frame = loopAnimFrame ?: return@post
+            if (launched || cancelled || pendingOcrSelectionLaunch) {
+                return@post
             }
-            loopAnimFrame?.post {
-                loopAnimFrame?.translationX = touchX - (right - left) / 2f
-                loopAnimFrame?.translationY = touchY - (bottom - top) / 2f
-                startTouchBoomAnimation()
-            }
+            frame.translationX = touchX - frame.width / 2f
+            frame.translationY = touchY - frame.height / 2f
+            startLaunchAnimation()
         }
     }
 
@@ -446,11 +388,5 @@ class OcrLaunchActivity : Activity() {
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
-
-        private const val TOUCH_SCALE_FROM = 0.28f
-        private const val TOUCH_SCALE_TO = 2.6f
-        private const val TOUCH_EXPAND_DURATION = 180L
-        private const val TOUCH_ALPHA_FROM = 0.9f
-        private const val TOUCH_ALPHA_TO = 0f
     }
 }
