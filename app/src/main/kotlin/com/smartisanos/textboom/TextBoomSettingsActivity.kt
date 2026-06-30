@@ -552,7 +552,7 @@ private fun SettingsScreen(
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    val listTopPadding = with(density) { topBarHeightPx.toDp() } + 4.dp
+    val listTopPadding = with(density) { topBarHeightPx.toDp() } + 0.dp
     val launcherApps = remember(context, layoutDirection) {
         loadLauncherApps(context)
     }
