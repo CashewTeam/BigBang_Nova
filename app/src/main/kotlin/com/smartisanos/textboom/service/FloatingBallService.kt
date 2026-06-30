@@ -57,6 +57,7 @@ class FloatingBallService : Service() {
     private var downX = 0
     private var downY = 0
     private var lastTapAt = 0L
+    private var capsuleBackgroundVisible = true
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -176,12 +177,14 @@ class FloatingBallService : Service() {
             MotionEvent.ACTION_MOVE -> {
                 layoutParams.x = downX + (event.rawX - downRawX).toInt()
                 layoutParams.y = downY + (event.rawY - downRawY).toInt()
+                setCapsuleBackgroundVisible(false)
                 clampPositionInPlace(layoutParams)
                 updateBubbleLayout()
                 return true
             }
 
             MotionEvent.ACTION_UP -> {
+                setCapsuleBackgroundVisible(true)
                 scheduleBubbleFade()
                 val moved = abs(event.rawX - downRawX) > MOVE_THRESHOLD_PX ||
                     abs(event.rawY - downRawY) > MOVE_THRESHOLD_PX
@@ -206,6 +209,7 @@ class FloatingBallService : Service() {
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                setCapsuleBackgroundVisible(true)
                 scheduleBubbleFade()
                 mode = MODE_IDLE
                 return true
@@ -241,11 +245,11 @@ class FloatingBallService : Service() {
 
     private fun clampPositionInPlace(params: WindowManager.LayoutParams) {
         val safeArea = getSafeArea()
-        val safeOutsideOffset = edgeOffsetPx()
-        val minX = safeArea.left - safeOutsideOffset
-        val maxX = safeArea.right - params.width + safeOutsideOffset
-        val minY = safeArea.top - safeOutsideOffset
-        val maxY = safeArea.bottom - params.height + safeOutsideOffset
+        val iconInset = params.width - params.height
+        val minX = safeArea.left - iconInset
+        val maxX = safeArea.right - params.height
+        val minY = safeArea.top
+        val maxY = safeArea.bottom - params.height
         params.x = params.x.coerceIn(minX, maxX)
         params.y = params.y.coerceIn(minY, maxY)
     }
@@ -270,11 +274,10 @@ class FloatingBallService : Service() {
         layoutParams.width = capsuleWidthPx(iconSizePx)
         layoutParams.height = iconSizePx
         val safeArea = getSafeArea()
-        val offset = edgeOffsetPx(iconSizePx)
         layoutParams.x = if (side == DOCK_LEFT) {
-            safeArea.left - offset
+            safeArea.left - (layoutParams.width - layoutParams.height)
         } else {
-            safeArea.right - layoutParams.width + offset
+            safeArea.right - layoutParams.height
         }
         layoutParams.y = y
         clampPositionInPlace(layoutParams)
@@ -343,10 +346,6 @@ class FloatingBallService : Service() {
         return (iconSizePx * CAPSULE_WIDTH_RATIO).roundToInt()
     }
 
-    private fun edgeOffsetPx(iconSizePx: Int = bubbleSizePx()): Int {
-        return (iconSizePx * MAX_OFFSCREEN_RATIO).roundToInt()
-    }
-
     private fun activeAlpha(): Float {
         return (settings.floatingBallActiveAlphaPercent / 100f).coerceIn(0f, 1f)
     }
@@ -371,7 +370,13 @@ class FloatingBallService : Service() {
         bubbleView?.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = iconSizePx / 2f
-            setColor(if (isNightMode()) CAPSULE_DARK_COLOR else CAPSULE_LIGHT_COLOR)
+            setColor(
+                if (capsuleBackgroundVisible) {
+                    if (isNightMode()) CAPSULE_DARK_COLOR else CAPSULE_LIGHT_COLOR
+                } else {
+                    Color.TRANSPARENT
+                },
+            )
         }
         bubbleIconView?.layoutParams = FrameLayout.LayoutParams(iconSizePx, iconSizePx).apply {
             gravity = if (dockedSide == DOCK_LEFT) {
@@ -380,6 +385,12 @@ class FloatingBallService : Service() {
                 Gravity.START or Gravity.CENTER_VERTICAL
             }
         }
+    }
+
+    private fun setCapsuleBackgroundVisible(visible: Boolean) {
+        if (capsuleBackgroundVisible == visible) return
+        capsuleBackgroundVisible = visible
+        updateBubbleChrome()
     }
 
     private fun isNightMode(): Boolean {
@@ -397,7 +408,6 @@ class FloatingBallService : Service() {
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80
         private const val CAPSULE_WIDTH_RATIO = 1.45f
-        private const val MAX_OFFSCREEN_RATIO = 0.25f
         private const val DEFAULT_ANCHOR_X = 0
         private const val DEFAULT_ANCHOR_Y = 280
         private const val DEFAULT_TOP_MARGIN_PX = 220
