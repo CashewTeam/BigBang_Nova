@@ -20,6 +20,7 @@
 - legacy BigBang 内核
 - 词块布局
 - 选择、多选、搜索 / 分享 / 复制动作
+- “炸了又炸”拖拽与段落追加的核心交互
 - OCR 框选控件 `OcrSelectionView`
 - 应用内设置存储 `BigBangSettings`
 
@@ -46,6 +47,7 @@
 - `OcrLaunchActivity`
 - `OverlayActivity`
 - `OverlayPanelUi`
+- `ManualOcrSourceStore`
 - `MlKitOcrEngine`
 
 ### 3. `app/src/main/kotlin/com/smartisanos/textboom/service/`
@@ -177,6 +179,31 @@
 - 这条链路保留范围选择页
 - 主要用于图片调试、系统分享和手动框选场景
 
+### E. BigBang 内重进 OCR / 临时语言切换
+
+`BoomActivity`
+-> 读取 `ManualOcrSourceStore`
+-> 左下角 OCR 按钮：`BoomOcrLauncher.open(...)`
+-> `BoomOcrActivity`
+-> 范围选择
+-> `MlKitOcrEngine.recognize(...)`
+-> `BoomActivityLauncher.openText(...)`
+
+或：
+
+`BoomActivity`
+-> 右下角语言按钮
+-> `BoomOcrLauncher.replayWithLanguage(...)`
+-> `OcrLaunchActivity`
+-> 复用已有图片源 / 最近段落规则
+-> `BoomActivityLauncher.openText(...)`
+
+说明：
+
+- 手动图片 OCR 会复用上一次框选范围重跑
+- 悬浮球白名单 OCR 会复用原截图和最近段落提取规则重跑
+- 语言切换只影响当前 OCR 会话，不修改设置页默认 OCR 语言
+
 ## 页面职责边界
 
 ### `TextBoomSettingsActivity`
@@ -190,11 +217,13 @@
 - 当前 BigBang 真实承载页
 - Compose 外层只负责浮层外观和入场动画
 - 词块内容仍交给 `BoomChipPage`
+- 外壳底栏负责重新 OCR 与 OCR 临时语言切换入口
 
 ### `BoomSearchOverlayActivity`
 
 - 搜索 / 词典 / 百科浮层页
 - WebView 与底部站点切换都在这里收口
+- 浏览器操作栏已补前进和刷新
 
 ### `BoomOcrActivity`
 

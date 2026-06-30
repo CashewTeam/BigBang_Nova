@@ -74,6 +74,7 @@
 - `boom_starty`
 - `OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY = false`
 - `BoomActivity.EXTRA_DEBUG_PREVIEW_TEXT`（仅预览链路）
+- `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`（有可复用图片源时）
 
 ### 3.2 `BoomActivityLauncher.launchCapture(...)`
 
@@ -90,6 +91,11 @@
 - `boom_startx`
 - `boom_starty`
 - `OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY = true`
+
+说明：
+
+- 手动重进 OCR 所需的 `manual_ocr_source_token` 不是这里直接传入
+- 该 token 由 `OcrLaunchActivity` 在静默截图缓存成功后生成并继续透传
 
 ### 3.3 `BoomOcrLauncher.open(...)`
 
@@ -114,6 +120,7 @@ Activity 上下文：
 - `boom_offsetx`
 - `boom_offsety`
 - `caller_pkg`
+- `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`
 
 ### 3.4 `BoomOcrLauncher.launchCapture(...)`
 
@@ -135,7 +142,25 @@ Activity 上下文：
 - `boom_offsety`
 - `caller_pkg`
 
-### 3.5 `OcrLaunchActivity` 内部开关
+### 3.5 `BoomOcrLauncher.replayWithLanguage(...)`
+
+用途：
+
+- BigBang 内 OCR 结果的临时语言切换重跑
+
+实际启动：
+
+- `OcrLaunchActivity`
+
+写入 extras：
+
+- `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`
+- `boom_startx`
+- `boom_starty`
+- `OcrLaunchActivity.EXTRA_REPLAY_OCR_MODE`
+- `OcrLaunchActivity.EXTRA_REPLAY_MODE`
+
+### 3.6 `OcrLaunchActivity` 内部开关
 
 当前内部 extra：
 
@@ -145,6 +170,13 @@ Activity 上下文：
   - 含义：BigBang 已走外层入场动画，内部 legacy fade-in 跳过
 - `BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT`
   - 含义：进入无障碍截图 + 全屏 OCR 链路
+- `EXTRA_REPLAY_OCR_MODE`
+  - 含义：本次重跑 OCR 使用的临时语言
+- `EXTRA_REPLAY_MODE`
+  - 含义：本次重跑 OCR 使用的复用方式
+  - 当前值：
+    - `nearest_paragraph`
+    - `selection_rect`
 
 ## 4. OCR 输入契约
 
@@ -170,6 +202,7 @@ Activity 上下文：
 
 - `caller_pkg` 和 offset 用于截图后图像裁切修正
 - 范围选择页只用于手动框选 OCR，不用于悬浮球白名单 OCR 直接识别链路
+- BigBang 内左下角 OCR 按钮会重进这条范围选择链路
 
 ## 5. 悬浮球 Service 入口
 
@@ -196,6 +229,12 @@ Activity 上下文：
 
 - `hideForScreenshot()`
 - `restoreAfterScreenshot()`
+
+说明：
+
+- 悬浮球当前采用左右贴边胶囊样式
+- 拖动松手后自动吸附左右边缘
+- 横屏下仍保持贴边，不停在屏幕中间
 
 ## 6. Provider 契约
 
@@ -273,6 +312,32 @@ OCR 白名单默认值：
 - `peekAdjacentText(...)` 与 `loadAdjacent(...)` 共用相邻段落批量规则
 - 相邻段落少于 25 个非空白字符时继续同方向累计，遇到长段、边界或累计 3 段短文本后停止
 - 多段短文本一次性用段落分隔输出，避免用户反复触发“炸了又炸”
+
+### `ManualOcrSourceStore`
+
+当前职责：
+
+- 保存当前 BigBang 会话可复用的 OCR 图片源
+- 为“重新 OCR”与“临时语言切换”提供统一图片输入
+
+当前状态字段：
+
+- `token`
+- `imageUri`
+- `touchX / touchY`
+- `callerPackage`
+- `fullscreen`
+- `offsetX / offsetY`
+- `sourceTag`
+- `replayMode`
+- `selectionRect`
+- `ocrMode`
+
+说明：
+
+- 这是进程内临时状态，不做持久化
+- 无图像来源的纯文本 BigBang 会话不会写入这里
+- 临时语言切换只改当前 source 的 `ocrMode`，不写回默认设置
 
 ### `MlKitOcrEngine`
 
