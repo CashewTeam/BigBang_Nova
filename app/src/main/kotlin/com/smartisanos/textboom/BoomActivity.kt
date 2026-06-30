@@ -50,6 +50,8 @@ class BoomActivity : ComponentActivity() {
     private lateinit var legacyContentView: View
     private var launchTouchX = -1
     private var launchTouchY = -1
+    private var currentText = ""
+    private var currentSegment: IntArray? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -170,31 +172,45 @@ class BoomActivity : ComponentActivity() {
                 Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
             }
             finish()
+            return
         }
+        currentText = text
+        currentSegment = result
     }
 
     private fun loadAdjacent(direction: String) {
-        val text = TextSessionCoordinator.peekAdjacentText(direction)?.trim().orEmpty()
-        if (text.isEmpty()) {
+        val adjacentText = TextSessionCoordinator.peekAdjacentText(direction)?.trim().orEmpty()
+        val baseSegment = currentSegment
+        if (adjacentText.isEmpty() || baseSegment == null || currentText.isEmpty()) {
             boomChipPage?.finishAdjacentPull()
             return
         }
         Thread {
             try {
-                val result = CppJiebaTokenizer.get(this).segment(text)
+                val adjacentSegment = CppJiebaTokenizer.get(this).segment(adjacentText)
                 runOnUiThread {
                     if (isFinishing) {
                         return@runOnUiThread
                     }
-                    if (result == null || result.isEmpty()) {
+                    if (adjacentSegment == null || adjacentSegment.isEmpty()) {
                         boomChipPage?.finishAdjacentPull()
                         return@runOnUiThread
                     }
-                    val snapshot = TextSessionCoordinator.loadAdjacent(direction)
-                    val replaced = boomChipPage?.replaceWords(result, snapshot.originalText) == true
+                    val merged = mergeSegmentedText(
+                        direction = direction,
+                        baseText = currentText,
+                        baseSegment = baseSegment,
+                        adjacentText = adjacentText,
+                        adjacentSegment = adjacentSegment,
+                    )
+                    val replaced = boomChipPage?.replaceWords(merged.segment, merged.text) == true
                     if (!replaced) {
                         boomChipPage?.finishAdjacentPull()
+                        return@runOnUiThread
                     }
+                    TextSessionCoordinator.loadAdjacent(direction)
+                    currentText = merged.text
+                    currentSegment = merged.segment
                 }
             } catch (e: RuntimeException) {
                 LogUtils.e(TAG, "adjacent segmentation failed")
@@ -203,6 +219,80 @@ class BoomActivity : ComponentActivity() {
             }
         }.start()
     }
+
+    private fun mergeSegmentedText(
+        direction: String,
+        baseText: String,
+        baseSegment: IntArray,
+        adjacentText: String,
+        adjacentSegment: IntArray,
+    ): SegmentedText {
+        val separator = "\n"
+        return if (direction == "before") {
+            SegmentedText(
+                text = adjacentText + separator + baseText,
+                segment = mergeSegments(
+                    first = adjacentSegment,
+                    firstOffset = 0,
+                    second = baseSegment,
+                    secondOffset = adjacentText.length + separator.length,
+                ),
+            )
+        } else {
+            SegmentedText(
+                text = baseText + separator + adjacentText,
+                segment = mergeSegments(
+                    first = baseSegment,
+                    firstOffset = 0,
+                    second = adjacentSegment,
+                    secondOffset = baseText.length + separator.length,
+                ),
+            )
+        }
+    }
+
+    private fun mergeSegments(
+        first: IntArray,
+        firstOffset: Int,
+        second: IntArray,
+        secondOffset: Int,
+    ): IntArray {
+        val firstSplit = splitSegment(first)
+        val secondSplit = splitSegment(second)
+        return buildList {
+            addAll(shiftPairs(firstSplit.words, firstOffset))
+            addAll(shiftPairs(secondSplit.words, secondOffset))
+            add(-1)
+            addAll(shiftPairs(firstSplit.punctuations, firstOffset))
+            addAll(shiftPairs(secondSplit.punctuations, secondOffset))
+        }.toIntArray()
+    }
+
+    private fun splitSegment(segment: IntArray): SegmentParts {
+        val separatorIndex = segment.indexOfFirst { it == -1 }
+        if (separatorIndex < 0) {
+            return SegmentParts(words = segment.toList(), punctuations = emptyList())
+        }
+        return SegmentParts(
+            words = segment.take(separatorIndex),
+            punctuations = segment.drop(separatorIndex + 1),
+        )
+    }
+
+    private fun shiftPairs(values: List<Int>, offset: Int): List<Int> {
+        if (offset == 0) return values
+        return values.map { it + offset }
+    }
+
+    private data class SegmentParts(
+        val words: List<Int>,
+        val punctuations: List<Int>,
+    )
+
+    private data class SegmentedText(
+        val text: String,
+        val segment: IntArray,
+    )
 
     override fun onSaveInstanceState(outState: Bundle) {
         boomChipPage?.captureSelectedState()?.let {

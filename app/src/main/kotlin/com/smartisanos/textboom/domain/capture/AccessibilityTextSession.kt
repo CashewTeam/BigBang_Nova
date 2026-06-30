@@ -263,24 +263,25 @@ private class ParagraphWindow(
     val paragraphs: List<CaptureTextBlockContract>,
     initialIndex: Int,
 ) {
-    private var currentIndex = if (paragraphs.isEmpty()) -1 else initialIndex.coerceIn(paragraphs.indices)
+    private var start = if (paragraphs.isEmpty()) 0 else initialIndex.coerceIn(paragraphs.indices)
+    private var end = if (paragraphs.isEmpty()) -1 else start
 
     var revision: Int = 0
         private set
 
     val currentBlocks: List<CaptureTextBlockContract>
-        get() = if (currentIndex in paragraphs.indices) listOf(paragraphs[currentIndex]) else emptyList()
+        get() = if (end >= start && paragraphs.isNotEmpty()) paragraphs.subList(start, end + 1) else emptyList()
 
     val hasPrevious: Boolean
-        get() = currentIndex > 0
+        get() = start > 0
 
     val hasNext: Boolean
-        get() = currentIndex in 0 until paragraphs.lastIndex
+        get() = end >= 0 && end < paragraphs.lastIndex
 
     fun peek(direction: String): CaptureTextBlockContract? {
         val targetIndex = when (direction) {
-            "before" -> if (hasPrevious) currentIndex - 1 else -1
-            "after" -> if (hasNext) currentIndex + 1 else -1
+            "before" -> if (hasPrevious) start - 1 else -1
+            "after" -> if (hasNext) end + 1 else -1
             else -> -1
         }
         return paragraphs.getOrNull(targetIndex)
@@ -289,13 +290,13 @@ private class ParagraphWindow(
     fun load(direction: String): Boolean {
         val changed = when (direction) {
             "before" -> if (hasPrevious) {
-                currentIndex -= 1
+                start -= 1
                 true
             } else {
                 false
             }
             "after" -> if (hasNext) {
-                currentIndex += 1
+                end += 1
                 true
             } else {
                 false

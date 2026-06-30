@@ -32,7 +32,7 @@ public class CustomScrollView extends ScrollView{
         float density = context.getResources().getDisplayMetrics().density;
         mEdgeStartDistance = 2f * density;
         mTriggerDistance = 88f * density;
-        mDampingDistance = 180f * density;
+        mDampingDistance = 120f * density;
         setOverScrollMode(OVER_SCROLL_NEVER);
     }
 
