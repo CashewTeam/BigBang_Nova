@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.CppJiebaTokenizer
+import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
@@ -70,6 +71,11 @@ class BoomActivity : ComponentActivity() {
         }
         boomChipPage = BoomChipPage(this, legacyContentView, false).also { page ->
             page.restoreSelectedState(savedInstanceState?.getSerializable(SELECTED_STATE))
+            page.setOnAdjacentRequestListener(object : BoomChipPage.OnAdjacentRequestListener {
+                override fun onAdjacentRequest(direction: String) {
+                    loadAdjacent(direction)
+                }
+            })
         }
 
         setContent {
@@ -90,6 +96,9 @@ class BoomActivity : ComponentActivity() {
         if (inputText.isNullOrEmpty()) {
             finish()
             return
+        }
+        if (!intent.getBooleanExtra(EXTRA_ENABLE_ADJACENT_SESSION, false)) {
+            TextSessionCoordinator.clearSession()
         }
         segmentLocally(inputText)
     }
@@ -129,7 +138,7 @@ class BoomActivity : ComponentActivity() {
                 val result = CppJiebaTokenizer.get(this).segment(text)
                 runOnUiThread {
                     if (!isFinishing) {
-                        handleSegmentResult(text, result)
+                        handleInitialSegmentResult(text, result)
                     }
                 }
             } catch (e: RuntimeException) {
@@ -140,7 +149,7 @@ class BoomActivity : ComponentActivity() {
         }.start()
     }
 
-    private fun handleSegmentResult(text: String, result: IntArray?) {
+    private fun handleInitialSegmentResult(text: String, result: IntArray?) {
         if (result == null || result.isEmpty()) {
             Log.e(TAG, "Segmentation fails for text=$text")
             finish()
@@ -164,6 +173,37 @@ class BoomActivity : ComponentActivity() {
         }
     }
 
+    private fun loadAdjacent(direction: String) {
+        val text = TextSessionCoordinator.peekAdjacentText(direction)?.trim().orEmpty()
+        if (text.isEmpty()) {
+            boomChipPage?.finishAdjacentPull()
+            return
+        }
+        Thread {
+            try {
+                val result = CppJiebaTokenizer.get(this).segment(text)
+                runOnUiThread {
+                    if (isFinishing) {
+                        return@runOnUiThread
+                    }
+                    if (result == null || result.isEmpty()) {
+                        boomChipPage?.finishAdjacentPull()
+                        return@runOnUiThread
+                    }
+                    val snapshot = TextSessionCoordinator.loadAdjacent(direction)
+                    val replaced = boomChipPage?.replaceWords(result, snapshot.originalText) == true
+                    if (!replaced) {
+                        boomChipPage?.finishAdjacentPull()
+                    }
+                }
+            } catch (e: RuntimeException) {
+                LogUtils.e(TAG, "adjacent segmentation failed")
+                LogUtils.e(e.message, e)
+                runOnUiThread { boomChipPage?.finishAdjacentPull() }
+            }
+        }.start()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         boomChipPage?.captureSelectedState()?.let {
             outState.putSerializable(SELECTED_STATE, it)
@@ -174,6 +214,7 @@ class BoomActivity : ComponentActivity() {
     companion object {
         const val DBG = true
         const val EXTRA_DEBUG_PREVIEW_TEXT = "extra_debug_preview_text"
+        const val EXTRA_ENABLE_ADJACENT_SESSION = "extra_enable_adjacent_session"
 
         private const val TAG = "BoomActivity"
         private const val SELECTED_STATE = "selected_state"

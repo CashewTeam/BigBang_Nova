@@ -1,6 +1,8 @@
 package com.cashewteam.novatext.android;
 
 import android.app.Activity;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
@@ -15,6 +17,7 @@ import com.cashewteam.novatext.android.BoomWordsLayout;
 import com.cashewteam.novatext.android.BoomAnimator;
 import com.cashewteam.novatext.android.SwipeSelectView;
 import com.cashewteam.novatext.android.BoomActionHandler;
+import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator;
 
 import java.io.Serializable;
 import java.util.TreeSet;
@@ -36,8 +39,13 @@ public class BoomChipPage {
 
     private final SwipeSelectView mBoomConent;
     private final boolean mEnableLegacyMask;
+    private final TextView mAdjacentTopHint;
+    private final TextView mAdjacentBottomHint;
 
     Serializable mSavedData;
+    private OnAdjacentRequestListener mOnAdjacentRequestListener;
+    private boolean mAdjacentLoading;
+    private float mAdjacentOffset;
 
     private int mTouchedX;
     private int mTouchedY;
@@ -105,6 +113,8 @@ public class BoomChipPage {
         mMask = contentView.findViewById(R.id.boom_mask);
         mCancel = contentView.findViewById(R.id.mask_cancel);
         mScroller = (CustomScrollView) contentView.findViewById(R.id.boom_scroller);
+        mAdjacentTopHint = (TextView) contentView.findViewById(R.id.boom_adjacent_top_hint);
+        mAdjacentBottomHint = (TextView) contentView.findViewById(R.id.boom_adjacent_bottom_hint);
         if (!mEnableLegacyMask) {
             mMask.setVisibility(View.GONE);
             removeLegacyChromeSpacing();
@@ -126,6 +136,21 @@ public class BoomChipPage {
         mCancel.setOnClickListener(mDismissClickListener);
         mBoomActionHandler = new BoomActionHandler(this, mEnableLegacyMask);
         mScroller.setOnScrollListener(mBoomActionHandler);
+        mScroller.setOnEdgeDragListener(new CustomScrollView.OnEdgeDragListener() {
+            @Override
+            public void onEdgeDrag(float offset) {
+                updateAdjacentPull(offset);
+            }
+
+            @Override
+            public void onEdgeDragRelease(float offset, boolean triggered) {
+                releaseAdjacentPull(offset, triggered);
+            }
+        });
+    }
+
+    public interface OnAdjacentRequestListener {
+        void onAdjacentRequest(String direction);
     }
 
     private void removeLegacyChromeSpacing() {
@@ -172,7 +197,7 @@ public class BoomChipPage {
         if (mLayout.layoutWords(segment, text, touchedIndex)) {
             mTouchedX = touchedX;
             mTouchedY = touchedY;
-            initChips();
+            initChips(true);
             return true;
         }
         return false;
@@ -239,7 +264,35 @@ public class BoomChipPage {
         mBoomActionHandler.onSelect(0, wordCount - 1);
     }
 
-    private void initChips() {
+    public void setOnAdjacentRequestListener(OnAdjacentRequestListener listener) {
+        mOnAdjacentRequestListener = listener;
+    }
+
+    public boolean replaceWords(int[] segment, String text) {
+        if (mBoomActionHandler != null) {
+            mBoomActionHandler.handleClick();
+        }
+        mSavedData = null;
+        mBoomConent.removeAllViews();
+        mScroller.scrollTo(0, 0);
+        if (!mLayout.layoutWords(segment, text, -1)) {
+            finishAdjacentPull();
+            return false;
+        }
+        initChips(false);
+        finishAdjacentPull();
+        return true;
+    }
+
+    public void finishAdjacentPull() {
+        mAdjacentLoading = false;
+        mScroller.setEdgeDragEnabled(true);
+        animateContentOffset(0f);
+        hideAdjacentHint(mAdjacentTopHint);
+        hideAdjacentHint(mAdjacentBottomHint);
+    }
+
+    private void initChips(boolean animate) {
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final int start = mLayout.getRowStart(i);
             final int count = mLayout.getColumnCount(i);
@@ -258,7 +311,9 @@ public class BoomChipPage {
             mBoomConent.addView(row);
         }
         mBoomConent.requestLayout();
-        mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(mDoBoomAnimation);
+        if (animate) {
+            mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(mDoBoomAnimation);
+        }
     }
 
     private boolean restoreSelectedState() {
@@ -282,6 +337,99 @@ public class BoomChipPage {
             }
         }
         return false;
+    }
+
+    private void updateAdjacentPull(float offset) {
+        if (mAdjacentLoading) {
+            return;
+        }
+        mAdjacentOffset = offset;
+        applyContentOffset(offset);
+        if (offset > 0f) {
+            showAdjacentHint(mAdjacentTopHint, "before", offset);
+            hideAdjacentHint(mAdjacentBottomHint);
+        } else if (offset < 0f) {
+            showAdjacentHint(mAdjacentBottomHint, "after", -offset);
+            hideAdjacentHint(mAdjacentTopHint);
+        } else {
+            hideAdjacentHint(mAdjacentTopHint);
+            hideAdjacentHint(mAdjacentBottomHint);
+        }
+    }
+
+    private void releaseAdjacentPull(float offset, boolean triggered) {
+        if (mAdjacentLoading) {
+            return;
+        }
+        final String direction = offset > 0f ? "before" : offset < 0f ? "after" : null;
+        final String previewText = direction == null ? null : TextSessionCoordinator.INSTANCE.peekAdjacentText(direction);
+        if (!triggered || direction == null || previewText == null) {
+            finishAdjacentPull();
+            return;
+        }
+        mAdjacentLoading = true;
+        mScroller.setEdgeDragEnabled(false);
+        animateContentOffset(clampHoldOffset(offset));
+        if (mOnAdjacentRequestListener != null) {
+            mOnAdjacentRequestListener.onAdjacentRequest(direction);
+        }
+    }
+
+    private void showAdjacentHint(TextView view, String direction, float distance) {
+        final String preview = TextSessionCoordinator.INSTANCE.peekAdjacentText(direction);
+        if (preview == null) {
+            hideAdjacentHint(view);
+            return;
+        }
+        view.setVisibility(View.VISIBLE);
+        view.setText(getHintTitle(direction) + "\n" + preview);
+        float alpha = Math.min(1f, distance / getTriggerDistance());
+        view.setAlpha(alpha);
+    }
+
+    private void hideAdjacentHint(TextView view) {
+        view.setAlpha(0f);
+        view.setVisibility(View.GONE);
+    }
+
+    private String getHintTitle(String direction) {
+        return "before".equals(direction)
+                ? mActivity.getString(R.string.bigbang_pull_previous)
+                : mActivity.getString(R.string.bigbang_pull_next);
+    }
+
+    private float getTriggerDistance() {
+        return TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                88f,
+                mActivity.getResources().getDisplayMetrics()
+        );
+    }
+
+    private float clampHoldOffset(float offset) {
+        float hold = getTriggerDistance();
+        return offset > 0f ? hold : -hold;
+    }
+
+    private void applyContentOffset(float offset) {
+        mScroller.setTranslationY(offset);
+    }
+
+    private void animateContentOffset(float offset) {
+        mAdjacentOffset = offset;
+        mScroller.animate()
+                .translationY(offset)
+                .setDuration(180L)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        if (mAdjacentOffset == 0f && !mAdjacentLoading) {
+                            hideAdjacentHint(mAdjacentTopHint);
+                            hideAdjacentHint(mAdjacentBottomHint);
+                        }
+                    }
+                })
+                .start();
     }
 
     public class BoomChip {

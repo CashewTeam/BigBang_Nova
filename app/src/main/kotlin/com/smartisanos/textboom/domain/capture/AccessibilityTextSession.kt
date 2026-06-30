@@ -28,8 +28,9 @@ data class CaptureRequestContract(
 )
 
 private data class AccessibilityTextWindow(
-    val blocks: List<CaptureTextBlockContract>,
-    val nearestIndex: Int,
+    val rawBlocks: List<CaptureTextBlockContract>,
+    val paragraphs: List<CaptureTextBlockContract>,
+    val nearestParagraphIndex: Int,
     val durationMs: Int,
 )
 
@@ -59,12 +60,80 @@ private class AccessibilityTextSessionRunner(
             (nearestInWindow - MAX_CACHED_BLOCKS / 2)
                 .coerceIn(0, sortedCandidates.size - MAX_CACHED_BLOCKS)
         }
-        val blocks = sortedCandidates.drop(windowStart).take(MAX_CACHED_BLOCKS)
+        val rawBlocks = sortedCandidates.drop(windowStart).take(MAX_CACHED_BLOCKS).map { it.toContract() }
         val nearest = if (nearestInWindow < 0) -1 else nearestInWindow - windowStart
+        val merged = mergeParagraphs(rawBlocks)
         return AccessibilityTextWindow(
-            blocks = blocks.map { it.toContract() },
-            nearestIndex = nearest,
+            rawBlocks = rawBlocks,
+            paragraphs = merged.paragraphs,
+            nearestParagraphIndex = if (nearest < 0) -1 else merged.rawToParagraphIndex[nearest],
             durationMs = (SystemClock.elapsedRealtime() - startedAt).toInt(),
+        )
+    }
+
+    private fun mergeParagraphs(
+        rawBlocks: List<CaptureTextBlockContract>,
+    ): MergedParagraphs {
+        if (rawBlocks.isEmpty()) {
+            return MergedParagraphs(emptyList(), IntArray(0))
+        }
+        val groups = mutableListOf<MutableList<CaptureTextBlockContract>>()
+        val rawToParagraphIndex = IntArray(rawBlocks.size)
+        rawBlocks.forEachIndexed { index, block ->
+            val lastGroup = groups.lastOrNull()
+            if (lastGroup != null && shouldMerge(lastGroup, block)) {
+                lastGroup += block
+            } else {
+                groups += mutableListOf(block)
+            }
+            rawToParagraphIndex[index] = groups.lastIndex
+        }
+        return MergedParagraphs(
+            paragraphs = groups.map { mergeGroup(it) },
+            rawToParagraphIndex = rawToParagraphIndex,
+        )
+    }
+
+    private fun shouldMerge(
+        group: List<CaptureTextBlockContract>,
+        block: CaptureTextBlockContract,
+    ): Boolean {
+        val last = group.last()
+        val gap = block.top - last.bottom
+        val averageHeight = group.map { it.bottom - it.top }.average()
+        val mergeGapLimit = max(MIN_PARAGRAPH_GAP_PX, averageHeight * PARAGRAPH_GAP_MULTIPLIER)
+        if (gap > mergeGapLimit) {
+            return false
+        }
+        val groupLeft = group.map { it.left }.average()
+        val sameColumn = kotlin.math.abs(block.left - groupLeft) <= SAME_COLUMN_TOLERANCE_PX
+        val horizontalOverlap = min(last.right, block.right) - max(last.left, block.left)
+        return sameColumn || horizontalOverlap >= 0.0
+    }
+
+    private fun mergeGroup(
+        group: List<CaptureTextBlockContract>,
+    ): CaptureTextBlockContract {
+        val text = buildString {
+            group.forEachIndexed { index, block ->
+                if (index > 0) {
+                    val previous = group[index - 1]
+                    val sameLine = kotlin.math.abs(block.top - previous.top) <= max(
+                        SAME_LINE_TOP_DELTA_PX,
+                        min(previous.bottom - previous.top, block.bottom - block.top) / 2.0,
+                    )
+                    append(if (sameLine) "" else "\n")
+                }
+                append(block.text)
+            }
+        }
+        return CaptureTextBlockContract(
+            text = text,
+            left = group.minOf { it.left },
+            top = group.minOf { it.top },
+            right = group.maxOf { it.right },
+            bottom = group.maxOf { it.bottom },
+            confidence = group.maxOfOrNull { it.confidence } ?: 1.0,
         )
     }
 
@@ -175,41 +244,58 @@ private class AccessibilityTextSessionRunner(
         }
     }
 
+    private data class MergedParagraphs(
+        val paragraphs: List<CaptureTextBlockContract>,
+        val rawToParagraphIndex: IntArray,
+    )
+
     private companion object {
         const val MAX_CACHED_BLOCKS = 200
         const val MIN_TEXT_LENGTH = 1
+        const val MIN_PARAGRAPH_GAP_PX = 24.0
+        const val PARAGRAPH_GAP_MULTIPLIER = 1.1
+        const val SAME_COLUMN_TOLERANCE_PX = 72.0
+        const val SAME_LINE_TOP_DELTA_PX = 12.0
     }
 }
 
 private class ParagraphWindow(
-    val blocks: List<CaptureTextBlockContract>,
+    val paragraphs: List<CaptureTextBlockContract>,
     initialIndex: Int,
 ) {
-    private var start = if (blocks.isEmpty()) 0 else initialIndex.coerceIn(blocks.indices)
-    private var end = if (blocks.isEmpty()) -1 else start
+    private var currentIndex = if (paragraphs.isEmpty()) -1 else initialIndex.coerceIn(paragraphs.indices)
 
     var revision: Int = 0
         private set
 
     val currentBlocks: List<CaptureTextBlockContract>
-        get() = if (end >= start && blocks.isNotEmpty()) blocks.subList(start, end + 1) else emptyList()
+        get() = if (currentIndex in paragraphs.indices) listOf(paragraphs[currentIndex]) else emptyList()
 
     val hasPrevious: Boolean
-        get() = start > 0
+        get() = currentIndex > 0
 
     val hasNext: Boolean
-        get() = end >= 0 && end < blocks.lastIndex
+        get() = currentIndex in 0 until paragraphs.lastIndex
+
+    fun peek(direction: String): CaptureTextBlockContract? {
+        val targetIndex = when (direction) {
+            "before" -> if (hasPrevious) currentIndex - 1 else -1
+            "after" -> if (hasNext) currentIndex + 1 else -1
+            else -> -1
+        }
+        return paragraphs.getOrNull(targetIndex)
+    }
 
     fun load(direction: String): Boolean {
         val changed = when (direction) {
             "before" -> if (hasPrevious) {
-                start -= 1
+                currentIndex -= 1
                 true
             } else {
                 false
             }
             "after" -> if (hasNext) {
-                end += 1
+                currentIndex += 1
                 true
             } else {
                 false
@@ -223,6 +309,7 @@ private class ParagraphWindow(
 
 object TextSessionCoordinator {
     private var paragraphWindow = ParagraphWindow(emptyList(), -1)
+    private var rawBlocks: List<CaptureTextBlockContract> = emptyList()
     private var durationMs = 0
     private var source = "none"
     private var sessionId = UUID.randomUUID().toString()
@@ -239,21 +326,18 @@ object TextSessionCoordinator {
     ): TextSessionSnapshot {
         val service = NovaTextAccessibilityService.activeInstance
         if (service == null) {
-            paragraphWindow = ParagraphWindow(emptyList(), -1)
-            durationMs = 0
-            source = "none"
-            sessionId = UUID.randomUUID().toString()
-            debugMessage = "channel=accessibility; matched=0; reason=service_unavailable"
+            clearSession("channel=accessibility; matched=0; reason=service_unavailable")
         } else {
             val window = AccessibilityTextSessionRunner(service).captureWindow(request)
-            paragraphWindow = ParagraphWindow(window.blocks, window.nearestIndex)
+            rawBlocks = window.rawBlocks
+            paragraphWindow = ParagraphWindow(window.paragraphs, window.nearestParagraphIndex)
             durationMs = window.durationMs
-            source = if (window.blocks.isEmpty()) "none" else "accessibility"
+            source = if (window.paragraphs.isEmpty()) "none" else "accessibility"
             sessionId = UUID.randomUUID().toString()
-            debugMessage = if (window.blocks.isEmpty()) {
+            debugMessage = if (window.paragraphs.isEmpty()) {
                 "channel=accessibility; matched=0; reason=no_accessible_text"
             } else {
-                "channel=accessibility; cached=${window.blocks.size}; initial=1"
+                "channel=accessibility; cached=${window.rawBlocks.size}; paragraphs=${window.paragraphs.size}; initial=1"
             }
         }
         lastSnapshot = buildSnapshot()
@@ -261,9 +345,27 @@ object TextSessionCoordinator {
             logTrace(traceId, request, lastSnapshot)
         } else {
             NovaTextLogger.d(
-                "capture source=${lastSnapshot.captureResult.source} blocks=${paragraphWindow.blocks.size}"
+                "capture source=${lastSnapshot.captureResult.source} blocks=${paragraphWindow.paragraphs.size}"
             )
         }
+        return lastSnapshot
+    }
+
+    @Synchronized
+    fun replaceSession(
+        paragraphs: List<CaptureTextBlockContract>,
+        initialIndex: Int,
+        source: String,
+        durationMs: Int = 0,
+        debugMessage: String = "channel=$source; matched=${paragraphs.size}",
+    ): TextSessionSnapshot {
+        rawBlocks = paragraphs
+        paragraphWindow = ParagraphWindow(paragraphs, initialIndex)
+        this.durationMs = durationMs
+        this.source = if (paragraphs.isEmpty()) "none" else source
+        sessionId = UUID.randomUUID().toString()
+        this.debugMessage = debugMessage
+        lastSnapshot = buildSnapshot()
         return lastSnapshot
     }
 
@@ -272,6 +374,22 @@ object TextSessionCoordinator {
         paragraphWindow.load(direction)
         lastSnapshot = buildSnapshot()
         return lastSnapshot
+    }
+
+    @Synchronized
+    fun peekAdjacentText(direction: String): String? {
+        return paragraphWindow.peek(direction)?.text
+    }
+
+    @Synchronized
+    fun clearSession(debugMessage: String = "channel=none; matched=0") {
+        rawBlocks = emptyList()
+        paragraphWindow = ParagraphWindow(emptyList(), -1)
+        durationMs = 0
+        source = "none"
+        sessionId = UUID.randomUUID().toString()
+        this.debugMessage = debugMessage
+        lastSnapshot = buildSnapshot()
     }
 
     fun latestSnapshot(): TextSessionSnapshot = lastSnapshot
@@ -287,17 +405,23 @@ object TextSessionCoordinator {
         NovaTextLogger.d("trace[$traceId] touch=(${request.touchX.toInt()},${request.touchY.toInt()})")
         NovaTextLogger.d("trace[$traceId] durationMs=${snapshot.captureResult.durationMs}")
         NovaTextLogger.d("trace[$traceId] source=${snapshot.captureResult.source}")
-        NovaTextLogger.d("trace[$traceId] rawBlockCount=${paragraphWindow.blocks.size}")
+        NovaTextLogger.d("trace[$traceId] rawBlockCount=${rawBlocks.size}")
+        NovaTextLogger.d("trace[$traceId] paragraphCount=${paragraphWindow.paragraphs.size}")
         NovaTextLogger.d("trace[$traceId] selectedWindowCount=${snapshot.captureResult.blocks.size}")
         NovaTextLogger.d("trace[$traceId] selectedRevision=${snapshot.revision}")
         NovaTextLogger.d("trace[$traceId] debugMessage=${snapshot.captureResult.debugMessage}")
-        val nearestIndex = paragraphWindow.blocks.indexOfFirst { current ->
+        val nearestIndex = paragraphWindow.paragraphs.indexOfFirst { current ->
             snapshot.captureResult.blocks.any { it === current }
         }
         NovaTextLogger.d("trace[$traceId] nearestIndex=$nearestIndex")
-        paragraphWindow.blocks.forEachIndexed { index, block ->
+        rawBlocks.forEachIndexed { index, block ->
             NovaTextLogger.d(
                 "trace[$traceId] raw[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(block)}"
+            )
+        }
+        paragraphWindow.paragraphs.forEachIndexed { index, block ->
+            NovaTextLogger.d(
+                "trace[$traceId] paragraph[$index] text=${sanitizeForLog(block.text)} bounds=${formatBounds(block)}"
             )
         }
         snapshot.captureResult.blocks.forEachIndexed { index, block ->

@@ -63,4 +63,6 @@
     <string name="ocr_action_qr">二维码</string>
     <string name="ocr_action_language">识别语言</string>
     <string name="ocr_qr_placeholder">二维码识别功能建设中</string>
+    <string name="bigbang_pull_previous">松手后获取上一段文本</string>
+    <string name="bigbang_pull_next">松手后获取下一段文本</string>
 </resources>

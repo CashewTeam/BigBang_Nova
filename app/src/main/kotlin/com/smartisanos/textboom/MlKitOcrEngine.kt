@@ -170,6 +170,11 @@ object MlKitOcrEngine {
         touchX: Int,
         touchY: Int,
     ): NearestTextBlockMatch? {
+        return findNearestTextBlock(findParagraphs(result), touchX, touchY)
+    }
+
+    @JvmStatic
+    fun findParagraphs(result: Text): List<NearestTextBlockMatch> {
         val rawBlocks = result.textBlocks
             .mapNotNull { block ->
                 val text = block.text.trim()
@@ -181,7 +186,7 @@ object MlKitOcrEngine {
             }
             .sortedWith(compareBy<OcrRawBlock> { it.bounds.top }.thenBy { it.bounds.left })
         if (rawBlocks.isEmpty()) {
-            return null
+            return emptyList()
         }
         val groups = mutableListOf<OcrGroup>()
         rawBlocks.forEach { block ->
@@ -192,23 +197,34 @@ object MlKitOcrEngine {
                 groups += OcrGroup(block)
             }
         }
-        return groups.map { group ->
-            group.toMatch(
-                touchX = touchX,
-                touchY = touchY,
-                score = adjustedScore(group, touchX, touchY),
-            )
-        }.minByOrNull { it.score }
+        return groups.map { it.toMatch() }
+    }
+
+    @JvmStatic
+    fun findNearestTextBlock(
+        paragraphs: List<NearestTextBlockMatch>,
+        touchX: Int,
+        touchY: Int,
+    ): NearestTextBlockMatch? {
+        return paragraphs
+            .map { paragraph ->
+                val distanceSquared = distanceSquared(paragraph.bounds, touchX.toDouble(), touchY.toDouble())
+                paragraph.copy(
+                    distanceSquared = distanceSquared,
+                    score = adjustedScore(paragraph.bounds, touchX, touchY),
+                )
+            }
+            .minByOrNull { it.score }
     }
 
     private fun adjustedScore(
-        group: OcrGroup,
+        bounds: Rect,
         touchX: Int,
         touchY: Int,
     ): Double {
-        var score = distanceSquared(group.bounds, touchX.toDouble(), touchY.toDouble())
-        if (group.bounds.top > touchY) {
-            val belowDelta = (group.bounds.top - touchY).toDouble()
+        var score = distanceSquared(bounds, touchX.toDouble(), touchY.toDouble())
+        if (bounds.top > touchY) {
+            val belowDelta = (bounds.top - touchY).toDouble()
             score += belowDelta * belowDelta * BELOW_TOUCH_PENALTY_MULTIPLIER
         }
         return score
@@ -257,11 +273,7 @@ object MlKitOcrEngine {
             averageLineHeight = parts.map { it.averageLineHeight }.average()
         }
 
-        fun toMatch(
-            touchX: Int,
-            touchY: Int,
-            score: Double,
-        ): NearestTextBlockMatch {
+        fun toMatch(): NearestTextBlockMatch {
             val text = buildString {
                 parts.forEachIndexed { index, part ->
                     if (index > 0) {
@@ -278,9 +290,9 @@ object MlKitOcrEngine {
             return NearestTextBlockMatch(
                 text = text,
                 bounds = Rect(bounds),
-                distanceSquared = distanceSquared(bounds, touchX.toDouble(), touchY.toDouble()),
+                distanceSquared = 0.0,
                 blockCount = parts.size,
-                score = score,
+                score = 0.0,
             )
         }
     }

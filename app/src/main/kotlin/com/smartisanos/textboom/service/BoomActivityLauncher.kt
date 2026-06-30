@@ -14,6 +14,7 @@ object BoomActivityLauncher {
         touchY: Int,
         isPreview: Boolean = false,
         animateLaunch: Boolean = false,
+        enableAdjacentSession: Boolean = false,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
             putExtra(Intent.EXTRA_TEXT, text)
@@ -21,6 +22,7 @@ object BoomActivityLauncher {
             putExtra("boom_startx", touchX)
             putExtra("boom_starty", touchY)
             putExtra(OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY, false)
+            putExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, enableAdjacentSession)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)

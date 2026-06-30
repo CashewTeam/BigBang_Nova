@@ -14,6 +14,7 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
+import com.cashewteam.novatext.android.domain.capture.CaptureTextBlockContract
 import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
@@ -245,6 +246,7 @@ class OcrLaunchActivity : Activity() {
                 replaceExtras(this@OcrLaunchActivity.intent)
                 putExtra(Intent.EXTRA_TEXT, text)
                 putExtra(EXTRA_SKIP_LEGACY_FADE_IN, true)
+                putExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, captureRequested)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             },
         )
@@ -299,7 +301,8 @@ class OcrLaunchActivity : Activity() {
             )
             MlKitOcrEngine.recognize(prepared.bitmap, settings.ocrRecognizerMode)
                 .addOnSuccessListener(this) { result ->
-                    val nearestMatch = MlKitOcrEngine.findNearestTextBlock(result, prepared.touchX, prepared.touchY)
+                    val paragraphs = MlKitOcrEngine.findParagraphs(result)
+                    val nearestMatch = MlKitOcrEngine.findNearestTextBlock(paragraphs, prepared.touchX, prepared.touchY)
                     logOcrTrace(
                         settings = settings,
                         callerPackage = callerPackage,
@@ -318,6 +321,22 @@ class OcrLaunchActivity : Activity() {
                         finish()
                         return@addOnSuccessListener
                     }
+                    TextSessionCoordinator.replaceSession(
+                        paragraphs = paragraphs.map {
+                            CaptureTextBlockContract(
+                                text = it.text,
+                                left = it.bounds.left.toDouble(),
+                                top = it.bounds.top.toDouble(),
+                                right = it.bounds.right.toDouble(),
+                                bottom = it.bounds.bottom.toDouble(),
+                                confidence = 1.0,
+                            )
+                        },
+                        initialIndex = paragraphs.indexOfFirst { it.text == nearestMatch.text && it.bounds == nearestMatch.bounds }
+                            .coerceAtLeast(0),
+                        source = "ocr",
+                        debugMessage = "channel=ocr; paragraphs=${paragraphs.size}; initial=1",
+                    )
                     BoomActivityLauncher.openText(
                         context = this,
                         text = nearestMatch.text,
@@ -325,6 +344,7 @@ class OcrLaunchActivity : Activity() {
                         touchY = touchY.toInt(),
                         isPreview = false,
                         animateLaunch = false,
+                        enableAdjacentSession = true,
                     )
                     finish()
                 }

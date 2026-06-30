@@ -49,6 +49,46 @@
         </FrameLayout>
     </com.cashewteam.novatext.android.CustomScrollView>
 
+    <TextView
+        android:id="@+id/boom_adjacent_top_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:layout_marginLeft="@dimen/page_margin_left"
+        android:layout_marginTop="18dp"
+        android:layout_marginRight="@dimen/page_margin_right"
+        android:alpha="0"
+        android:background="@drawable/boom_multi_select_bg"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:paddingLeft="16dp"
+        android:paddingTop="14dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="14dp"
+        android:textColor="@color/boom_chip_text_color"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/boom_adjacent_bottom_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginLeft="@dimen/page_margin_left"
+        android:layout_marginRight="@dimen/page_margin_right"
+        android:layout_marginBottom="18dp"
+        android:alpha="0"
+        android:background="@drawable/boom_multi_select_bg"
+        android:ellipsize="end"
+        android:maxLines="3"
+        android:paddingLeft="16dp"
+        android:paddingTop="14dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="14dp"
+        android:textColor="@color/boom_chip_text_color"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
     <RelativeLayout
         android:id="@+id/boom_mask"
         android:layout_marginTop="25.4dp"

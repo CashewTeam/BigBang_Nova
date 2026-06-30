@@ -116,4 +116,6 @@
     <string name="bigbang_action_share_all">分享全部</string>
     <string name="bigbang_action_more">更多</string>
     <string name="bigbang_action_placeholder">功能建设中</string>
+    <string name="bigbang_pull_previous">松手后获取上一段文本</string>
+    <string name="bigbang_pull_next">松手后获取下一段文本</string>
 </resources>
