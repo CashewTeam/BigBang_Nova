@@ -41,6 +41,9 @@ public class BoomChipPage {
     private final boolean mEnableLegacyMask;
     private final TextView mAdjacentTopHint;
     private final TextView mAdjacentBottomHint;
+    private final int mScrollerBaseInset;
+    private final int mTableBasePaddingTop;
+    private final int mTableBasePaddingBottom;
 
     Serializable mSavedData;
     private OnAdjacentRequestListener mOnAdjacentRequestListener;
@@ -115,6 +118,11 @@ public class BoomChipPage {
         mScroller = (CustomScrollView) contentView.findViewById(R.id.boom_scroller);
         mAdjacentTopHint = (TextView) contentView.findViewById(R.id.boom_adjacent_top_hint);
         mAdjacentBottomHint = (TextView) contentView.findViewById(R.id.boom_adjacent_bottom_hint);
+        mScrollerBaseInset = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                28,
+                mActivity.getResources().getDisplayMetrics()
+        );
         if (!mEnableLegacyMask) {
             mMask.setVisibility(View.GONE);
             removeLegacyChromeSpacing();
@@ -147,6 +155,8 @@ public class BoomChipPage {
                 releaseAdjacentPull(offset, triggered);
             }
         });
+        mTableBasePaddingTop = mBoomTable.getPaddingTop();
+        mTableBasePaddingBottom = mBoomTable.getPaddingBottom();
     }
 
     public interface OnAdjacentRequestListener {
@@ -154,11 +164,6 @@ public class BoomChipPage {
     }
 
     private void removeLegacyChromeSpacing() {
-        int edgeInset = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                28,
-                mActivity.getResources().getDisplayMetrics()
-        );
         int selectBarHeadroom = Math.abs(
                 mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_move_up_offset)
         );
@@ -169,9 +174,9 @@ public class BoomChipPage {
         mScroller.setClipToPadding(false);
         mScroller.setPadding(
                 mScroller.getPaddingLeft(),
-                edgeInset,
+                mScrollerBaseInset,
                 mScroller.getPaddingRight(),
-                edgeInset
+                mScrollerBaseInset
         );
 
         ViewGroup.MarginLayoutParams tableParams = (ViewGroup.MarginLayoutParams) mBoomTable.getLayoutParams();
@@ -311,6 +316,12 @@ public class BoomChipPage {
             mBoomConent.addView(row);
         }
         mBoomConent.requestLayout();
+        mScroller.post(new Runnable() {
+            @Override
+            public void run() {
+                updateScrollerInsetsForContent();
+            }
+        });
         if (animate) {
             mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(mDoBoomAnimation);
         }
@@ -430,6 +441,27 @@ public class BoomChipPage {
                     }
                 })
                 .start();
+    }
+
+    private void updateScrollerInsetsForContent() {
+        int viewportHeight = mScroller.getHeight();
+        int contentHeight = mBoomConent.getHeight();
+        if (viewportHeight <= 0 || contentHeight <= 0) {
+            return;
+        }
+        int availableHeight = viewportHeight - (mScrollerBaseInset * 2);
+        int extraInset = Math.max(0, (availableHeight - contentHeight) / 2);
+        int targetTableTop = mTableBasePaddingTop + extraInset;
+        int targetTableBottom = mTableBasePaddingBottom + extraInset;
+        if (mBoomTable.getPaddingTop() == targetTableTop && mBoomTable.getPaddingBottom() == targetTableBottom) {
+            return;
+        }
+        mBoomTable.setPadding(
+                mBoomTable.getPaddingLeft(),
+                targetTableTop,
+                mBoomTable.getPaddingRight(),
+                targetTableBottom
+        );
     }
 
     public class BoomChip {
