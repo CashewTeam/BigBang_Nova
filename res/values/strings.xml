@@ -25,6 +25,9 @@
     <string name="search_via_baidupedia">Baidu Baike</string>
     <string name="search_via_wikipedia">Wikipedia</string>
     <string name="search_via_moegirl">Moegirl</string>
+    <string name="search_via_baidu_translate">Baidu Translate</string>
+    <string name="search_via_bing_translate">Bing Translate</string>
+    <string name="search_via_google_translate">Google Translate</string>
     <string name="thumb_trigger_area_tips">The smaller the trigger size (the size of the area of the screen to trigger Thumb Swipe), the easier it is to set off. You can adjust the trigger size to avoid setting it off accidentally.</string>
     <string name="big_bang_tips">Smart text support provided by /tricorn/Trio.</string>
     <string name="dlg_title_notice">Notice</string>

@@ -48,6 +48,9 @@
         <item>@string/search_via_powerword</item>
         <item>@string/search_via_hidict</item>
         <item>@string/search_via_youdao</item>
+        <item>@string/search_via_baidu_translate</item>
+        <item>@string/search_via_bing_translate</item>
+        <item>@string/search_via_google_translate</item>
     </string-array>
 
     <integer-array name="big_bang_dict_value">
@@ -55,6 +58,9 @@
         <item>0x101</item>
         <item>0x103</item>
         <item>0x100</item>
+        <item>0x104</item>
+        <item>0x105</item>
+        <item>0x106</item>
     </integer-array>
 
     <array name="big_bang_dict_icon">
@@ -62,6 +68,9 @@
         <item>@drawable/boom_setting_kingsoft</item>
         <item>@drawable/boom_setting_hidict</item>
         <item>@drawable/boom_setting_youdao</item>
+        <item>@drawable/boom_setting_baidu</item>
+        <item>@drawable/boom_setting_bing</item>
+        <item>@drawable/boom_setting_google</item>
     </array>
 
     <string-array name="thumb_trigger_area_options">

@@ -37,6 +37,9 @@ public final class BigBangSettings {
     public static final int TYPE_KINGSOFT = 0x101;
     public static final int TYPE_BINGDICT = 0x102;
     public static final int TYPE_HIDICT = 0x103;
+    public static final int TYPE_BAIDU_TRANSLATE = 0x104;
+    public static final int TYPE_BING_TRANSLATE = 0x105;
+    public static final int TYPE_GOOGLE_TRANSLATE = 0x106;
 
     public static final int TRIGGER_AREA_SMALLEST = 0;
     public static final int TRIGGER_AREA_SMALL = 1;

@@ -207,6 +207,9 @@ private fun SearchOverlayScreen(
             SearchProvider(BigBangSettings.TYPE_KINGSOFT, "金山词霸", R.drawable.boom_win_search_kingsoft),
             SearchProvider(BigBangSettings.TYPE_BINGDICT, "必应词典", R.drawable.boom_win_search_bingdict),
             SearchProvider(BigBangSettings.TYPE_HIDICT, "海词词典", R.drawable.boom_win_search_hidict),
+            SearchProvider(BigBangSettings.TYPE_BAIDU_TRANSLATE, "百度翻译", R.drawable.boom_win_search_baidu),
+            SearchProvider(BigBangSettings.TYPE_BING_TRANSLATE, "必应翻译", R.drawable.boom_win_search_bing),
+            SearchProvider(BigBangSettings.TYPE_GOOGLE_TRANSLATE, "谷歌翻译", R.drawable.boom_win_search_google),
         )
     }
     val wikiProviders = remember {
@@ -754,6 +757,9 @@ private fun buildSearchUrl(type: Int, text: String): String {
         BigBangSettings.TYPE_KINGSOFT -> "https://www.iciba.com/$query"
         BigBangSettings.TYPE_BINGDICT -> "https://cn.bing.com/dict/?q=$query"
         BigBangSettings.TYPE_HIDICT -> "https://m.dict.cn/$query"
+        BigBangSettings.TYPE_BAIDU_TRANSLATE -> "https://fanyi.baidu.com/#auto/zh/$query"
+        BigBangSettings.TYPE_BING_TRANSLATE -> "https://www.bing.com/translator?from=auto&to=zh-Hans&text=$query"
+        BigBangSettings.TYPE_GOOGLE_TRANSLATE -> "https://translate.google.com/?sl=auto&tl=zh-CN&text=$query&op=translate"
         else -> "https://www.baidu.com/s?wd=$query"
     }
 }

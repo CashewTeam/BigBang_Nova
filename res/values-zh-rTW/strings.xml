@@ -29,6 +29,9 @@
     <string name="search_via_baidupedia">百度百科</string>
     <string name="search_via_wikipedia">維基百科</string>
     <string name="search_via_moegirl">萌娘百科</string>
+    <string name="search_via_baidu_translate">百度翻譯</string>
+    <string name="search_via_bing_translate">必應翻譯</string>
+    <string name="search_via_google_translate">谷歌翻譯</string>
     <string name="thumb_trigger_area_tips">觸發面積越小，越容易觸發此功能。您可以通過調整觸發面積來避免誤觸</string>
     <string name="ocr_tips">/camscanner/扫描全能王提供 OCR 技术支持</string>
     <string name="big_bang_tips">/tricorn/三角兽提供智能分词技术支持</string>
