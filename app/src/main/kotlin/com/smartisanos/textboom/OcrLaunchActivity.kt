@@ -2,6 +2,7 @@ package com.cashewteam.novatext.android
 
 import android.animation.Animator
 import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
@@ -24,12 +25,14 @@ import com.cashewteam.novatext.android.util.LogUtils
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlin.concurrent.thread
 import java.util.UUID
+import android.view.animation.LinearInterpolator
 
 class OcrLaunchActivity : Activity() {
     private var loopAnimFrame: FrameLayout? = null
     private var loopRotateImage: ImageView? = null
     private var contentFrame: FrameLayout? = null
     private var touchAnimation: AnimatorSet? = null
+    private var loadingAnimator: ObjectAnimator? = null
     private var touchAnimating = false
     private var launchGateOpen = false
     private var launched = false
@@ -59,11 +62,6 @@ class OcrLaunchActivity : Activity() {
         traceEnabled = intent.getBooleanExtra(EXTRA_CAPTURE_TRACE_ENABLED, false)
         traceId = intent.getStringExtra(EXTRA_CAPTURE_TRACE_ID)?.takeIf { it.isNotBlank() }
             ?: traceId
-        if (captureOcrScreenshotRequested) {
-            touchX = readTouchCoordinate("boom_startx", true)
-            touchY = readTouchCoordinate("boom_starty", false)
-            return
-        }
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
         ensureLaunchUi()
@@ -109,6 +107,8 @@ class OcrLaunchActivity : Activity() {
     override fun onDestroy() {
         cancelled = true
         touchAnimation?.cancel()
+        loadingAnimator?.cancel()
+        loadingAnimator = null
         touchAnimation = null
         touchAnimating = false
         super.onDestroy()
@@ -132,6 +132,7 @@ class OcrLaunchActivity : Activity() {
         if (touchAnimating || launched || cancelled) {
             return
         }
+        hideLoadingIndicator()
         frame.visibility = View.INVISIBLE
         frame.scaleX = TOUCH_SCALE_FROM
         frame.scaleY = TOUCH_SCALE_FROM
@@ -174,7 +175,11 @@ class OcrLaunchActivity : Activity() {
 
                 override fun onAnimationEnd(animation: Animator) {
                     touchAnimating = false
-                    frame.visibility = View.INVISIBLE
+                    if (pendingText == null && !launched && !cancelled) {
+                        showLoadingIndicator()
+                    } else {
+                        frame.visibility = View.INVISIBLE
+                    }
                     maybeLaunchBigBang()
                 }
 
@@ -221,6 +226,7 @@ class OcrLaunchActivity : Activity() {
             return
         }
         val text = pendingText ?: return
+        hideLoadingIndicator()
         launched = true
         LogUtils.d("OcrLaunchActivity", "launch ocr")
         startActivity(
@@ -321,7 +327,7 @@ class OcrLaunchActivity : Activity() {
                     )
                     enableAdjacentSession = true
                     pendingText = nearestMatch.text
-                    ensureLaunchUi()
+                    maybeLaunchBigBang()
                 }
                 .addOnFailureListener(this) { throwable ->
                     prepared.bitmap.recycle()
@@ -358,6 +364,30 @@ class OcrLaunchActivity : Activity() {
                 startTouchBoomAnimation()
             }
         }
+    }
+
+    private fun showLoadingIndicator() {
+        val frame = loopAnimFrame ?: return
+        val image = loopRotateImage ?: return
+        frame.visibility = View.VISIBLE
+        image.visibility = View.VISIBLE
+        if (loadingAnimator?.isRunning == true) {
+            return
+        }
+        loadingAnimator = ObjectAnimator.ofFloat(image, "rotation", image.rotation, image.rotation + 360f).apply {
+            duration = 900L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+        }
+    }
+
+    private fun hideLoadingIndicator() {
+        loadingAnimator?.cancel()
+        loadingAnimator = null
+        loopRotateImage?.rotation = 0f
+        loopRotateImage?.visibility = View.GONE
+        loopAnimFrame?.visibility = View.INVISIBLE
     }
 
     private fun logOcrTrace(
