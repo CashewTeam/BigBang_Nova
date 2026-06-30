@@ -617,6 +617,17 @@ private fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item {
+                    Text(
+                        text = "Alpha ${BuildConfig.VERSION_NAME}",
+                        modifier = Modifier.fillMaxWidth(),
+                        color = palette.textSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+
+                item {
                     SettingsSectionCard {
                         PermissionSection(
                             state = permissionState,
