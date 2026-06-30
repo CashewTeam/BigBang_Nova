@@ -700,7 +700,7 @@ private fun SearchProviderButton(
                         Image(
                             painter = painterResource(item.iconRes),
                             contentDescription = item.title,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(38.dp),
                         )
                     },
                     onClick = { onProviderSelected(item) },

@@ -141,7 +141,6 @@ class BoomActivity : ComponentActivity() {
         startActivity(Intent.createChooser(send, null).apply {
             addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
         })
-        finish()
     }
 
     private fun showPlaceholder() {

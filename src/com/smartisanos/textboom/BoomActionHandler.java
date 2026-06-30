@@ -172,7 +172,6 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         mToast.show();
         ClipboardManager clipboard = (ClipboardManager) mBoomPage.mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText(null, text));
-        mBoomPage.mActivity.finish();
     }
 
     public void search(String text, int type) {
@@ -188,7 +187,6 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         Intent i = Intent.createChooser(send, null);
         i.setFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
         mBoomPage.mActivity.startActivity(i);
-        mBoomPage.mActivity.finish();
     }
 
     private void initViews(View contentView) {
