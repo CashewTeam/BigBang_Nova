@@ -26,6 +26,8 @@ public class BoomWordsLayout {
     private RangeList<Word> mWords = new RangeList<Word>();
     private ArrayList<Integer> mRowStart = new ArrayList<Integer>();
     private ArrayList<Integer> mRowCount = new ArrayList<Integer>();
+    private ArrayList<Boolean> mRowIsGap = new ArrayList<Boolean>();
+    private ArrayList<Integer> mHardBreaks = new ArrayList<Integer>();
     private int[] mIdToRow;
     private int mTouchedIndex;
     private String mOriText;
@@ -138,6 +140,7 @@ public class BoomWordsLayout {
     private boolean layoutWordsAfterFilter(int[] segment, String text, int touchedIndex) {
         mOriText = text;
         mWords.clear();
+        mHardBreaks.clear();
         mTouchedIndex = -1;
         int start;
         int end;
@@ -145,7 +148,7 @@ public class BoomWordsLayout {
         for (int i = 0; i < segment.length; i += 2) {
             start = segment[i];
             end = segment[i + 1] + 1;
-            addPuncIntoChips(prev, start);
+            addGapIntoChips(prev, start);
             String trim = text.substring(start, end).replaceAll("\\p{Z}", " ").trim();
             if (!TextUtils.isEmpty(trim)) {
                 if (touchedIndex >= start && touchedIndex < end) {
@@ -155,7 +158,7 @@ public class BoomWordsLayout {
             }
             prev = end;
         }
-        addPuncIntoChips(prev, text.length());
+        addGapIntoChips(prev, text.length());
 
         final int wordCount = mWords.size();
         if (wordCount > 0) {
@@ -187,13 +190,23 @@ public class BoomWordsLayout {
         return false;
     }
 
-    private void addPuncIntoChips(int start, int end) {
+    private void addGapIntoChips(int start, int end) {
         for (int i = start; i < end; ++i) {
             char punc = mOriText.charAt(i);
-            if (!Character.isWhitespace(punc) && !Character.isSpaceChar(punc)) {
+            if (punc == '\n') {
+                addHardBreak();
+            } else if (!Character.isWhitespace(punc) && !Character.isSpaceChar(punc)) {
                 mWords.add(new Word(String.valueOf(punc), i, true));
             }
         }
+    }
+
+    private void addHardBreak() {
+        final int breakIndex = mWords.size();
+        if (mHardBreaks.size() > 0 && mHardBreaks.get(mHardBreaks.size() - 1) == breakIndex) {
+            return;
+        }
+        mHardBreaks.add(breakIndex);
     }
 
     private int measureChip(int index) {
@@ -211,18 +224,26 @@ public class BoomWordsLayout {
         int remain = mBoomPageWidth;
         mRowCount.clear();
         mRowStart.clear();
+        mRowIsGap.clear();
         mIdToRow = new int[mWords.size()];
         for (int i = 0; i < mWords.size(); ++i) {
+            if (isHardBreakIndex(i)) {
+                if (count > 0) {
+                    addRow(start, count, false);
+                }
+                addRow(i, 0, true);
+                start = i;
+                count = 0;
+                remain = mBoomPageWidth;
+            }
             final int chipWidth = measureChip(i);
             if (chipWidth > remain) {
                 if (count == 0) {
                     mIdToRow[i] = mRowCount.size();
-                    mRowCount.add(1);
-                    mRowStart.add(i);
+                    addRow(i, 1, false);
                     start = i + 1;
                 } else {
-                    mRowCount.add(count);
-                    mRowStart.add(start);
+                    addRow(start, count, false);
                     start = i;
                     count = 0;
                     remain = mBoomPageWidth;
@@ -235,9 +256,18 @@ public class BoomWordsLayout {
             }
         }
         if (count > 0) {
-            mRowCount.add(count);
-            mRowStart.add(start);
+            addRow(start, count, false);
         }
+    }
+
+    private void addRow(int start, int count, boolean isGap) {
+        mRowStart.add(start);
+        mRowCount.add(count);
+        mRowIsGap.add(isGap);
+    }
+
+    private boolean isHardBreakIndex(int index) {
+        return mHardBreaks.contains(index);
     }
 
     public int getRowCount() {
@@ -250,6 +280,10 @@ public class BoomWordsLayout {
 
     public int getColumnCount(int row) {
         return mRowCount.get(row);
+    }
+
+    public boolean isGapRow(int row) {
+        return mRowIsGap.get(row);
     }
 
     public int getRowForIndex(int index) {

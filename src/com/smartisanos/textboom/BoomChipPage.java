@@ -301,6 +301,14 @@ public class BoomChipPage {
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final int start = mLayout.getRowStart(i);
             final int count = mLayout.getColumnCount(i);
+            if (mLayout.isGapRow(i)) {
+                View spacer = new View(mActivity);
+                spacer.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_height)));
+                mBoomConent.addView(spacer);
+                continue;
+            }
             LinearLayout row = new LinearLayout(mActivity);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setLayoutParams(new LinearLayout.LayoutParams(
