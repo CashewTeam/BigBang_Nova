@@ -137,6 +137,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
             R.array.text_boom_search_values,
             R.array.text_boom_search_icons,
         )
+        val wikiOptions = loadOptions(
+            R.array.text_boom_wiki_names,
+            R.array.text_boom_wiki_values,
+            R.array.text_boom_wiki_icons,
+        )
         val dictionaryOptions = loadOptions(
             R.array.big_bang_dict_name,
             R.array.big_bang_dict_value,
@@ -149,6 +154,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     settings = settings,
                     initialPage = initialPage,
                     searchOptions = searchOptions,
+                    wikiOptions = wikiOptions,
                     dictionaryOptions = dictionaryOptions,
                     onOpenPreview = { openBigBangPreview(it) },
                     onOpenOverlayPermission = { openOverlayPermission() },
@@ -484,6 +490,7 @@ private fun SettingsScreen(
     settings: BigBangSettings,
     initialPage: SettingsPage,
     searchOptions: List<OptionItem>,
+    wikiOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
     onOpenPreview: (String) -> Unit,
     onOpenOverlayPermission: () -> Unit,
@@ -513,6 +520,7 @@ private fun SettingsScreen(
         mutableIntStateOf(presetTexts.indexOf(settings.debugPresetText).coerceAtLeast(0))
     }
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
+    var selectedWiki by rememberSaveable { mutableIntStateOf(settings.wikiSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
     var currentPage by rememberSaveable { mutableStateOf(initialPage.name) }
@@ -725,6 +733,21 @@ private fun SettingsScreen(
                             onSelect = {
                                 selectedSearch = it
                                 settings.setWebSearchType(it)
+                            },
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSectionCard {
+                        OptionSection(
+                            title = stringResource(R.string.default_wiki_way),
+                            subtitle = stringResource(R.string.settings_wiki_summary),
+                            options = wikiOptions,
+                            selectedValue = selectedWiki,
+                            onSelect = {
+                                selectedWiki = it
+                                settings.setWikiSearchType(it)
                             },
                         )
                     }

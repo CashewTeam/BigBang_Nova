@@ -31,6 +31,8 @@ public final class BigBangSettings {
     public static final int TYPE_SHENMA = 0x003;
     public static final int TYPE_WIKI = 0x010;
     public static final int TYPE_BAIKE = 0x011;
+    public static final int TYPE_WIKIPEDIA = 0x012;
+    public static final int TYPE_MOEGIRL = 0x013;
     public static final int TYPE_YOUDAO = 0x100;
     public static final int TYPE_KINGSOFT = 0x101;
     public static final int TYPE_BINGDICT = 0x102;

@@ -23,6 +23,8 @@
     <string name="search_via_bingdict">必应词典</string>
     <string name="search_via_hidict">海词词典</string>
     <string name="search_via_baidupedia">百度百科</string>
+    <string name="search_via_wikipedia">维基百科</string>
+    <string name="search_via_moegirl">萌娘百科</string>
     <string name="thumb_trigger_area_tips">触发面积越小，越容易触发此功能。你可以通过调整触发面积来避免误触</string>
     <string name="big_bang_tips">/tricorn/三角兽提供智能分词技术支持</string>
     <string name="dlg_title_notice">提示</string>
@@ -51,6 +53,8 @@
     <string name="ocr_capture_unsupported">当前系统版本不支持无障碍截图</string>
     <string name="ocr_foreground_package_missing">无法识别当前前台应用，请稍后重试。</string>
     <string name="accessibility_required_message">请先开启无障碍服务，或打开调试开关后再使用预制文本链路。</string>
+    <string name="default_wiki_way">默认百科</string>
+    <string name="settings_wiki_summary">设置大爆炸百科操作默认使用的百科服务。</string>
     <string name="debug_skip_accessibility_title">跳过无障碍抓文</string>
     <string name="debug_skip_accessibility_summary">开启后，悬浮球释放会直接使用当前调试文本启动大爆炸，方便快速调试 UI 与动画。</string>
     <string name="ocr_select_region_hint">调整识别区域，然后开始识别</string>

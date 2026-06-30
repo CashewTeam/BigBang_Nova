@@ -27,12 +27,16 @@
     <string name="search_via_bingdict">必應詞典</string>
     <string name="search_via_hidict">海詞詞典</string>
     <string name="search_via_baidupedia">百度百科</string>
+    <string name="search_via_wikipedia">維基百科</string>
+    <string name="search_via_moegirl">萌娘百科</string>
     <string name="thumb_trigger_area_tips">觸發面積越小，越容易觸發此功能。您可以通過調整觸發面積來避免誤觸</string>
     <string name="ocr_tips">/camscanner/扫描全能王提供 OCR 技术支持</string>
     <string name="big_bang_tips">/tricorn/三角兽提供智能分词技术支持</string>
     <string name="dlg_title_notice">提醒</string>
     <string name="install_camscanner_message">当前系统中未安装“扫描全能王”应用。点击“安装”前往应用商店下载并安装后即可启用图像文字识别功能</string>
     <string name="install_text">"安裝"</string>
+    <string name="default_wiki_way">預設百科</string>
+    <string name="settings_wiki_summary">設置大爆炸百科操作預設使用的百科服務。</string>
     <string name="default_dict">默认词典</string>
     <string name="thumb_trigger_area">"觸發面積"</string>
     <string name="thumb_trigger_area_smallest">最小</string>

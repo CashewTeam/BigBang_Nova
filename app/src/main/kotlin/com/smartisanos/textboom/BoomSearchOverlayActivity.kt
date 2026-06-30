@@ -213,6 +213,8 @@ private fun SearchOverlayScreen(
         listOf(
             SearchProvider(BigBangSettings.TYPE_WIKI, "互动百科", R.drawable.boom_win_search_hudongdict),
             SearchProvider(BigBangSettings.TYPE_BAIKE, "百度百科", R.drawable.boom_win_search_baike),
+            SearchProvider(BigBangSettings.TYPE_WIKIPEDIA, "维基百科", R.drawable.boom_win_search_wikipedia),
+            SearchProvider(BigBangSettings.TYPE_MOEGIRL, "萌娘百科", R.drawable.boom_win_search_moegirl),
         )
     }
 
@@ -746,6 +748,8 @@ private fun buildSearchUrl(type: Int, text: String): String {
         BigBangSettings.TYPE_SHENMA -> "https://duckduckgo.com/?q=$query"
         BigBangSettings.TYPE_WIKI -> "https://www.baike.com/gwiki/$query"
         BigBangSettings.TYPE_BAIKE -> "https://wapbaike.baidu.com/search/word?word=$query"
+        BigBangSettings.TYPE_WIKIPEDIA -> "https://zh.wikipedia.org/wiki/Special:Search?search=$query"
+        BigBangSettings.TYPE_MOEGIRL -> "https://zh.moegirl.org.cn/index.php?search=$query"
         BigBangSettings.TYPE_YOUDAO -> "https://m.youdao.com/dict?q=$query"
         BigBangSettings.TYPE_KINGSOFT -> "https://www.iciba.com/$query"
         BigBangSettings.TYPE_BINGDICT -> "https://cn.bing.com/dict/?q=$query"
