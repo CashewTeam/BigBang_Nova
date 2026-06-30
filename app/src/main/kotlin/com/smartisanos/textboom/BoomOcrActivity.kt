@@ -203,7 +203,7 @@ class BoomOcrActivity : ComponentActivity() {
 
     private fun handleOcrSuccess(result: MlKitText?) {
         if (isFinishing) return
-        ocrText = result?.text?.trim().orEmpty()
+        ocrText = result?.let(MlKitOcrEngine::buildParagraphText).orEmpty()
         if (ocrText.isEmpty()) {
             Toast.makeText(this, R.string.a_msg_no_words, Toast.LENGTH_SHORT).show()
             ocrStarted = false
