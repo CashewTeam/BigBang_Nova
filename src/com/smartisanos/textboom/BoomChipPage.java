@@ -445,7 +445,7 @@ public class BoomChipPage {
             return;
         }
         view.setVisibility(View.VISIBLE);
-        view.setText(getHintTitle(direction) + "\n" + preview);
+        view.setText(getHintTitle(direction));
         float alpha = Math.min(1f, distance / getTriggerDistance());
         view.setAlpha(alpha);
     }
