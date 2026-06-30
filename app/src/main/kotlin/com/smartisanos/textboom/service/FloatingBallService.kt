@@ -252,9 +252,10 @@ class FloatingBallService : Service() {
 
     private fun clampPositionInPlace(params: WindowManager.LayoutParams) {
         val safeArea = getSafeArea()
+        val horizontalBounds = getHorizontalBounds()
         val iconInset = params.width - params.height
-        val minX = safeArea.left - iconInset
-        val maxX = safeArea.right - params.height
+        val minX = horizontalBounds.left - iconInset
+        val maxX = horizontalBounds.right - rightDockedWidth(params)
         val minY = safeArea.top
         val maxY = safeArea.bottom - params.height
         params.x = params.x.coerceIn(minX, maxX)
@@ -271,10 +272,12 @@ class FloatingBallService : Service() {
     }
 
     private fun dockToNearestSide(centerX: Int, y: Int) {
-        val safeArea = getSafeArea()
-        val width = safeArea.width().toFloat()
-        val leftSwitchBoundary = safeArea.left + (width * EDGE_SWITCH_REGION_RATIO).roundToInt()
-        val rightSwitchBoundary = safeArea.right - (width * EDGE_SWITCH_REGION_RATIO).roundToInt()
+        val horizontalBounds = getHorizontalBounds()
+        val width = horizontalBounds.width().toFloat()
+        val leftSwitchBoundary =
+            horizontalBounds.left + (width * EDGE_SWITCH_REGION_RATIO).roundToInt()
+        val rightSwitchBoundary =
+            horizontalBounds.right - (width * EDGE_SWITCH_REGION_RATIO).roundToInt()
         val targetSide = when {
             centerX <= leftSwitchBoundary -> DOCK_LEFT
             centerX >= rightSwitchBoundary -> DOCK_RIGHT
@@ -288,11 +291,12 @@ class FloatingBallService : Service() {
         val iconSizePx = bubbleSizePx()
         layoutParams.width = capsuleWidthPx(iconSizePx)
         layoutParams.height = iconSizePx
+        val horizontalBounds = getHorizontalBounds()
         val safeArea = getSafeArea()
         layoutParams.x = if (side == DOCK_LEFT) {
-            safeArea.left - (layoutParams.width - layoutParams.height)
+            horizontalBounds.left - (layoutParams.width - layoutParams.height)
         } else {
-            safeArea.right - layoutParams.height
+            horizontalBounds.right - rightDockedWidth(layoutParams)
         }
         layoutParams.y = y
         clampPositionInPlace(layoutParams)
@@ -351,6 +355,15 @@ class FloatingBallService : Service() {
         return Rect(0, statusBarHeight, windowSize.x, windowSize.y - navigationBarHeight)
     }
 
+    private fun getHorizontalBounds(): Rect {
+        val windowSize = getWindowSize()
+        if (isLandscape()) {
+            val safeArea = getSafeArea()
+            return Rect(0, 0, safeArea.width(), windowSize.y)
+        }
+        return Rect(0, 0, windowSize.x, windowSize.y)
+    }
+
     private fun getSystemDimension(name: String): Int {
         val resourceId = resources.getIdentifier(name, "dimen", "android")
         return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else 0
@@ -380,6 +393,10 @@ class FloatingBallService : Service() {
         return (iconSizePx * CAPSULE_WIDTH_RATIO).roundToInt()
     }
 
+    private fun rightDockedWidth(params: WindowManager.LayoutParams): Int {
+        return if (isLandscape()) params.width + params.height / 2 else params.height
+    }
+
     private fun activeAlpha(): Float {
         return (settings.floatingBallActiveAlphaPercent / 100f).coerceIn(0f, 1f)
     }
@@ -405,7 +422,7 @@ class FloatingBallService : Service() {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = iconSizePx / 2f
             setColor(
-                if (capsuleBackgroundVisible) {
+                if (capsuleBackgroundVisible && !isLandscape()) {
                     if (isNightMode()) CAPSULE_DARK_COLOR else CAPSULE_LIGHT_COLOR
                 } else {
                     Color.TRANSPARENT
@@ -430,6 +447,10 @@ class FloatingBallService : Service() {
     private fun isNightMode(): Boolean {
         return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun isLandscape(): Boolean {
+        return resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
 
     companion object {
