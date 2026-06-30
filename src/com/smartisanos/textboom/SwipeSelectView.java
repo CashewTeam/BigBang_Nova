@@ -206,7 +206,10 @@ public class SwipeSelectView extends LinearLayout {
         int startRow = mBoomPage.mLayout.getRowForIndex(mStartBound);
         int endRow = mBoomPage.mLayout.getRowForIndex(mEndBound);
         for (int i = startRow; i <= endRow; ++i) {
-            final LinearLayout row = (LinearLayout) getChildAt(i);
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
             for (int j = 0; j < row.getChildCount(); ++j) {
                 View child = row.getChildAt(j);
                 if (child.getTag() instanceof BoomChip) {
@@ -232,7 +235,10 @@ public class SwipeSelectView extends LinearLayout {
 
     private BoomChip findChip(float x, float y, boolean isSwiping) {
         for (int i = 0; i < getChildCount(); ++i) {
-            final LinearLayout row = (LinearLayout) getChildAt(i);
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
             if (isPointInsideView(x, y, row)) {
                 final float offsetX = row.getScrollX() - row.getLeft();
                 final float offsetY = row.getScrollY() - row.getTop();
@@ -259,5 +265,10 @@ public class SwipeSelectView extends LinearLayout {
             }
         }
         return null;
+    }
+
+    private LinearLayout getChipRow(int index) {
+        final View child = getChildAt(index);
+        return child instanceof LinearLayout ? (LinearLayout) child : null;
     }
 }

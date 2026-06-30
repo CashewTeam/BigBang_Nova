@@ -25,7 +25,6 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
 
     private final int mRowMoveUpOffset;
     private final int mRowMoveDownOffset;
-    private final int mChipRowHeight;
     private final int mSelectRectMarginTop;
     private final int mSelectRectTopOffset;
     private final int mSelectBarYOffset;
@@ -49,7 +48,6 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         final Resources res = boomPage.mActivity.getResources();
         mRowMoveUpOffset = res.getDimensionPixelOffset(R.dimen.chip_row_move_up_offset);
         mRowMoveDownOffset = res.getDimensionPixelOffset(R.dimen.chip_row_move_down_offset);
-        mChipRowHeight = res.getDimensionPixelOffset(R.dimen.chip_row_height);
         if (mEnableFakeSelectBar) {
             mSelectRectMarginTop = res.getDimensionPixelOffset(R.dimen.select_rect_margin_top);
             mSelectRectTopOffset = res.getDimensionPixelOffset(R.dimen.select_rect_top_offset);
@@ -295,15 +293,15 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     private int getSelectRectHeight() {
-        return (mSelectedBottomRow - mSelectedTopRow + 1) * mChipRowHeight + mSelectRectTopOffset;
+        return mBoomPage.getRowsHeight(mSelectedTopRow, mSelectedBottomRow) + mSelectRectTopOffset;
     }
 
     private int getSelectRectY(int row) {
-        return row * mChipRowHeight + mSelectRectMarginTop;
+        return mBoomPage.getRowTop(row) + mSelectRectMarginTop;
     }
 
     private int getSelectBarY(int row) {
-        return row * mChipRowHeight + mSelectBarYOffset;
+        return mBoomPage.getRowTop(row) + mSelectBarYOffset;
     }
 
     private void showSelBarAndBgRect(int row) {

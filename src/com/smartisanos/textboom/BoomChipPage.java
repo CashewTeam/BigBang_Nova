@@ -77,7 +77,10 @@ public class BoomChipPage {
             }
             final int animationRows = Math.min(mLayout.getRowCount(), 12);
             for (int i = 0; i < animationRows; ++i) {
-                LinearLayout row = (LinearLayout) mBoomConent.getChildAt(i);
+                final LinearLayout row = getChipRow(i);
+                if (row == null) {
+                    continue;
+                }
                 float rowX = row.getX();
                 float rowY = row.getY();
                 for (int j = 0; j < row.getChildCount(); ++j) {
@@ -210,7 +213,10 @@ public class BoomChipPage {
 
     public void resetChips() {
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
-            final LinearLayout row = (LinearLayout) mBoomConent.getChildAt(i);
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
             for (int j = 0; j < row.getChildCount(); ++j) {
                 View child = row.getChildAt(j);
                 if (child.getTag() instanceof BoomChip) {
@@ -225,6 +231,20 @@ public class BoomChipPage {
     public void moveChipRow(int row, float to) {
         View child = mBoomConent.getChildAt(row);
         BoomAnimator.makeMoveAnimation(child, child.getTranslationY(), to);
+    }
+
+    public int getRowTop(int row) {
+        View child = mBoomConent.getChildAt(row);
+        return child == null ? 0 : child.getTop();
+    }
+
+    public int getRowsHeight(int topRow, int bottomRow) {
+        View top = mBoomConent.getChildAt(topRow);
+        View bottom = mBoomConent.getChildAt(bottomRow);
+        if (top == null || bottom == null) {
+            return 0;
+        }
+        return bottom.getBottom() - top.getTop();
     }
 
     public boolean handleClick() {
@@ -257,7 +277,10 @@ public class BoomChipPage {
         }
         handleClick();
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
-            final LinearLayout row = (LinearLayout) mBoomConent.getChildAt(i);
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
             for (int j = 0; j < row.getChildCount(); ++j) {
                 View child = row.getChildAt(j);
                 if (child.getTag() instanceof BoomChip) {
@@ -305,7 +328,7 @@ public class BoomChipPage {
                 View spacer = new View(mActivity);
                 spacer.setLayoutParams(new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_height)));
+                        mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_height) / 2));
                 mBoomConent.addView(spacer);
                 continue;
             }
@@ -340,7 +363,10 @@ public class BoomChipPage {
             TreeSet<Integer> set = (TreeSet<Integer>) mSavedData;
             if (set.size() > 0) {
                 for (int i = 0; i < mLayout.getRowCount(); ++i) {
-                    final LinearLayout row = (LinearLayout) mBoomConent.getChildAt(i);
+                    final LinearLayout row = getChipRow(i);
+                    if (row == null) {
+                        continue;
+                    }
                     for (int j = 0; j < row.getChildCount(); ++j) {
                         View child = row.getChildAt(j);
                         if (child.getTag() instanceof BoomChip) {
@@ -356,6 +382,11 @@ public class BoomChipPage {
             }
         }
         return false;
+    }
+
+    private LinearLayout getChipRow(int index) {
+        final View child = mBoomConent.getChildAt(index);
+        return child instanceof LinearLayout ? (LinearLayout) child : null;
     }
 
     private void updateAdjacentPull(float offset) {

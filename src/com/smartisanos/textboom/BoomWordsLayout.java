@@ -89,11 +89,11 @@ public class BoomWordsLayout {
             int curPuncStart = puncIndexStart == segment.length ? text.length() : segment[puncIndexStart];
             if (curWordStart < curPuncStart) {
                 if (curWordStart > wordIndexStart) {
-                    int garbageDiff = curWordStart - wordIndexStart;
+                    int removedDiff = appendFilteredGap(newText, text, wordIndexStart, curWordStart);
                     if (touchedIndex > curWordStart) {
-                        touchIndexOffset += garbageDiff;
+                        touchIndexOffset += removedDiff;
                     }
-                    garbageOffset += garbageDiff;
+                    garbageOffset += removedDiff;
                 } else if (curWordStart < wordIndexStart) {
                     Log.e(TAG, "Something wrong with rebuild segment curWordStart=" + curWordStart + ", wordIndexStart=" + wordIndexStart);
                     return false;
@@ -104,11 +104,11 @@ public class BoomWordsLayout {
                 newText.append(text.substring(segment[i], segment[i + 1] + 1));
             } else {
                 if (curPuncStart > wordIndexStart) {
-                    int garbageDiff = curPuncStart - wordIndexStart;
+                    int removedDiff = appendFilteredGap(newText, text, wordIndexStart, curPuncStart);
                     if (touchedIndex > curPuncStart) {
-                        touchIndexOffset += garbageDiff;
+                        touchIndexOffset += removedDiff;
                     }
-                    garbageOffset += garbageDiff;
+                    garbageOffset += removedDiff;
                 } else if (curPuncStart < wordIndexStart) {
                     Log.e(TAG, "Something wrong with rebuild segment curPuncStart=" + curPuncStart + ", wordIndexStart=" + wordIndexStart);
                     return false;
@@ -123,8 +123,9 @@ public class BoomWordsLayout {
             for (int i = puncIndexStart; i < segment.length; i += 2) {
                 int curPuncStart = segment[i];
                 if (curPuncStart > wordIndexStart) {
+                    int removedDiff = appendFilteredGap(newText, text, wordIndexStart, curPuncStart);
                     if (touchedIndex > curPuncStart) {
-                        touchIndexOffset += curPuncStart - wordIndexStart;
+                        touchIndexOffset += removedDiff;
                     }
                 } else if (curPuncStart < wordIndexStart) {
                     Log.e(TAG, "Something wrong with add ending punc curPuncStart=" + curPuncStart + ", wordIndexStart=" + wordIndexStart);
@@ -135,6 +136,18 @@ public class BoomWordsLayout {
             }
         }
         return layoutWordsAfterFilter(newSeg, newText.toString(), touchedIndex - touchIndexOffset);
+    }
+
+    private int appendFilteredGap(StringBuilder newText, String text, int start, int end) {
+        int preserved = 0;
+        for (int i = start; i < end; ++i) {
+            char ch = text.charAt(i);
+            if (ch == '\n') {
+                newText.append(ch);
+                ++preserved;
+            }
+        }
+        return (end - start) - preserved;
     }
 
     private boolean layoutWordsAfterFilter(int[] segment, String text, int touchedIndex) {
