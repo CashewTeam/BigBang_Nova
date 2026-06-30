@@ -58,6 +58,7 @@ class FloatingBallService : Service() {
     private var downY = 0
     private var lastTapAt = 0L
     private var capsuleBackgroundVisible = true
+    private var lastSafeArea: Rect? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -94,6 +95,11 @@ class FloatingBallService : Service() {
             ACTION_RESET_POSITION -> resetPositionNow()
         }
         return START_STICKY
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        realignForConfigurationChange()
     }
 
     override fun onDestroy() {
@@ -195,6 +201,7 @@ class FloatingBallService : Service() {
 
                 if (mode == MODE_RELOCATE) {
                     saveCurrentPositionAsAnchor()
+                    updateBubbleLayout()
                     mode = MODE_IDLE
                 } else {
                     val bubbleCenter = getBubbleIconCenterOnScreen()
@@ -265,7 +272,15 @@ class FloatingBallService : Service() {
 
     private fun dockToNearestSide(centerX: Int, y: Int) {
         val safeArea = getSafeArea()
-        dockToSide(if (centerX < safeArea.centerX()) DOCK_LEFT else DOCK_RIGHT, y)
+        val width = safeArea.width().toFloat()
+        val leftSwitchBoundary = safeArea.left + (width * EDGE_SWITCH_REGION_RATIO).roundToInt()
+        val rightSwitchBoundary = safeArea.right - (width * EDGE_SWITCH_REGION_RATIO).roundToInt()
+        val targetSide = when {
+            centerX <= leftSwitchBoundary -> DOCK_LEFT
+            centerX >= rightSwitchBoundary -> DOCK_RIGHT
+            else -> dockedSide
+        }
+        dockToSide(targetSide, y)
     }
 
     private fun dockToSide(side: Int, y: Int) {
@@ -284,7 +299,26 @@ class FloatingBallService : Service() {
         anchorX = layoutParams.x
         anchorY = layoutParams.y
         anchorInitialized = true
+        lastSafeArea = Rect(safeArea)
         updateBubbleChrome()
+    }
+
+    private fun realignForConfigurationChange() {
+        if (!::layoutParams.isInitialized || bubbleView == null) return
+        val previousSafeArea = lastSafeArea ?: getSafeArea()
+        val previousRange = (previousSafeArea.height() - layoutParams.height).coerceAtLeast(0)
+        val verticalRatio = if (previousRange == 0) {
+            0f
+        } else {
+            ((anchorY - previousSafeArea.top).toFloat() / previousRange).coerceIn(0f, 1f)
+        }
+        val newSafeArea = getSafeArea()
+        val newRange = (newSafeArea.height() - bubbleSizePx()).coerceAtLeast(0)
+        val newY = newSafeArea.top + (newRange * verticalRatio).roundToInt()
+        setCapsuleBackgroundVisible(true)
+        dockToSide(dockedSide, newY)
+        bubbleView?.alpha = idleAlpha()
+        updateBubbleLayout()
     }
 
     @Suppress("DEPRECATION")
@@ -408,6 +442,7 @@ class FloatingBallService : Service() {
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80
         private const val CAPSULE_WIDTH_RATIO = 1.45f
+        private const val EDGE_SWITCH_REGION_RATIO = 0.30f
         private const val DEFAULT_ANCHOR_X = 0
         private const val DEFAULT_ANCHOR_Y = 280
         private const val DEFAULT_TOP_MARGIN_PX = 220
