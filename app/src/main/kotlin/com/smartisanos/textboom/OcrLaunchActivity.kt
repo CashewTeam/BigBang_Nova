@@ -43,6 +43,7 @@ class OcrLaunchActivity : Activity() {
     private var pendingOcrSelectionLaunch = false
     private var ocrSelectionLaunched = false
     private var callerPackage: String? = null
+    private var enableAdjacentSession = false
     private var traceEnabled = false
     private var traceId = UUID.randomUUID().toString().take(8)
 
@@ -54,6 +55,7 @@ class OcrLaunchActivity : Activity() {
         captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
         pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty()
         callerPackage = intent.getStringExtra("caller_pkg")
+        enableAdjacentSession = intent.getBooleanExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, false)
         traceEnabled = intent.getBooleanExtra(EXTRA_CAPTURE_TRACE_ENABLED, false)
         traceId = intent.getStringExtra(EXTRA_CAPTURE_TRACE_ID)?.takeIf { it.isNotBlank() }
             ?: traceId
@@ -62,12 +64,9 @@ class OcrLaunchActivity : Activity() {
             touchY = readTouchCoordinate("boom_starty", false)
             return
         }
-        setContentView(R.layout.boom_ocr_launch_layout)
-        loopAnimFrame = findViewById(R.id.anim_loop)
-        loopRotateImage = findViewById(R.id.loop_rotate)
-        contentFrame = findViewById(R.id.click_layout)
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
+        ensureLaunchUi()
         if (pendingOcrSelectionLaunch) {
             loopRotateImage?.visibility = View.INVISIBLE
             loopAnimFrame?.visibility = View.INVISIBLE
@@ -75,23 +74,6 @@ class OcrLaunchActivity : Activity() {
         }
         captureRequested = intent.getBooleanExtra(EXTRA_CAPTURE_ACCESSIBILITY, false)
         pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
-
-        contentFrame?.setOnClickListener {
-            cancelled = true
-            finish()
-        }
-        loopRotateImage?.visibility = View.INVISIBLE
-        loopAnimFrame?.visibility = View.INVISIBLE
-        loopAnimFrame?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            if (touchAnimating || launched || cancelled) {
-                return@addOnLayoutChangeListener
-            }
-            loopAnimFrame?.post {
-                loopAnimFrame?.translationX = touchX - (right - left) / 2f
-                loopAnimFrame?.translationY = touchY - (bottom - top) / 2f
-                startTouchBoomAnimation()
-            }
-        }
         if (captureRequested) {
             startAccessibilityCapture()
         }
@@ -246,7 +228,7 @@ class OcrLaunchActivity : Activity() {
                 replaceExtras(this@OcrLaunchActivity.intent)
                 putExtra(Intent.EXTRA_TEXT, text)
                 putExtra(EXTRA_SKIP_LEGACY_FADE_IN, true)
-                putExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, captureRequested)
+                putExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, enableAdjacentSession || captureRequested)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             },
         )
@@ -337,16 +319,9 @@ class OcrLaunchActivity : Activity() {
                         source = "ocr",
                         debugMessage = "channel=ocr; paragraphs=${paragraphs.size}; initial=1",
                     )
-                    BoomActivityLauncher.openText(
-                        context = this,
-                        text = nearestMatch.text,
-                        touchX = touchX.toInt(),
-                        touchY = touchY.toInt(),
-                        isPreview = false,
-                        animateLaunch = false,
-                        enableAdjacentSession = true,
-                    )
-                    finish()
+                    enableAdjacentSession = true
+                    pendingText = nearestMatch.text
+                    ensureLaunchUi()
                 }
                 .addOnFailureListener(this) { throwable ->
                     prepared.bitmap.recycle()
@@ -356,6 +331,32 @@ class OcrLaunchActivity : Activity() {
                         finish()
                     }
                 }
+        }
+    }
+
+    private fun ensureLaunchUi() {
+        if (contentFrame != null) {
+            return
+        }
+        setContentView(R.layout.boom_ocr_launch_layout)
+        loopAnimFrame = findViewById(R.id.anim_loop)
+        loopRotateImage = findViewById(R.id.loop_rotate)
+        contentFrame = findViewById(R.id.click_layout)
+        contentFrame?.setOnClickListener {
+            cancelled = true
+            finish()
+        }
+        loopRotateImage?.visibility = View.INVISIBLE
+        loopAnimFrame?.visibility = View.INVISIBLE
+        loopAnimFrame?.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+            if (touchAnimating || launched || cancelled) {
+                return@addOnLayoutChangeListener
+            }
+            loopAnimFrame?.post {
+                loopAnimFrame?.translationX = touchX - (right - left) / 2f
+                loopAnimFrame?.translationY = touchY - (bottom - top) / 2f
+                startTouchBoomAnimation()
+            }
         }
     }
 
