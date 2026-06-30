@@ -68,30 +68,6 @@ object BigBangCaptureDispatcher {
             )
             return
         }
-        val usageAccessEnabled = ForegroundAppResolver.hasUsageAccess(context)
-        if (!usageAccessEnabled) {
-            logTrace(
-                enabled = traceEnabled,
-                traceId = traceId,
-                lines = listOf(
-                    "phase=dispatcher",
-                    "touch=($touchX,$touchY)",
-                    "accessibility=true",
-                    "usageAccess=false",
-                    "foregroundPackage=unknown",
-                    "whitelistHit=false",
-                    "route=blocked",
-                    "reason=usage_access_missing",
-                ),
-            )
-            Toast.makeText(context, R.string.usage_access_missing_message, Toast.LENGTH_SHORT).show()
-            context.startActivity(
-                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-            return
-        }
         val foregroundPackage = ForegroundAppResolver.resolveForegroundPackage(context)
         if (foregroundPackage.isNullOrBlank()) {
             logTrace(
@@ -101,7 +77,7 @@ object BigBangCaptureDispatcher {
                     "phase=dispatcher",
                     "touch=($touchX,$touchY)",
                     "accessibility=true",
-                    "usageAccess=true",
+                    "usageAccess=skipped",
                     "foregroundPackage=unknown",
                     "whitelistHit=false",
                     "route=blocked",
@@ -120,7 +96,7 @@ object BigBangCaptureDispatcher {
                     "phase=dispatcher",
                     "touch=($touchX,$touchY)",
                     "accessibility=true",
-                    "usageAccess=true",
+                    "usageAccess=skipped",
                     "foregroundPackage=$foregroundPackage",
                     "whitelistHit=true",
                     "route=ocr",
@@ -144,7 +120,7 @@ object BigBangCaptureDispatcher {
                 "phase=dispatcher",
                 "touch=($touchX,$touchY)",
                 "accessibility=true",
-                "usageAccess=true",
+                "usageAccess=skipped",
                 "foregroundPackage=$foregroundPackage",
                 "whitelistHit=false",
                 "route=accessibility",

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.graphics.Rect
 import android.net.Uri
+import android.util.DisplayMetrics
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
@@ -26,6 +27,8 @@ object MlKitOcrEngine {
     private const val SCALE_SCREENSHOT = 2
     private const val MIN_GROUP_GAP_PX = 24
     private const val SAME_COLUMN_TOLERANCE_PX = 72
+    private const val BELOW_TOUCH_PENALTY_MULTIPLIER = 4.0
+    private const val PARAGRAPH_MERGE_LINE_GAP_MULTIPLIER = 1.15
 
     data class PreparedBitmap(
         val bitmap: Bitmap,
@@ -38,6 +41,7 @@ object MlKitOcrEngine {
         val bounds: Rect,
         val distanceSquared: Double,
         val blockCount: Int,
+        val score: Double,
     )
 
     @JvmStatic
@@ -84,13 +88,14 @@ object MlKitOcrEngine {
                 touchY = touchY.coerceIn(0, (sourceHeight - 1).coerceAtLeast(0)),
             )
         }
-        val w = context.resources.getInteger(R.integer.screen_width)
-        val h = context.resources.getInteger(R.integer.screen_height)
+        val displayMetrics = context.resources.displayMetrics
+        val w = displayMetrics.widthPixels.coerceAtLeast(1)
+        val h = displayMetrics.heightPixels.coerceAtLeast(1)
         val scaleX = sourceWidth / w.toFloat()
         val scaleY = sourceHeight / h.toFloat()
         fun sourceX(value: Int): Int = (value * scaleX).roundToInt()
         fun sourceY(value: Int): Int = (value * scaleY).roundToInt()
-        val statusBarHeight = context.resources.getInteger(R.integer.status_bar_height)
+        val statusBarHeight = systemStatusBarHeight(context, displayMetrics)
         var top = sourceY(statusBarHeight)
         var bottom = 0
         var left = 0
@@ -135,8 +140,8 @@ object MlKitOcrEngine {
         if (aw <= 0 || ah <= 0) {
             return PreparedBitmap(
                 bitmap = screenshot,
-                touchX = touchX.coerceIn(0, (screenshot.width - 1).coerceAtLeast(0)),
-                touchY = touchY.coerceIn(0, (screenshot.height - 1).coerceAtLeast(0)),
+                touchX = sourceX(touchX).coerceIn(0, (sourceWidth - 1).coerceAtLeast(0)),
+                touchY = sourceY(touchY).coerceIn(0, (sourceHeight - 1).coerceAtLeast(0)),
             )
         }
         val bitmap = Bitmap.createBitmap(aw, ah, Bitmap.Config.ARGB_8888)
@@ -187,8 +192,26 @@ object MlKitOcrEngine {
                 groups += OcrGroup(block)
             }
         }
-        return groups.minByOrNull { distanceSquared(it.bounds, touchX.toDouble(), touchY.toDouble()) }
-            ?.toMatch(touchX, touchY)
+        return groups.map { group ->
+            group.toMatch(
+                touchX = touchX,
+                touchY = touchY,
+                score = adjustedScore(group, touchX, touchY),
+            )
+        }.minByOrNull { it.score }
+    }
+
+    private fun adjustedScore(
+        group: OcrGroup,
+        touchX: Int,
+        touchY: Int,
+    ): Double {
+        var score = distanceSquared(group.bounds, touchX.toDouble(), touchY.toDouble())
+        if (group.bounds.top > touchY) {
+            val belowDelta = (group.bounds.top - touchY).toDouble()
+            score += belowDelta * belowDelta * BELOW_TOUCH_PENALTY_MULTIPLIER
+        }
+        return score
     }
 
     private fun shouldMerge(
@@ -196,7 +219,11 @@ object MlKitOcrEngine {
         block: OcrRawBlock,
     ): Boolean {
         val gap = block.bounds.top - group.bounds.bottom
-        if (gap > max(MIN_GROUP_GAP_PX, group.averageHeight)) {
+        val mergeGapLimit = max(
+            MIN_GROUP_GAP_PX.toDouble(),
+            group.averageLineHeight * PARAGRAPH_MERGE_LINE_GAP_MULTIPLIER,
+        )
+        if (gap > mergeGapLimit) {
             return false
         }
         val sameColumn = kotlin.math.abs(block.bounds.left - group.anchorLeft) <= SAME_COLUMN_TOLERANCE_PX
@@ -207,24 +234,34 @@ object MlKitOcrEngine {
     private data class OcrRawBlock(
         val text: String,
         val bounds: Rect,
-    )
+    ) {
+        val lineCount: Int = text.count { it == '\n' } + 1
+        val averageLineHeight: Double =
+            bounds.height().toDouble() / lineCount.coerceAtLeast(1).toDouble()
+    }
 
     private class OcrGroup(first: OcrRawBlock) {
         private val parts = mutableListOf(first)
         val bounds = Rect(first.bounds)
         var anchorLeft = first.bounds.left
             private set
-        var averageHeight = first.bounds.height()
+        var averageLineHeight = first.averageLineHeight
             private set
+        val blockCount: Int
+            get() = parts.size
 
         fun add(block: OcrRawBlock) {
             parts += block
             bounds.union(block.bounds)
             anchorLeft = ((anchorLeft * (parts.size - 1)) + block.bounds.left) / parts.size
-            averageHeight = parts.map { it.bounds.height() }.average().toInt().coerceAtLeast(1)
+            averageLineHeight = parts.map { it.averageLineHeight }.average()
         }
 
-        fun toMatch(touchX: Int, touchY: Int): NearestTextBlockMatch {
+        fun toMatch(
+            touchX: Int,
+            touchY: Int,
+            score: Double,
+        ): NearestTextBlockMatch {
             val text = buildString {
                 parts.forEachIndexed { index, part ->
                     if (index > 0) {
@@ -243,6 +280,7 @@ object MlKitOcrEngine {
                 bounds = Rect(bounds),
                 distanceSquared = distanceSquared(bounds, touchX.toDouble(), touchY.toDouble()),
                 blockCount = parts.size,
+                score = score,
             )
         }
     }
@@ -270,5 +308,16 @@ object MlKitOcrEngine {
         val dx = touchX - nearestX
         val dy = touchY - nearestY
         return dx * dx + dy * dy
+    }
+
+    private fun systemStatusBarHeight(
+        context: Context,
+        displayMetrics: DisplayMetrics,
+    ): Int {
+        val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId != 0) {
+            return context.resources.getDimensionPixelSize(resourceId)
+        }
+        return (24f * displayMetrics.density).roundToInt()
     }
 }

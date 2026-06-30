@@ -12,8 +12,8 @@ android {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 29
         targetSdk = 34
-        versionCode = 102
-        versionName = "1.9.3"
+        versionCode = 107
+        versionName = "1.9.8"
 
         ndk {
             abiFilters += "arm64-v8a"

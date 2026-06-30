@@ -375,6 +375,7 @@ class OcrLaunchActivity : Activity() {
         NovaTextLogger.d("trace[$traceId] selectedBounds=${formatBounds(nearestMatch.bounds)}")
         NovaTextLogger.d("trace[$traceId] selectedDistance=${nearestMatch.distanceSquared}")
         NovaTextLogger.d("trace[$traceId] selectedBlockCount=${nearestMatch.blockCount}")
+        NovaTextLogger.d("trace[$traceId] selectedScore=${nearestMatch.score}")
     }
 
     private fun formatBounds(bounds: android.graphics.Rect?): String {
