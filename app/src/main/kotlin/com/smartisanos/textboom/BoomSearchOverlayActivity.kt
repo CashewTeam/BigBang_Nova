@@ -757,7 +757,7 @@ private fun buildSearchUrl(type: Int, text: String): String {
         BigBangSettings.TYPE_KINGSOFT -> "https://www.iciba.com/$query"
         BigBangSettings.TYPE_BINGDICT -> "https://cn.bing.com/dict/?q=$query"
         BigBangSettings.TYPE_HIDICT -> "https://m.dict.cn/$query"
-        BigBangSettings.TYPE_BAIDU_TRANSLATE -> "https://fanyi.baidu.com/#auto/zh/$query"
+        BigBangSettings.TYPE_BAIDU_TRANSLATE -> "https://fanyi.baidu.com/mtpe-individual/transText?query=${query}"
         BigBangSettings.TYPE_BING_TRANSLATE -> "https://www.bing.com/translator?from=auto&to=zh-Hans&text=$query"
         BigBangSettings.TYPE_GOOGLE_TRANSLATE -> "https://translate.google.com/?sl=auto&tl=zh-CN&text=$query&op=translate"
         else -> "https://www.baidu.com/s?wd=$query"
