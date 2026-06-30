@@ -57,6 +57,35 @@ public class CustomScrollView extends ScrollView{
     }
 
     @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (!mEdgeDragEnabled) {
+            return super.onInterceptTouchEvent(ev);
+        }
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                mLastY = ev.getY();
+                resetEdgeDrag(false);
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (mEdgeDragging) {
+                    return true;
+                }
+                float dy = ev.getY() - mLastY;
+                if (Math.abs(dy) >= mTouchSlop && shouldStartEdgeDrag(dy)) {
+                    return true;
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                resetEdgeDrag(false);
+                break;
+            default:
+                break;
+        }
+        return super.onInterceptTouchEvent(ev);
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent ev) {
         if (!mEdgeDragEnabled) {
             return super.onTouchEvent(ev);

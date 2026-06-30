@@ -10,11 +10,12 @@
     <com.cashewteam.novatext.android.CustomScrollView
         android:id="@+id/boom_scroller"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_gravity="center_vertical"
         android:layout_marginBottom="@dimen/table_margin_bottom"
         android:layout_marginTop="@dimen/table_margin_top"
-        android:clipChildren="false">
+        android:clipChildren="false"
+        android:fillViewport="true">
 
         <FrameLayout
             android:id="@+id/boom_table"
