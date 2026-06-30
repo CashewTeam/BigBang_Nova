@@ -375,9 +375,9 @@ class FloatingBallService : Service() {
         }
         bubbleIconView?.layoutParams = FrameLayout.LayoutParams(iconSizePx, iconSizePx).apply {
             gravity = if (dockedSide == DOCK_LEFT) {
-                Gravity.START or Gravity.CENTER_VERTICAL
-            } else {
                 Gravity.END or Gravity.CENTER_VERTICAL
+            } else {
+                Gravity.START or Gravity.CENTER_VERTICAL
             }
         }
     }
