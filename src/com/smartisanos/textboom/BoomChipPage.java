@@ -423,12 +423,15 @@ public class BoomChipPage {
     }
 
     private void applyContentOffset(float offset) {
-        mScroller.setTranslationY(offset);
+        mScroller.setTranslationY(0f);
+        mBoomTable.setTranslationY(offset);
     }
 
     private void animateContentOffset(float offset) {
         mAdjacentOffset = offset;
-        mScroller.animate()
+        mScroller.animate().cancel();
+        mScroller.setTranslationY(0f);
+        mBoomTable.animate()
                 .translationY(offset)
                 .setDuration(180L)
                 .setListener(new AnimatorListenerAdapter() {
@@ -449,10 +452,11 @@ public class BoomChipPage {
         if (viewportHeight <= 0 || contentHeight <= 0) {
             return;
         }
-        int availableHeight = viewportHeight - (mScrollerBaseInset * 2);
+        int symmetricBaseInset = Math.max(mTableBasePaddingTop, mTableBasePaddingBottom);
+        int availableHeight = viewportHeight - (mScrollerBaseInset * 2) - (symmetricBaseInset * 2);
         int extraInset = Math.max(0, (availableHeight - contentHeight) / 2);
-        int targetTableTop = mTableBasePaddingTop + extraInset;
-        int targetTableBottom = mTableBasePaddingBottom + extraInset;
+        int targetTableTop = symmetricBaseInset + extraInset;
+        int targetTableBottom = symmetricBaseInset + extraInset;
         if (mBoomTable.getPaddingTop() == targetTableTop && mBoomTable.getPaddingBottom() == targetTableBottom) {
             return;
         }

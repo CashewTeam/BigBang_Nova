@@ -27,6 +27,8 @@ public class SwipeSelectView extends LinearLayout {
     private boolean mIsSelected;
     private BoomChipPage mBoomPage;
     private boolean mDragStarted;
+    private boolean mDeferInitialSelectionVisual;
+    private boolean mVisualSelectionApplied;
     private int mAutoScrollTop;
     private int mAutoScrollBottom;
     private int mAutoScrollVelocity;
@@ -74,19 +76,14 @@ public class SwipeSelectView extends LinearLayout {
         final float y = ev.getY();
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                mDeferInitialSelectionVisual = isAtScrollEdge();
+                mVisualSelectionApplied = false;
                 BoomChip touchedChip = findChip(x, y, false);
                 if (touchedChip != null) {
                     initSelection(touchedChip.index);
                     mIsSelected = !touchedChip.word.isSelected();
-                    if (mIsSelected) {
-                        touchedChip.setSelected(mIsSelected);
-                        if (!mBoomPage.mBoomActionHandler.hasSelection() && SidebarUtils.isSidebarShowing(getContext())) {
-                            mDragText = touchedChip.word.getText().toString();
-                            postDelayed(mStartDrag, ViewConfiguration.getLongPressTimeout());
-                        }
-                    } else if (SidebarUtils.isSidebarShowing(getContext())) {
-                        mDragText = mBoomPage.mBoomActionHandler.getSelectedText();
-                        postDelayed(mStartDrag, ViewConfiguration.getLongPressTimeout());
+                    if (!mDeferInitialSelectionVisual) {
+                        applyInitialSelectionVisual(touchedChip);
                     }
                 } else {
                     initSelection(-1);
@@ -98,6 +95,7 @@ public class SwipeSelectView extends LinearLayout {
                     scrollIfNeeded((int) y - mBoomPage.mScroller.getScrollY());
                     touchedChip = findChip(x, y, mSelEnd > mSelStart);
                     if (touchedChip != null && touchedChip.index != mLastTouchIndex) {
+                        mVisualSelectionApplied = true;
                         requestDisallowInterceptTouchEvent(true);
                         removeCallbacks(mStartDrag);
                         mLastTouchIndex = touchedChip.index;
@@ -135,17 +133,21 @@ public class SwipeSelectView extends LinearLayout {
                     }
                 }
                 mAutoScrollVelocity = 0;
+                mDeferInitialSelectionVisual = false;
+                mVisualSelectionApplied = false;
                 break;
             case MotionEvent.ACTION_CANCEL:
                 removeCallbacks(mStartDrag);
                 requestDisallowInterceptTouchEvent(false);
-                if (mSelStart != -1 && mSelStart == mSelEnd) {
+                if (mVisualSelectionApplied && mSelStart != -1 && mSelStart == mSelEnd) {
                     if (!mDragStarted || !mBoomPage.mBoomActionHandler.hasSelection()) {
                         performSelect(!mIsSelected);
                     }
                 }
                 mDragStarted = false;
                 mAutoScrollVelocity = 0;
+                mDeferInitialSelectionVisual = false;
+                mVisualSelectionApplied = false;
                 break;
             default:
                 removeCallbacks(mStartDrag);
@@ -180,6 +182,24 @@ public class SwipeSelectView extends LinearLayout {
         mSelEnd = value;
         mStartIndex = value;
         mLastTouchIndex = value;
+    }
+
+    private void applyInitialSelectionVisual(BoomChip touchedChip) {
+        mVisualSelectionApplied = true;
+        if (mIsSelected) {
+            touchedChip.setSelected(true);
+            if (!mBoomPage.mBoomActionHandler.hasSelection() && SidebarUtils.isSidebarShowing(getContext())) {
+                mDragText = touchedChip.word.getText().toString();
+                postDelayed(mStartDrag, ViewConfiguration.getLongPressTimeout());
+            }
+        } else if (SidebarUtils.isSidebarShowing(getContext())) {
+            mDragText = mBoomPage.mBoomActionHandler.getSelectedText();
+            postDelayed(mStartDrag, ViewConfiguration.getLongPressTimeout());
+        }
+    }
+
+    private boolean isAtScrollEdge() {
+        return !mBoomPage.mScroller.canScrollVertically(-1) || !mBoomPage.mScroller.canScrollVertically(1);
     }
 
     private void performSelect(boolean isSelected) {
