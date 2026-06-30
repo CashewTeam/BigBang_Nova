@@ -333,32 +333,56 @@ private class ParagraphWindow(
         get() = end >= 0 && end < paragraphs.lastIndex
 
     fun peek(direction: String): CaptureTextBlockContract? {
-        val targetIndex = when (direction) {
-            "before" -> if (hasPrevious) start - 1 else -1
-            "after" -> if (hasNext) end + 1 else -1
-            else -> -1
-        }
-        return paragraphs.getOrNull(targetIndex)
+        return mergeAdjacent(collectAdjacent(direction))
     }
 
     fun load(direction: String): Boolean {
-        val changed = when (direction) {
-            "before" -> if (hasPrevious) {
-                start -= 1
-                true
-            } else {
-                false
-            }
-            "after" -> if (hasNext) {
-                end += 1
-                true
-            } else {
-                false
-            }
-            else -> false
+        val adjacent = collectAdjacent(direction)
+        if (adjacent.isEmpty()) return false
+        when (direction) {
+            "before" -> start -= adjacent.size
+            "after" -> end += adjacent.size
+            else -> return false
         }
-        if (changed) revision += 1
-        return changed
+        revision += 1
+        return true
+    }
+
+    private fun collectAdjacent(direction: String): List<CaptureTextBlockContract> {
+        val result = mutableListOf<CaptureTextBlockContract>()
+        while (result.size < MAX_SHORT_ADJACENT_PARAGRAPHS) {
+            val index = when (direction) {
+                "before" -> start - result.size - 1
+                "after" -> end + result.size + 1
+                else -> return emptyList()
+            }
+            val block = paragraphs.getOrNull(index) ?: break
+            result += block
+            if (readableLength(block.text) >= SHORT_PARAGRAPH_CHAR_THRESHOLD) break
+        }
+        return result
+    }
+
+    private fun mergeAdjacent(blocks: List<CaptureTextBlockContract>): CaptureTextBlockContract? {
+        if (blocks.isEmpty()) return null
+        val ordered = blocks.sortedWith(compareBy<CaptureTextBlockContract> { it.top }.thenBy { it.left })
+        return CaptureTextBlockContract(
+            text = ordered.joinToString("\n\n") { it.text },
+            left = ordered.minOf { it.left },
+            top = ordered.minOf { it.top },
+            right = ordered.maxOf { it.right },
+            bottom = ordered.maxOf { it.bottom },
+            confidence = ordered.maxOfOrNull { it.confidence } ?: 1.0,
+        )
+    }
+
+    private fun readableLength(text: String): Int {
+        return text.count { !it.isWhitespace() }
+    }
+
+    private companion object {
+        const val SHORT_PARAGRAPH_CHAR_THRESHOLD = 25
+        const val MAX_SHORT_ADJACENT_PARAGRAPHS = 3
     }
 }
 
