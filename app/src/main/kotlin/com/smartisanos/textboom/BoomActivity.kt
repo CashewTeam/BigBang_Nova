@@ -203,7 +203,11 @@ class BoomActivity : ComponentActivity() {
                         adjacentText = adjacentText,
                         adjacentSegment = adjacentSegment,
                     )
-                    val replaced = boomChipPage?.replaceWords(merged.segment, merged.text) == true
+                    val replaced = boomChipPage?.replaceWords(
+                        merged.segment,
+                        merged.text,
+                        merged.targetWordIndex,
+                    ) == true
                     if (!replaced) {
                         boomChipPage?.finishAdjacentPull()
                         return@runOnUiThread
@@ -237,6 +241,7 @@ class BoomActivity : ComponentActivity() {
                     second = baseSegment,
                     secondOffset = adjacentText.length + separator.length,
                 ),
+                targetWordIndex = 0,
             )
         } else {
             SegmentedText(
@@ -247,8 +252,13 @@ class BoomActivity : ComponentActivity() {
                     second = adjacentSegment,
                     secondOffset = baseText.length + separator.length,
                 ),
+                targetWordIndex = wordCount(baseSegment),
             )
         }
+    }
+
+    private fun wordCount(segment: IntArray): Int {
+        return splitSegment(segment).words.size / 2
     }
 
     private fun mergeSegments(
@@ -292,6 +302,7 @@ class BoomActivity : ComponentActivity() {
     private data class SegmentedText(
         val text: String,
         val segment: IntArray,
+        val targetWordIndex: Int,
     )
 
     override fun onSaveInstanceState(outState: Bundle) {

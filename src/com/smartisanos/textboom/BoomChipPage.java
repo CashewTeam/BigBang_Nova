@@ -296,20 +296,33 @@ public class BoomChipPage {
         mOnAdjacentRequestListener = listener;
     }
 
-    public boolean replaceWords(int[] segment, String text) {
+    public boolean replaceWords(int[] segment, String text, int targetWordIndex) {
         if (mBoomActionHandler != null) {
             mBoomActionHandler.handleClick();
         }
         mSavedData = null;
         mBoomConent.removeAllViews();
-        mScroller.scrollTo(0, 0);
         if (!mLayout.layoutWords(segment, text, -1)) {
             finishAdjacentPull();
             return false;
         }
         initChips(false);
+        scrollToWord(targetWordIndex);
         finishAdjacentPull();
         return true;
+    }
+
+    private void scrollToWord(final int wordIndex) {
+        if (wordIndex < 0 || wordIndex >= mLayout.getWordCount()) {
+            mScroller.scrollTo(0, 0);
+            return;
+        }
+        mScroller.post(new Runnable() {
+            @Override
+            public void run() {
+                mScroller.scrollTo(0, getRowTop(mLayout.getRowForIndex(wordIndex)));
+            }
+        });
     }
 
     public void finishAdjacentPull() {
