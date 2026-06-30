@@ -32,6 +32,7 @@ public class BoomChipPage {
     final View mCancel;
     final View mBoomPage;
     final BoomActionHandler mBoomActionHandler;
+    final View.OnClickListener mDismissClickListener;
 
     private final SwipeSelectView mBoomConent;
     private final boolean mEnableLegacyMask;
@@ -110,30 +111,19 @@ public class BoomChipPage {
         }
         mLayout = new BoomWordsLayout(mActivity);
         mBoomConent.setBoomPage(this);
-        mBoomPage.setOnClickListener(new View.OnClickListener() {
+        mDismissClickListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!handleClick()) {
                     mActivity.finish();
                 }
             }
-        });
-        mBoomTable.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!handleClick()) {
-                    mActivity.finish();
-                }
-            }
-        });
-        mCancel.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!handleClick()) {
-                    mActivity.finish();
-                }
-            }
-        });
+        };
+        mBoomPage.setOnClickListener(mDismissClickListener);
+        mBoomTable.setOnClickListener(mDismissClickListener);
+        mScroller.setOnClickListener(mDismissClickListener);
+        mBoomConent.setOnClickListener(mDismissClickListener);
+        mCancel.setOnClickListener(mDismissClickListener);
         mBoomActionHandler = new BoomActionHandler(this, mEnableLegacyMask);
         mScroller.setOnScrollListener(mBoomActionHandler);
     }
