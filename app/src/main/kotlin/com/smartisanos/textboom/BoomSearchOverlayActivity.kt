@@ -85,6 +85,7 @@ import androidx.core.view.WindowCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.cashewteam.novatext.android.data.BigBangSettings
+import com.cashewteam.novatext.android.service.FloatingBallService
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -109,6 +110,17 @@ class BoomSearchOverlayActivity : ComponentActivity() {
                 onOpenSettings = { startActivity(Intent(this, TextBoomSettingsActivity::class.java)) },
             )
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        FloatingBallService.clearCaptureLaunchSuppression()
+        FloatingBallService.setSearchOverlayVisible(true)
+    }
+
+    override fun onStop() {
+        FloatingBallService.setSearchOverlayVisible(false)
+        super.onStop()
     }
 
     companion object {

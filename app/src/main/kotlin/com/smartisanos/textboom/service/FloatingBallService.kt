@@ -430,7 +430,7 @@ class FloatingBallService : Service() {
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
         val bubble = bubbleView ?: return
         bubble.animate()?.cancel()
-        if (isVisibilitySuppressed()) {
+        if (shouldHideBubble()) {
             bubble.visibility = View.INVISIBLE
             bubble.alpha = 0f
             bubble.scaleX = BUBBLE_APPEAR_START_SCALE
@@ -656,6 +656,13 @@ class FloatingBallService : Service() {
             releaseVisibilitySuppression(token)
         }
 
+        fun setSearchOverlayVisible(visible: Boolean) {
+            searchOverlayVisible = visible
+            activeService?.bubbleHandler?.post {
+                activeService?.applyVisibilitySuppressionState()
+            }
+        }
+
         fun releaseVisibilitySuppression(token: Int?) {
             if (token == null) return
             val service = activeService
@@ -671,11 +678,24 @@ class FloatingBallService : Service() {
             return synchronized(this) { visibilitySuppressionTokens.isNotEmpty() }
         }
 
+        private fun shouldHideBubble(): Boolean {
+            if (lastScreenshotSuppressionToken != null || pendingLaunchSuppressionToken != null) {
+                return true
+            }
+            if (searchOverlayVisible) {
+                return false
+            }
+            return isVisibilitySuppressed()
+        }
+
         @Volatile
         private var lastScreenshotSuppressionToken: Int? = null
 
         @Volatile
         private var pendingLaunchSuppressionToken: Int? = null
+
+        @Volatile
+        private var searchOverlayVisible = false
 
         private fun prepare(context: Context) {
             if (prepared) return
