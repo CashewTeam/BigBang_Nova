@@ -463,7 +463,7 @@ class FloatingBallService : Service() {
             cornerRadius = iconSizePx / 2f
             setColor(
                 if (capsuleBackgroundVisible && !isLandscape()) {
-                    if (isNightMode()) CAPSULE_DARK_COLOR else CAPSULE_LIGHT_COLOR
+                    CAPSULE_BACKGROUND_COLOR
                 } else {
                     Color.TRANSPARENT
                 },
@@ -482,11 +482,6 @@ class FloatingBallService : Service() {
         if (capsuleBackgroundVisible == visible) return
         capsuleBackgroundVisible = visible
         updateBubbleChrome()
-    }
-
-    private fun isNightMode(): Boolean {
-        return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
     }
 
     private fun isLandscape(): Boolean {
@@ -512,8 +507,7 @@ class FloatingBallService : Service() {
         private const val DEFAULT_TOP_MARGIN_PX = 220
         private const val DOCK_LEFT = 0
         private const val DOCK_RIGHT = 1
-        private val CAPSULE_LIGHT_COLOR = Color.argb(150, 245, 247, 250)
-        private val CAPSULE_DARK_COLOR = Color.argb(150, 46, 48, 52)
+        private val CAPSULE_BACKGROUND_COLOR = Color.argb(150, 0, 0, 0)
         private const val MODE_IDLE = "idle"
         private const val MODE_DETECT = "detect"
         private const val MODE_RELOCATE = "relocate"
