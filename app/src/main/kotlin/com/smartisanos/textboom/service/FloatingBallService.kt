@@ -293,7 +293,7 @@ class FloatingBallService : Service(), SensorEventListener {
         val iconInset = params.width - params.height
         val minX = horizontalBounds.left - iconInset
         val maxX = horizontalBounds.right - rightDockedWidth(params)
-        val minY = safeArea.top
+        val minY = 0
         val maxY = safeArea.bottom - params.height
         params.x = params.x.coerceIn(minX, maxX)
         params.y = params.y.coerceIn(minY, maxY)
