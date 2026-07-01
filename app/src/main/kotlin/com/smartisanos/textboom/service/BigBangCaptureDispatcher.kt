@@ -163,11 +163,11 @@ object BigBangCaptureDispatcher {
                     FloatingBallService.clearCaptureLaunchSuppression()
                 }
             },
-            onCaptured = { imageUri ->
+            onCaptured = { bitmap ->
                 ManualOcrSourceStore.put(
                     ManualOcrSourceStore.Source(
                         token = sourceToken,
-                        imageUri = imageUri,
+                        cachedBitmap = bitmap,
                         touchX = touchX,
                         touchY = touchY,
                         callerPackage = callerPackage,
@@ -180,7 +180,6 @@ object BigBangCaptureDispatcher {
                 )
                 BoomOcrLauncher.launchCapture(
                     context = context,
-                    imageUri = imageUri,
                     touchX = touchX,
                     touchY = touchY,
                     fullscreen = true,
@@ -207,12 +206,12 @@ object BigBangCaptureDispatcher {
         val sourceToken = ManualOcrSourceStore.newToken()
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = context,
-            onFinished = { imageUri ->
-                if (imageUri != null) {
+            onFinished = { bitmap ->
+                if (bitmap != null) {
                     ManualOcrSourceStore.put(
                         ManualOcrSourceStore.Source(
                             token = sourceToken,
-                            imageUri = imageUri,
+                            cachedBitmap = bitmap,
                             touchX = touchX,
                             touchY = touchY,
                             callerPackage = callerPackage,
@@ -228,7 +227,7 @@ object BigBangCaptureDispatcher {
                     touchX = touchX,
                     touchY = touchY,
                     callerPackage = callerPackage,
-                    manualOcrSourceToken = imageUri?.let { sourceToken },
+                    manualOcrSourceToken = bitmap?.let { sourceToken },
                     traceId = traceId,
                     traceEnabled = traceEnabled,
                 )

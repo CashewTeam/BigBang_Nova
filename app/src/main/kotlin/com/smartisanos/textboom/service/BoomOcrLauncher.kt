@@ -14,7 +14,7 @@ object BoomOcrLauncher {
     @JvmStatic
     fun open(
         context: Context,
-        imageUri: Uri,
+        imageUri: Uri? = null,
         touchX: Int,
         touchY: Int,
         fullscreen: Boolean,
@@ -29,7 +29,9 @@ object BoomOcrLauncher {
             OcrLaunchActivity::class.java
         }
         val intent = Intent(context, targetActivity).apply {
-            putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, imageUri.toString())
+            if (imageUri != null) {
+                putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, imageUri.toString())
+            }
             putExtra("boom_startx", touchX)
             putExtra("boom_starty", touchY)
             putExtra("boom_fullscreen", fullscreen)
@@ -58,7 +60,7 @@ object BoomOcrLauncher {
     @JvmStatic
     fun launchCapture(
         context: Context,
-        imageUri: Uri,
+        imageUri: Uri? = null,
         touchX: Int,
         touchY: Int,
         fullscreen: Boolean,
@@ -70,7 +72,9 @@ object BoomOcrLauncher {
         traceEnabled: Boolean = false,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
-            putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, imageUri.toString())
+            if (imageUri != null) {
+                putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, imageUri.toString())
+            }
             putExtra(OcrLaunchActivity.EXTRA_AUTO_NEAREST_OCR, true)
             putExtra("boom_startx", touchX)
             putExtra("boom_starty", touchY)

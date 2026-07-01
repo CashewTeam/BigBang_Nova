@@ -3,15 +3,10 @@ package com.cashewteam.novatext.android.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.Bitmap
-import android.hardware.HardwareBuffer
-import android.net.Uri
 import android.os.Build
 import android.view.Display
 import android.widget.Toast
-import androidx.core.content.FileProvider
 import com.cashewteam.novatext.android.R
-import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 object AccessibilityScreenshotCapture {
@@ -19,8 +14,8 @@ object AccessibilityScreenshotCapture {
 
     fun captureToOcr(
         context: Context,
-        onFinished: ((Uri?) -> Unit)? = null,
-        onCaptured: (Uri) -> Unit,
+        onFinished: ((Bitmap?) -> Unit)? = null,
+        onCaptured: (Bitmap) -> Unit,
     ): Boolean {
         return captureInternal(
             context = context,
@@ -32,8 +27,8 @@ object AccessibilityScreenshotCapture {
 
     fun captureToCache(
         context: Context,
-        onFinished: ((Uri?) -> Unit)? = null,
-        onCaptured: (Uri) -> Unit,
+        onFinished: ((Bitmap?) -> Unit)? = null,
+        onCaptured: (Bitmap) -> Unit,
     ): Boolean {
         return captureInternal(
             context = context,
@@ -46,8 +41,8 @@ object AccessibilityScreenshotCapture {
     private fun captureInternal(
         context: Context,
         silent: Boolean,
-        onFinished: ((Uri?) -> Unit)?,
-        onCaptured: (Uri) -> Unit,
+        onFinished: ((Bitmap?) -> Unit)?,
+        onCaptured: (Bitmap) -> Unit,
     ): Boolean {
         val service = NovaTextAccessibilityService.activeInstance ?: return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -71,18 +66,18 @@ object AccessibilityScreenshotCapture {
                     service.mainExecutor,
                     object : AccessibilityService.TakeScreenshotCallback {
                         override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                            val uri = saveScreenshot(service, screenshot.hardwareBuffer, screenshot.colorSpace)
+                            val bitmap = captureBitmap(screenshot.hardwareBuffer, screenshot.colorSpace)
                             captureInFlight.set(false)
                             FloatingBallService.restoreAfterScreenshot()
-                            if (uri == null) {
+                            if (bitmap == null) {
                                 onFinished?.invoke(null)
                                 if (!silent) {
                                     Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                                 }
                                 return
                             }
-                            onCaptured(uri)
-                            onFinished?.invoke(uri)
+                            onCaptured(bitmap)
+                            onFinished?.invoke(bitmap)
                         }
 
                         override fun onFailure(errorCode: Int) {
@@ -107,29 +102,15 @@ object AccessibilityScreenshotCapture {
         return true
     }
 
-    private fun saveScreenshot(
-        service: NovaTextAccessibilityService,
-        hardwareBuffer: HardwareBuffer,
+    private fun captureBitmap(
+        hardwareBuffer: android.hardware.HardwareBuffer,
         colorSpace: android.graphics.ColorSpace?,
-    ): Uri? {
+    ): Bitmap? {
         try {
             val hardwareBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace) ?: return null
             val bitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
             hardwareBitmap.recycle()
-            if (bitmap == null) {
-                return null
-            }
-            val dir = File(service.cacheDir, "ocr").apply { mkdirs() }
-            val file = File.createTempFile("capture_", ".png", dir)
-            FileOutputStream(file).use { output ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-            }
-            bitmap.recycle()
-            return FileProvider.getUriForFile(
-                service,
-                "${service.packageName}.fileprovider",
-                file,
-            )
+            return bitmap
         } catch (_: Exception) {
             return null
         } finally {

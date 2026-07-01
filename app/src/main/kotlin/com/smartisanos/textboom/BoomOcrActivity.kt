@@ -283,19 +283,28 @@ class BoomOcrActivity : ComponentActivity() {
     }
 
     private fun prepareOcr() {
-        val imageUri = readImageUri()
-        if (imageUri == null) {
-            showImageUnavailableAndFinish()
-            return
-        }
         val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken().also {
             manualOcrSourceToken = it
         }
         val previous = ManualOcrSourceStore.get(sourceToken)
+        val imageUri = readImageUri() ?: previous?.imageUri
+        val cachedBitmap = previous?.cachedBitmap?.takeUnless { it.isRecycled }
+        val sourceBitmap = try {
+            cachedBitmap?.let(MlKitOcrEngine::copyBitmap)
+                ?: MlKitOcrEngine.loadBitmap(this, null, imageUri)
+        } catch (exception: Exception) {
+            LogUtils.e("Failed to decode OCR image", exception)
+            null
+        }
+        if (sourceBitmap == null) {
+            showImageUnavailableAndFinish()
+            return
+        }
         ManualOcrSourceStore.put(
             ManualOcrSourceStore.Source(
                 token = sourceToken,
                 imageUri = imageUri,
+                cachedBitmap = cachedBitmap ?: sourceBitmap,
                 touchX = touchX.toInt(),
                 touchY = touchY.toInt(),
                 callerPackage = callerPackage,
@@ -309,10 +318,13 @@ class BoomOcrActivity : ComponentActivity() {
             ),
         )
         try {
-            val bitmap = MlKitOcrEngine.decodeBitmap(this, imageUri)
             val prepared = MlKitOcrEngine.prepareBitmap(
                 context = this,
-                screenshot = bitmap,
+                screenshot = if (cachedBitmap == null) {
+                    MlKitOcrEngine.copyBitmap(sourceBitmap)
+                } else {
+                    sourceBitmap
+                },
                 callerPackage = callerPackage,
                 fullscreen = fullscreen,
                 offsetX = offset[0],
@@ -322,7 +334,7 @@ class BoomOcrActivity : ComponentActivity() {
             )
             preparedBitmap = prepared.bitmap
         } catch (exception: Exception) {
-            LogUtils.e("Failed to decode OCR image", exception)
+            LogUtils.e("Failed to prepare OCR image", exception)
             showImageUnavailableAndFinish()
         }
     }

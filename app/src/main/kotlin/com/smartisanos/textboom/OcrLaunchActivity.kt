@@ -126,14 +126,14 @@ class OcrLaunchActivity : Activity() {
                 }
                 val started = AccessibilityScreenshotCapture.captureToOcr(
                     context = this,
-                    onCaptured = { imageUri ->
+                    onCaptured = { bitmap ->
                         val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken().also {
                             manualOcrSourceToken = it
                         }
                         ManualOcrSourceStore.put(
                             ManualOcrSourceStore.Source(
                                 token = sourceToken,
-                                imageUri = imageUri,
+                                cachedBitmap = bitmap,
                                 touchX = touchX.toInt(),
                                 touchY = touchY.toInt(),
                                 callerPackage = callerPackage,
@@ -144,7 +144,7 @@ class OcrLaunchActivity : Activity() {
                                 replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
                             ),
                         )
-                        startNearestParagraphOcr(imageUri)
+                        startNearestParagraphOcr()
                     },
                 )
                 if (!started) {
@@ -155,12 +155,13 @@ class OcrLaunchActivity : Activity() {
         }
         if (autoNearestOcrRequested && !autoNearestOcrStarted && !cancelled) {
             autoNearestOcrStarted = true
-            val imageUri = intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI)?.let(Uri::parse)
-            if (imageUri == null) {
+            if (ManualOcrSourceStore.get(manualOcrSourceToken) == null &&
+                intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrBlank()
+            ) {
                 finish()
                 return
             }
-            startNearestParagraphOcr(imageUri)
+            startNearestParagraphOcr()
             return
         }
         if (pendingOcrSelectionLaunch && !ocrSelectionLaunched && !cancelled) {
@@ -286,12 +287,11 @@ class OcrLaunchActivity : Activity() {
         finish()
     }
 
-    private fun startNearestParagraphOcr(imageUri: Uri) {
-        startNearestParagraphOcr(imageUri, replayOcrMode ?: BigBangSettings.get(this).ocrRecognizerMode)
+    private fun startNearestParagraphOcr() {
+        startNearestParagraphOcr(replayOcrMode ?: BigBangSettings.get(this).ocrRecognizerMode)
     }
 
     private fun startNearestParagraphOcr(
-        imageUri: Uri,
         mode: String,
     ) {
         thread(name = "bigbang-ocr-nearest") {
@@ -299,8 +299,9 @@ class OcrLaunchActivity : Activity() {
             val fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
             val offsetX = intent.getIntExtra("boom_offsetx", 0)
             val offsetY = intent.getIntExtra("boom_offsety", 0)
+            val imageUri = intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI)?.let(Uri::parse)
             val bitmap = try {
-                MlKitOcrEngine.decodeBitmap(this, imageUri)
+                MlKitOcrEngine.loadBitmap(this, manualOcrSourceToken, imageUri)
             } catch (exception: Exception) {
                 LogUtils.e("Failed to decode OCR screenshot", exception)
                 null
@@ -391,7 +392,7 @@ class OcrLaunchActivity : Activity() {
         if (source.replayMode == ManualOcrSourceStore.REPLAY_MODE_SELECTION_RECT) {
             startSelectionRectReplay(source, mode)
         } else {
-            startNearestParagraphOcr(source.imageUri, mode)
+            startNearestParagraphOcr(mode)
         }
     }
 
@@ -405,7 +406,7 @@ class OcrLaunchActivity : Activity() {
         }
         thread(name = "bigbang-ocr-selection-replay") {
             val bitmap = try {
-                MlKitOcrEngine.decodeBitmap(this, source.imageUri)
+                MlKitOcrEngine.loadBitmap(this, source.token, source.imageUri)
             } catch (exception: Exception) {
                 LogUtils.e("Failed to decode OCR replay image", exception)
                 null
@@ -510,12 +511,12 @@ class OcrLaunchActivity : Activity() {
         manualOcrSourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken()
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = this,
-            onCaptured = { imageUri ->
+            onCaptured = { bitmap ->
                 val sourceToken = manualOcrSourceToken ?: return@captureToCache
                 ManualOcrSourceStore.put(
                     ManualOcrSourceStore.Source(
                         token = sourceToken,
-                        imageUri = imageUri,
+                        cachedBitmap = bitmap,
                         touchX = touchX.toInt(),
                         touchY = touchY.toInt(),
                         callerPackage = callerPackage,
@@ -534,7 +535,7 @@ class OcrLaunchActivity : Activity() {
 
     private fun updateDirectOcrReplayContext(
         sourceToken: String?,
-        imageUri: Uri,
+        imageUri: Uri?,
     ) {
         val token = sourceToken ?: return
         val source = ManualOcrSourceStore.get(token)
@@ -542,6 +543,7 @@ class OcrLaunchActivity : Activity() {
             (source ?: ManualOcrSourceStore.Source(
                 token = token,
                 imageUri = imageUri,
+                cachedBitmap = null,
                 touchX = touchX.toInt(),
                 touchY = touchY.toInt(),
                 callerPackage = callerPackage,

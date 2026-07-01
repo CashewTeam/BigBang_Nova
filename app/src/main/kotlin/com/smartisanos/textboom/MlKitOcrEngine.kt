@@ -49,6 +49,11 @@ object MlKitOcrEngine {
     )
 
     @JvmStatic
+    fun copyBitmap(bitmap: Bitmap): Bitmap {
+        return bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+    }
+
+    @JvmStatic
     fun decodeBitmap(context: Context, uri: Uri): Bitmap {
         val source = ImageDecoder.createSource(context.contentResolver, uri)
         return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
@@ -60,6 +65,19 @@ object MlKitOcrEngine {
                 )
             }
         }
+    }
+
+    @JvmStatic
+    fun loadBitmap(
+        context: Context,
+        sourceToken: String?,
+        fallbackUri: Uri? = null,
+    ): Bitmap? {
+        ManualOcrSourceStore.get(sourceToken)?.cachedBitmap
+            ?.takeUnless { it.isRecycled }
+            ?.let { return copyBitmap(it) }
+        val sourceUri = fallbackUri ?: ManualOcrSourceStore.get(sourceToken)?.imageUri
+        return sourceUri?.let { decodeBitmap(context, it) }
     }
 
     @JvmStatic
