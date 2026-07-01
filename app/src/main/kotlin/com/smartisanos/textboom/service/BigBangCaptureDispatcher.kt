@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import com.cashewteam.novatext.android.R
+import com.cashewteam.novatext.android.ManualOcrSourceStore
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import java.util.UUID
@@ -46,6 +47,7 @@ object BigBangCaptureDispatcher {
             return
         }
         if (!accessibilityEnabled) {
+            FloatingBallService.clearCaptureLaunchSuppression()
             logTrace(
                 enabled = traceEnabled,
                 traceId = traceId,
@@ -85,11 +87,10 @@ object BigBangCaptureDispatcher {
                     "reason=foreground_package_missing",
                 ),
             )
-            BoomOcrLauncher.launchCapture(
+            launchOcrAfterScreenshot(
                 context = context,
                 touchX = touchX,
                 touchY = touchY,
-                fullscreen = true,
                 callerPackage = null,
                 traceId = traceId,
                 traceEnabled = traceEnabled,
@@ -112,11 +113,10 @@ object BigBangCaptureDispatcher {
                     "route=ocr",
                 ),
             )
-            BoomOcrLauncher.launchCapture(
+            launchOcrAfterScreenshot(
                 context = context,
                 touchX = touchX,
                 touchY = touchY,
-                fullscreen = true,
                 callerPackage = foregroundPackage,
                 traceId = traceId,
                 traceEnabled = traceEnabled,
@@ -137,7 +137,7 @@ object BigBangCaptureDispatcher {
                 "route=accessibility",
             ),
         )
-        BoomActivityLauncher.launchCapture(
+        launchAccessibilityAfterScreenshot(
             context = context,
             touchX = touchX,
             touchY = touchY,
@@ -145,6 +145,99 @@ object BigBangCaptureDispatcher {
             traceId = traceId,
             traceEnabled = traceEnabled,
         )
+    }
+
+    private fun launchOcrAfterScreenshot(
+        context: Context,
+        touchX: Int,
+        touchY: Int,
+        callerPackage: String?,
+        traceId: String,
+        traceEnabled: Boolean,
+    ) {
+        val sourceToken = ManualOcrSourceStore.newToken()
+        val started = AccessibilityScreenshotCapture.captureToOcr(
+            context = context,
+            onFinished = {
+                if (it == null) {
+                    FloatingBallService.clearCaptureLaunchSuppression()
+                }
+            },
+            onCaptured = { imageUri ->
+                ManualOcrSourceStore.put(
+                    ManualOcrSourceStore.Source(
+                        token = sourceToken,
+                        imageUri = imageUri,
+                        touchX = touchX,
+                        touchY = touchY,
+                        callerPackage = callerPackage,
+                        fullscreen = true,
+                        offsetX = 0,
+                        offsetY = 0,
+                        sourceTag = "ocr_capture",
+                        replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
+                    ),
+                )
+                BoomOcrLauncher.launchCapture(
+                    context = context,
+                    imageUri = imageUri,
+                    touchX = touchX,
+                    touchY = touchY,
+                    fullscreen = true,
+                    callerPackage = callerPackage,
+                    manualOcrSourceToken = sourceToken,
+                    traceId = traceId,
+                    traceEnabled = traceEnabled,
+                )
+            },
+        )
+        if (!started) {
+            FloatingBallService.clearCaptureLaunchSuppression()
+        }
+    }
+
+    private fun launchAccessibilityAfterScreenshot(
+        context: Context,
+        touchX: Int,
+        touchY: Int,
+        callerPackage: String,
+        traceId: String,
+        traceEnabled: Boolean,
+    ) {
+        val sourceToken = ManualOcrSourceStore.newToken()
+        val started = AccessibilityScreenshotCapture.captureToCache(
+            context = context,
+            onFinished = { imageUri ->
+                if (imageUri != null) {
+                    ManualOcrSourceStore.put(
+                        ManualOcrSourceStore.Source(
+                            token = sourceToken,
+                            imageUri = imageUri,
+                            touchX = touchX,
+                            touchY = touchY,
+                            callerPackage = callerPackage,
+                            fullscreen = true,
+                            offsetX = 0,
+                            offsetY = 0,
+                            sourceTag = "accessibility_capture",
+                        ),
+                    )
+                }
+                BoomActivityLauncher.launchCapture(
+                    context = context,
+                    touchX = touchX,
+                    touchY = touchY,
+                    callerPackage = callerPackage,
+                    manualOcrSourceToken = imageUri?.let { sourceToken },
+                    traceId = traceId,
+                    traceEnabled = traceEnabled,
+                )
+            },
+            onCaptured = {},
+        )
+        if (!started) {
+            FloatingBallService.clearCaptureLaunchSuppression()
+        }
     }
 
     private fun logTrace(

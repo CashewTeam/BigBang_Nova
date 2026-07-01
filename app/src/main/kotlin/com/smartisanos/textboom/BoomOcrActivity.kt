@@ -160,6 +160,7 @@ class BoomOcrActivity : ComponentActivity() {
         if (floatingBallHideToken == null) {
             floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
         }
+        FloatingBallService.clearCaptureLaunchSuppression()
     }
 
     override fun onStop() {

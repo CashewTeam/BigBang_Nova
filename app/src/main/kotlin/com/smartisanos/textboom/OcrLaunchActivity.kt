@@ -42,6 +42,8 @@ class OcrLaunchActivity : Activity() {
     private var captureRequested = false
     private var captureOcrScreenshotRequested = false
     private var captureOcrScreenshotStarted = false
+    private var autoNearestOcrRequested = false
+    private var autoNearestOcrStarted = false
     private var pendingOcrSelectionLaunch = false
     private var ocrSelectionLaunched = false
     private var callerPackage: String? = null
@@ -61,7 +63,9 @@ class OcrLaunchActivity : Activity() {
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
-        pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty()
+        autoNearestOcrRequested = intent.getBooleanExtra(EXTRA_AUTO_NEAREST_OCR, false)
+        pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty() &&
+            !autoNearestOcrRequested
         callerPackage = intent.getStringExtra("caller_pkg")
         enableAdjacentSession = intent.getBooleanExtra(BoomActivity.EXTRA_ENABLE_ADJACENT_SESSION, false)
         manualOcrSourceToken = intent.getStringExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN)
@@ -149,6 +153,16 @@ class OcrLaunchActivity : Activity() {
             }
             return
         }
+        if (autoNearestOcrRequested && !autoNearestOcrStarted && !cancelled) {
+            autoNearestOcrStarted = true
+            val imageUri = intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI)?.let(Uri::parse)
+            if (imageUri == null) {
+                finish()
+                return
+            }
+            startNearestParagraphOcr(imageUri)
+            return
+        }
         if (pendingOcrSelectionLaunch && !ocrSelectionLaunched && !cancelled) {
             window.decorView.post {
                 if (pendingOcrSelectionLaunch && !ocrSelectionLaunched && !cancelled && !isFinishing && !isDestroyed) {
@@ -163,6 +177,7 @@ class OcrLaunchActivity : Activity() {
         if (floatingBallHideToken == null) {
             floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
         }
+        FloatingBallService.clearCaptureLaunchSuppression()
     }
 
     override fun onStop() {
@@ -488,7 +503,7 @@ class OcrLaunchActivity : Activity() {
     }
 
     private fun startSilentManualOcrCapture() {
-        if (silentManualOcrCaptureStarted || !captureRequested) {
+        if (silentManualOcrCaptureStarted || !captureRequested || ManualOcrSourceStore.get(manualOcrSourceToken) != null) {
             return
         }
         silentManualOcrCaptureStarted = true
@@ -659,6 +674,7 @@ class OcrLaunchActivity : Activity() {
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
+        const val EXTRA_AUTO_NEAREST_OCR = "extra_auto_nearest_ocr"
         const val EXTRA_REPLAY_OCR_MODE = "extra_replay_ocr_mode"
         const val EXTRA_REPLAY_MODE = "extra_replay_mode"
     }

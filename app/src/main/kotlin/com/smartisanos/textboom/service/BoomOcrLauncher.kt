@@ -58,22 +58,26 @@ object BoomOcrLauncher {
     @JvmStatic
     fun launchCapture(
         context: Context,
+        imageUri: Uri,
         touchX: Int,
         touchY: Int,
         fullscreen: Boolean,
         callerPackage: String? = null,
         offsetX: Int = 0,
         offsetY: Int = 0,
+        manualOcrSourceToken: String,
         traceId: String? = null,
         traceEnabled: Boolean = false,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
-            putExtra(EXTRA_CAPTURE_OCR_SCREENSHOT, true)
+            putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, imageUri.toString())
+            putExtra(OcrLaunchActivity.EXTRA_AUTO_NEAREST_OCR, true)
             putExtra("boom_startx", touchX)
             putExtra("boom_starty", touchY)
             putExtra("boom_fullscreen", fullscreen)
             putExtra("boom_offsetx", offsetX)
             putExtra("boom_offsety", offsetY)
+            putExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN, manualOcrSourceToken)
             if (!callerPackage.isNullOrEmpty()) {
                 putExtra("caller_pkg", callerPackage)
             }
@@ -85,6 +89,7 @@ object BoomOcrLauncher {
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(intent)
     }

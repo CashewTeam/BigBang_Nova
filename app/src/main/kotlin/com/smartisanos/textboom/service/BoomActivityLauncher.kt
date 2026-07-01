@@ -51,6 +51,7 @@ object BoomActivityLauncher {
         touchX: Int,
         touchY: Int,
         callerPackage: String? = null,
+        manualOcrSourceToken: String? = null,
         traceId: String? = null,
         traceEnabled: Boolean = false,
     ) {
@@ -61,6 +62,9 @@ object BoomActivityLauncher {
                 putExtra(OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY, true)
                 if (!callerPackage.isNullOrEmpty()) {
                     putExtra("caller_pkg", callerPackage)
+                }
+                if (!manualOcrSourceToken.isNullOrEmpty()) {
+                    putExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN, manualOcrSourceToken)
                 }
                 if (!traceId.isNullOrEmpty()) {
                     putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID, traceId)

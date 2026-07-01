@@ -19,22 +19,26 @@ object AccessibilityScreenshotCapture {
 
     fun captureToOcr(
         context: Context,
+        onFinished: ((Uri?) -> Unit)? = null,
         onCaptured: (Uri) -> Unit,
     ): Boolean {
         return captureInternal(
             context = context,
             silent = false,
+            onFinished = onFinished,
             onCaptured = onCaptured,
         )
     }
 
     fun captureToCache(
         context: Context,
+        onFinished: ((Uri?) -> Unit)? = null,
         onCaptured: (Uri) -> Unit,
     ): Boolean {
         return captureInternal(
             context = context,
             silent = true,
+            onFinished = onFinished,
             onCaptured = onCaptured,
         )
     }
@@ -42,6 +46,7 @@ object AccessibilityScreenshotCapture {
     private fun captureInternal(
         context: Context,
         silent: Boolean,
+        onFinished: ((Uri?) -> Unit)?,
         onCaptured: (Uri) -> Unit,
     ): Boolean {
         val service = NovaTextAccessibilityService.activeInstance ?: return false
@@ -49,49 +54,55 @@ object AccessibilityScreenshotCapture {
             if (!silent) {
                 Toast.makeText(service, R.string.ocr_capture_unsupported, Toast.LENGTH_SHORT).show()
             }
+            onFinished?.invoke(null)
             return true
         }
         if (!captureInFlight.compareAndSet(false, true)) {
             if (!silent) {
                 Toast.makeText(service, R.string.ocr_capture_in_progress, Toast.LENGTH_SHORT).show()
             }
+            onFinished?.invoke(null)
             return true
         }
-        FloatingBallService.hideForScreenshot()
-        try {
-            service.takeScreenshot(
-                Display.DEFAULT_DISPLAY,
-                service.mainExecutor,
-                object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                        val uri = saveScreenshot(service, screenshot.hardwareBuffer, screenshot.colorSpace)
-                        captureInFlight.set(false)
-                        FloatingBallService.restoreAfterScreenshot()
-                        if (uri == null) {
+        FloatingBallService.hideForScreenshot {
+            try {
+                service.takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    service.mainExecutor,
+                    object : AccessibilityService.TakeScreenshotCallback {
+                        override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                            val uri = saveScreenshot(service, screenshot.hardwareBuffer, screenshot.colorSpace)
+                            captureInFlight.set(false)
+                            FloatingBallService.restoreAfterScreenshot()
+                            if (uri == null) {
+                                onFinished?.invoke(null)
+                                if (!silent) {
+                                    Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                                }
+                                return
+                            }
+                            onCaptured(uri)
+                            onFinished?.invoke(uri)
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            captureInFlight.set(false)
+                            FloatingBallService.restoreAfterScreenshot()
+                            onFinished?.invoke(null)
                             if (!silent) {
                                 Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                             }
-                            return
                         }
-                        onCaptured(uri)
-                    }
-
-                    override fun onFailure(errorCode: Int) {
-                        captureInFlight.set(false)
-                        FloatingBallService.restoreAfterScreenshot()
-                        if (!silent) {
-                            Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-            )
-        } catch (_: SecurityException) {
-            captureInFlight.set(false)
-            FloatingBallService.restoreAfterScreenshot()
-            if (!silent) {
-                Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                    },
+                )
+            } catch (_: SecurityException) {
+                captureInFlight.set(false)
+                FloatingBallService.restoreAfterScreenshot()
+                onFinished?.invoke(null)
+                if (!silent) {
+                    Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                }
             }
-            return false
         }
         return true
     }

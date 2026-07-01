@@ -195,15 +195,16 @@ class FloatingBallService : Service() {
 
             MotionEvent.ACTION_UP -> {
                 setCapsuleBackgroundVisible(true)
-                scheduleBubbleFade()
                 val moved = abs(event.rawX - downRawX) > MOVE_THRESHOLD_PX ||
                     abs(event.rawY - downRawY) > MOVE_THRESHOLD_PX
                 if (!moved) {
+                    scheduleBubbleFade()
                     bubbleView?.performClick()
                     return true
                 }
 
                 if (mode == MODE_RELOCATE) {
+                    scheduleBubbleFade()
                     saveCurrentPositionAsAnchor()
                     updateBubbleLayout()
                     mode = MODE_IDLE
@@ -211,6 +212,7 @@ class FloatingBallService : Service() {
                     val bubbleCenter = getBubbleIconCenterOnScreen()
                     val sampleX = bubbleCenter?.x ?: (layoutParams.x + layoutParams.width / 2)
                     val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
+                    beginCaptureLaunchSuppression()
                     dockToNearestSide(sampleX, layoutParams.y)
                     updateBubbleLayout()
                     mode = MODE_IDLE
@@ -500,6 +502,7 @@ class FloatingBallService : Service() {
         private const val FADE_DURATION_MS = 240L
         private const val BUBBLE_APPEAR_DURATION_MS = 220L
         private const val BUBBLE_APPEAR_START_SCALE = 0.86f
+        private const val SCREENSHOT_HIDE_SETTLE_MS = 48L
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80
         private const val CAPSULE_WIDTH_RATIO = 1.45f
@@ -593,8 +596,30 @@ class FloatingBallService : Service() {
             activeService?.refreshBubbleAppearance()
         }
 
-        fun hideForScreenshot() {
-            lastScreenshotSuppressionToken = acquireVisibilitySuppression()
+        fun hideForScreenshot(afterHidden: (() -> Unit)? = null) {
+            val service = activeService
+            if (service == null) {
+                lastScreenshotSuppressionToken = acquireVisibilitySuppression()
+                afterHidden?.invoke()
+                return
+            }
+            val token = synchronized(this) {
+                nextVisibilitySuppressionToken.getAndIncrement().also {
+                    visibilitySuppressionTokens += it
+                }
+            }
+            lastScreenshotSuppressionToken = token
+            service.bubbleHandler.post {
+                val active = activeService
+                active?.applyVisibilitySuppressionState()
+                val callback = afterHidden ?: return@post
+                val target = active?.bubbleView
+                if (target != null) {
+                    target.postDelayed({ callback.invoke() }, SCREENSHOT_HIDE_SETTLE_MS)
+                } else {
+                    service.bubbleHandler.postDelayed({ callback.invoke() }, SCREENSHOT_HIDE_SETTLE_MS)
+                }
+            }
         }
 
         fun restoreAfterScreenshot() {
@@ -603,17 +628,32 @@ class FloatingBallService : Service() {
             }
         }
 
-        fun acquireVisibilitySuppression(): Int? {
+        fun acquireVisibilitySuppression(immediate: Boolean = false): Int? {
             val service = activeService ?: return null
             val token = synchronized(this) {
                 nextVisibilitySuppressionToken.getAndIncrement().also {
                     visibilitySuppressionTokens += it
                 }
             }
-            service.bubbleHandler.post {
+            if (immediate && Looper.myLooper() == service.bubbleHandler.looper) {
                 activeService?.applyVisibilitySuppressionState()
+            } else {
+                service.bubbleHandler.post {
+                    activeService?.applyVisibilitySuppressionState()
+                }
             }
             return token
+        }
+
+        fun beginCaptureLaunchSuppression() {
+            clearCaptureLaunchSuppression()
+            pendingLaunchSuppressionToken = acquireVisibilitySuppression(immediate = true)
+        }
+
+        fun clearCaptureLaunchSuppression() {
+            val token = pendingLaunchSuppressionToken
+            pendingLaunchSuppressionToken = null
+            releaseVisibilitySuppression(token)
         }
 
         fun releaseVisibilitySuppression(token: Int?) {
@@ -633,6 +673,9 @@ class FloatingBallService : Service() {
 
         @Volatile
         private var lastScreenshotSuppressionToken: Int? = null
+
+        @Volatile
+        private var pendingLaunchSuppressionToken: Int? = null
 
         private fun prepare(context: Context) {
             if (prepared) return
