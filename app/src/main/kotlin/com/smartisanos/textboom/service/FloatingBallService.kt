@@ -613,12 +613,7 @@ class FloatingBallService : Service() {
                 val active = activeService
                 active?.applyVisibilitySuppressionState()
                 val callback = afterHidden ?: return@post
-                val target = active?.bubbleView
-                if (target != null) {
-                    target.postDelayed({ callback.invoke() }, SCREENSHOT_HIDE_SETTLE_MS)
-                } else {
-                    service.bubbleHandler.postDelayed({ callback.invoke() }, SCREENSHOT_HIDE_SETTLE_MS)
-                }
+                service.bubbleHandler.postDelayed({ callback.invoke() }, SCREENSHOT_HIDE_SETTLE_MS)
             }
         }
 

@@ -22,6 +22,7 @@
 - OCR 进入范围选择页：优先走 `BoomOcrLauncher`
 - 不要在新代码里直接从 service 或任意页面随手 `startActivity(BoomActivity)` / `startActivity(BoomOcrActivity)`
 - 悬浮球与后台场景需要复用现有代理页 `OcrLaunchActivity` / `OverlayActivity`
+- 悬浮球白名单 OCR 必须先启动 `OcrLaunchActivity`，再由代理页内部调用无障碍截图和 OCR；不要改成“service 先截图，截图成功后再拉 Activity”，这会被部分系统后台启动限制截断
 
 ### 3. 配置统一
 
@@ -34,6 +35,7 @@
 - OCR 引擎统一收口在 `MlKitOcrEngine`
 - 图片调试 / 分享入口保留范围选择页
 - 悬浮球白名单 OCR 走直接识别链路时，优先在 `MlKitOcrEngine` 内补最近文本块 / 段落逻辑
+- 悬浮球白名单 OCR 的截图由 `OcrLaunchActivity` 持有前台窗口后发起；截图成功后需要打开 BigBang 启动门槛，避免 OCR 成功但窗口不拉起
 - 不要为同一类 OCR 场景再造第二套解码、裁切、最近块选择实现
 
 ### 5. 无障碍与截图边界

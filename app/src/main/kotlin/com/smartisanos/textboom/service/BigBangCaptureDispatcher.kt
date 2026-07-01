@@ -155,44 +155,18 @@ object BigBangCaptureDispatcher {
         traceId: String,
         traceEnabled: Boolean,
     ) {
-        val sourceToken = ManualOcrSourceStore.newToken()
-        val started = AccessibilityScreenshotCapture.captureToOcr(
+        val sourceToken = ManualOcrSourceStore.newActiveToken()
+        BoomOcrLauncher.launchCapture(
             context = context,
-            onFinished = {
-                if (it == null) {
-                    FloatingBallService.clearCaptureLaunchSuppression()
-                }
-            },
-            onCaptured = { bitmap ->
-                ManualOcrSourceStore.put(
-                    ManualOcrSourceStore.Source(
-                        token = sourceToken,
-                        cachedBitmap = bitmap,
-                        touchX = touchX,
-                        touchY = touchY,
-                        callerPackage = callerPackage,
-                        fullscreen = true,
-                        offsetX = 0,
-                        offsetY = 0,
-                        sourceTag = "ocr_capture",
-                        replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
-                    ),
-                )
-                BoomOcrLauncher.launchCapture(
-                    context = context,
-                    touchX = touchX,
-                    touchY = touchY,
-                    fullscreen = true,
-                    callerPackage = callerPackage,
-                    manualOcrSourceToken = sourceToken,
-                    traceId = traceId,
-                    traceEnabled = traceEnabled,
-                )
-            },
+            touchX = touchX,
+            touchY = touchY,
+            fullscreen = true,
+            callerPackage = callerPackage,
+            manualOcrSourceToken = sourceToken,
+            traceId = traceId,
+            traceEnabled = traceEnabled,
+            captureScreenshot = true,
         )
-        if (!started) {
-            FloatingBallService.clearCaptureLaunchSuppression()
-        }
     }
 
     private fun launchAccessibilityAfterScreenshot(
@@ -203,7 +177,7 @@ object BigBangCaptureDispatcher {
         traceId: String,
         traceEnabled: Boolean,
     ) {
-        val sourceToken = ManualOcrSourceStore.newToken()
+        val sourceToken = ManualOcrSourceStore.newActiveToken()
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = context,
             onFinished = { bitmap ->

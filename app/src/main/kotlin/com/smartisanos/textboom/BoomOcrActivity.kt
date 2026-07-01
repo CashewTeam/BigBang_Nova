@@ -283,7 +283,7 @@ class BoomOcrActivity : ComponentActivity() {
     }
 
     private fun prepareOcr() {
-        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken().also {
+        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newActiveToken().also {
             manualOcrSourceToken = it
         }
         val previous = ManualOcrSourceStore.get(sourceToken)

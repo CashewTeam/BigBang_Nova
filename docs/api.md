@@ -127,6 +127,7 @@ Activity 上下文：
 用途：
 
 - 悬浮球白名单 OCR 链路的“先前台、再截图”入口
+- 命中 OCR 白名单时只能用这个入口先启动 `OcrLaunchActivity`
 
 实际启动：
 
@@ -141,6 +142,12 @@ Activity 上下文：
 - `boom_offsetx`
 - `boom_offsety`
 - `caller_pkg`
+
+约束：
+
+- `BigBangCaptureDispatcher` 不直接截图后再启动 Activity
+- `OcrLaunchActivity` 收到 `EXTRA_CAPTURE_OCR_SCREENSHOT = true` 后，在自身窗口内调用 `AccessibilityScreenshotCapture.captureToOcr(...)`
+- OCR 成功拿到最近段落后，由 `OcrLaunchActivity` 继续拉起 `OverlayActivity -> BoomActivity`
 
 ### 3.5 `BoomOcrLauncher.replayWithLanguage(...)`
 

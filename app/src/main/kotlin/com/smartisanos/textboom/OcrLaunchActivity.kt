@@ -126,8 +126,12 @@ class OcrLaunchActivity : Activity() {
                 }
                 val started = AccessibilityScreenshotCapture.captureToOcr(
                     context = this,
-                    onCaptured = { bitmap ->
-                        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken().also {
+                    onFinished = { bitmap ->
+                        if (bitmap == null) {
+                            finish()
+                            return@captureToOcr
+                        }
+                        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newActiveToken().also {
                             manualOcrSourceToken = it
                         }
                         ManualOcrSourceStore.put(
@@ -144,8 +148,10 @@ class OcrLaunchActivity : Activity() {
                                 replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
                             ),
                         )
+                        launchGateOpen = true
                         startNearestParagraphOcr()
                     },
+                    onCaptured = {},
                 )
                 if (!started) {
                     finish()
@@ -158,6 +164,7 @@ class OcrLaunchActivity : Activity() {
             if (ManualOcrSourceStore.get(manualOcrSourceToken) == null &&
                 intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrBlank()
             ) {
+                LogUtils.d("OcrLaunchActivity", "auto nearest OCR source missing token=$manualOcrSourceToken")
                 finish()
                 return
             }
@@ -508,7 +515,7 @@ class OcrLaunchActivity : Activity() {
             return
         }
         silentManualOcrCaptureStarted = true
-        manualOcrSourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newToken()
+        manualOcrSourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newActiveToken()
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = this,
             onCaptured = { bitmap ->
@@ -580,7 +587,7 @@ class OcrLaunchActivity : Activity() {
         }
         loopRotateImage?.visibility = View.INVISIBLE
         loopAnimFrame?.visibility = View.INVISIBLE
-        if (pendingOcrSelectionLaunch || captureRequested || isReplayRequested()) {
+        if (pendingOcrSelectionLaunch || captureRequested || captureOcrScreenshotRequested || isReplayRequested()) {
             return
         }
         loopAnimFrame?.post {

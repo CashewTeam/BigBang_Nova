@@ -32,7 +32,24 @@ object ManualOcrSourceStore {
     fun newToken(): String = UUID.randomUUID().toString().take(12)
 
     @Synchronized
+    fun newActiveToken(): String {
+        return newToken().also(::activateToken)
+    }
+
+    @Synchronized
+    fun activateToken(token: String) {
+        clearOthersLocked(token)
+        activeToken = token
+        revision.value += 1
+    }
+
+    @Synchronized
     fun put(source: Source) {
+        val currentActiveToken = activeToken
+        if (!currentActiveToken.isNullOrBlank() && currentActiveToken != source.token) {
+            recycleSourceLocked(source)
+            return
+        }
         clearOthersLocked(source.token)
         val previous = sources[source.token]
         val previousBitmap = previous?.cachedBitmap

@@ -149,14 +149,15 @@
 -> `MlKitOcrEngine.recognize(...)`
 -> 段落级结果合并
 -> 取最近段落
--> `BoomActivityLauncher.openText(...)`
--> `OcrLaunchActivity`
 -> `OverlayActivity`
 -> `BoomActivity`
 
 说明：
 
 - 当前不会进入范围选择页
+- 这条链路必须先启动 `OcrLaunchActivity`，再在代理页内截图和 OCR
+- 不要从 `BigBangCaptureDispatcher` 或 service 里先截图再拉起 `OcrLaunchActivity`，后台启动限制会导致截图成功但 BigBang 不出现
+- 代理页内截图 OCR 成功后必须打开 BigBang 启动门槛，再进入 `OverlayActivity`
 - 最近文本选择统一收口在 `MlKitOcrEngine`
 - OCR 结果先按 ML Kit `TextBlock` 取段落
 - 自带多行文本的 `TextBlock` 清洗换行后直接输出，不再参与后续合并
@@ -234,7 +235,8 @@
 ### `OcrLaunchActivity`
 
 - 通用启动代理页
-- 负责炸开动画、无障碍文本抓取、白名单 OCR 截图后的前台承接
+- 负责炸开动画、无障碍文本抓取、白名单 OCR 的前台截图与直接识别
+- 白名单 OCR 模式下不先播放会进入截图的动画；截图成功后再打开 BigBang 启动门槛
 
 ## 配置边界
 

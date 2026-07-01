@@ -70,12 +70,14 @@ object BoomOcrLauncher {
         manualOcrSourceToken: String,
         traceId: String? = null,
         traceEnabled: Boolean = false,
+        captureScreenshot: Boolean = false,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
             if (imageUri != null) {
                 putExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI, imageUri.toString())
             }
             putExtra(OcrLaunchActivity.EXTRA_AUTO_NEAREST_OCR, true)
+            putExtra(EXTRA_CAPTURE_OCR_SCREENSHOT, captureScreenshot)
             putExtra("boom_startx", touchX)
             putExtra("boom_starty", touchY)
             putExtra("boom_fullscreen", fullscreen)

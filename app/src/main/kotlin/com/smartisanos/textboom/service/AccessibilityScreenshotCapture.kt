@@ -4,13 +4,19 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Display
 import android.widget.Toast
 import com.cashewteam.novatext.android.R
+import com.cashewteam.novatext.android.util.NovaTextLogger
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.Executors
 
 object AccessibilityScreenshotCapture {
     private val captureInFlight = AtomicBoolean(false)
+    private val screenshotExecutor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     fun captureToOcr(
         context: Context,
@@ -53,6 +59,7 @@ object AccessibilityScreenshotCapture {
             return true
         }
         if (!captureInFlight.compareAndSet(false, true)) {
+            NovaTextLogger.d("accessibility screenshot skipped: capture in flight")
             if (!silent) {
                 Toast.makeText(service, R.string.ocr_capture_in_progress, Toast.LENGTH_SHORT).show()
             }
@@ -61,38 +68,47 @@ object AccessibilityScreenshotCapture {
         }
         FloatingBallService.hideForScreenshot {
             try {
+                NovaTextLogger.d("accessibility screenshot request")
                 service.takeScreenshot(
                     Display.DEFAULT_DISPLAY,
-                    service.mainExecutor,
+                    screenshotExecutor,
                     object : AccessibilityService.TakeScreenshotCallback {
                         override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
                             val bitmap = captureBitmap(screenshot.hardwareBuffer, screenshot.colorSpace)
-                            captureInFlight.set(false)
-                            FloatingBallService.restoreAfterScreenshot()
-                            if (bitmap == null) {
+                            mainHandler.post {
+                                captureInFlight.set(false)
+                                FloatingBallService.restoreAfterScreenshot()
+                                if (bitmap == null) {
+                                    NovaTextLogger.d("accessibility screenshot failed: bitmap null")
+                                    onFinished?.invoke(null)
+                                    if (!silent) {
+                                        Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                                    }
+                                    return@post
+                                }
+                                NovaTextLogger.d("accessibility screenshot success ${bitmap.width}x${bitmap.height}")
+                                onCaptured(bitmap)
+                                onFinished?.invoke(bitmap)
+                            }
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            mainHandler.post {
+                                captureInFlight.set(false)
+                                FloatingBallService.restoreAfterScreenshot()
+                                NovaTextLogger.d("accessibility screenshot failed: errorCode=$errorCode")
                                 onFinished?.invoke(null)
                                 if (!silent) {
                                     Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                                 }
-                                return
-                            }
-                            onCaptured(bitmap)
-                            onFinished?.invoke(bitmap)
-                        }
-
-                        override fun onFailure(errorCode: Int) {
-                            captureInFlight.set(false)
-                            FloatingBallService.restoreAfterScreenshot()
-                            onFinished?.invoke(null)
-                            if (!silent) {
-                                Toast.makeText(service, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
                 )
-            } catch (_: SecurityException) {
+            } catch (exception: Exception) {
                 captureInFlight.set(false)
                 FloatingBallService.restoreAfterScreenshot()
+                NovaTextLogger.d("accessibility screenshot failed: ${exception.javaClass.simpleName}")
                 onFinished?.invoke(null)
                 if (!silent) {
                     Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
