@@ -129,7 +129,7 @@ class BoomActivity : ComponentActivity() {
         if (floatingBallHideToken == null) {
             floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
         }
-        FloatingBallService.clearCaptureLaunchSuppression()
+        FloatingBallService.notifyBigBangShellShown()
     }
 
     override fun onStop() {

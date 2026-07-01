@@ -24,6 +24,8 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
     public static final String KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = "floating_ball_active_alpha_percent";
     public static final String KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT = "floating_ball_idle_alpha_percent";
+    public static final String KEY_FLOATING_BALL_HEIGHT_LOCKED = "floating_ball_height_locked";
+    public static final String KEY_FLOATING_BALL_ONE_HAND_MODE = "floating_ball_one_hand_mode";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -211,6 +213,22 @@ public final class BigBangSettings {
 
     public void setFloatingBallIdleAlphaPercent(int value) {
         preferences.edit().putInt(KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT, clampPercent(value)).apply();
+    }
+
+    public boolean isFloatingBallHeightLocked() {
+        return preferences.getBoolean(KEY_FLOATING_BALL_HEIGHT_LOCKED, false);
+    }
+
+    public void setFloatingBallHeightLocked(boolean enabled) {
+        preferences.edit().putBoolean(KEY_FLOATING_BALL_HEIGHT_LOCKED, enabled).apply();
+    }
+
+    public boolean isFloatingBallOneHandModeEnabled() {
+        return preferences.getBoolean(KEY_FLOATING_BALL_ONE_HAND_MODE, false);
+    }
+
+    public void setFloatingBallOneHandModeEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_FLOATING_BALL_ONE_HAND_MODE, enabled).apply();
     }
 
     private static int clampPercent(int value) {

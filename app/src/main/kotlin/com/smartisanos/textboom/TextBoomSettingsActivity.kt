@@ -165,6 +165,8 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallSizeChange = { updateFloatingBallSizePercent(it) },
                     onFloatingBallActiveAlphaChange = { updateFloatingBallActiveAlphaPercent(it) },
                     onFloatingBallIdleAlphaChange = { updateFloatingBallIdleAlphaPercent(it) },
+                    onFloatingBallHeightLockedChange = { updateFloatingBallHeightLocked(it) },
+                    onFloatingBallOneHandModeChange = { updateFloatingBallOneHandMode(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
@@ -242,6 +244,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
     }
 
     private fun startFloatingBall() {
+        FloatingBallService.resetStateMachine()
         FloatingBallService.start(this)
     }
 
@@ -265,6 +268,16 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateFloatingBallIdleAlphaPercent(value: Int) {
         settings.setFloatingBallIdleAlphaPercent(value)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallHeightLocked(enabled: Boolean) {
+        settings.setFloatingBallHeightLocked(enabled)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallOneHandMode(enabled: Boolean) {
+        settings.setFloatingBallOneHandModeEnabled(enabled)
         FloatingBallService.refreshAppearance(this)
     }
 
@@ -501,6 +514,8 @@ private fun SettingsScreen(
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
+    onFloatingBallHeightLockedChange: (Boolean) -> Unit,
+    onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -557,6 +572,12 @@ private fun SettingsScreen(
     }
     var floatingBallIdleAlphaPercent by rememberSaveable {
         mutableIntStateOf(settings.floatingBallIdleAlphaPercent)
+    }
+    var floatingBallHeightLocked by rememberSaveable {
+        mutableStateOf(settings.isFloatingBallHeightLocked)
+    }
+    var floatingBallOneHandMode by rememberSaveable {
+        mutableStateOf(settings.isFloatingBallOneHandModeEnabled)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -655,6 +676,8 @@ private fun SettingsScreen(
                             floatingBallSizePercent = floatingBallSizePercent,
                             floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
                             floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
+                            floatingBallHeightLocked = floatingBallHeightLocked,
+                            floatingBallOneHandMode = floatingBallOneHandMode,
                             onFloatingBallSizeChange = {
                                 floatingBallSizePercent = it
                                 onFloatingBallSizeChange(it)
@@ -666,6 +689,14 @@ private fun SettingsScreen(
                             onFloatingBallIdleAlphaChange = {
                                 floatingBallIdleAlphaPercent = it
                                 onFloatingBallIdleAlphaChange(it)
+                            },
+                            onFloatingBallHeightLockedChange = {
+                                floatingBallHeightLocked = it
+                                onFloatingBallHeightLockedChange(it)
+                            },
+                            onFloatingBallOneHandModeChange = {
+                                floatingBallOneHandMode = it
+                                onFloatingBallOneHandModeChange(it)
                             },
                         )
                     }
@@ -1346,9 +1377,13 @@ private fun FloatingBallSection(
     floatingBallSizePercent: Int,
     floatingBallActiveAlphaPercent: Int,
     floatingBallIdleAlphaPercent: Int,
+    floatingBallHeightLocked: Boolean,
+    floatingBallOneHandMode: Boolean,
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
+    onFloatingBallHeightLockedChange: (Boolean) -> Unit,
+    onFloatingBallOneHandModeChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1381,6 +1416,18 @@ private fun FloatingBallSection(
             value = floatingBallIdleAlphaPercent,
             valueRange = 0f..100f,
             onValueChange = onFloatingBallIdleAlphaChange,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.permission_floating_ball_height_lock_title),
+            subtitle = stringResource(R.string.permission_floating_ball_height_lock_summary),
+            checked = floatingBallHeightLocked,
+            onCheckedChange = onFloatingBallHeightLockedChange,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.permission_floating_ball_one_hand_title),
+            subtitle = stringResource(R.string.permission_floating_ball_one_hand_summary),
+            checked = floatingBallOneHandMode,
+            onCheckedChange = onFloatingBallOneHandModeChange,
         )
     }
 }

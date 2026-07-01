@@ -14,6 +14,10 @@ import android.graphics.PixelFormat
 import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -22,6 +26,7 @@ import android.provider.Settings
 import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.WindowInsets
@@ -38,10 +43,11 @@ import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.roundToInt
 import java.util.concurrent.atomic.AtomicInteger
 
-class FloatingBallService : Service() {
+class FloatingBallService : Service(), SensorEventListener {
     private lateinit var windowManager: WindowManager
     private lateinit var preferences: BigBangPreferences
     private lateinit var settings: BigBangSettings
@@ -60,6 +66,10 @@ class FloatingBallService : Service() {
     private var lastTapAt = 0L
     private var capsuleBackgroundVisible = true
     private var lastSafeArea: Rect? = null
+    private var sensorManager: SensorManager? = null
+    private var accelerometer: Sensor? = null
+    private var oneHandSensorRegistered = false
+    private var lastOneHandCheckAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -72,6 +82,8 @@ class FloatingBallService : Service() {
         settings = BigBangSettings.get(this)
         preferences.setFloatingBallEnabled(true)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         prepare(this)
         ServiceCompat.startForeground(
             this,
@@ -84,6 +96,7 @@ class FloatingBallService : Service() {
             },
         )
         attachBubble()
+        updateOneHandSensor()
         NovaTextLogger.d("floating ball service created")
     }
 
@@ -105,6 +118,7 @@ class FloatingBallService : Service() {
 
     override fun onDestroy() {
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
+        unregisterOneHandSensor()
         bubbleView?.let { windowManager.removeView(it) }
         bubbleView = null
         isRunning = false
@@ -113,6 +127,20 @@ class FloatingBallService : Service() {
         NovaTextLogger.d("floating ball service destroyed")
         super.onDestroy()
     }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        val now = System.currentTimeMillis()
+        if (now - lastOneHandCheckAt < ONE_HAND_CHECK_INTERVAL_MS) return
+        lastOneHandCheckAt = now
+        if (!settings.isFloatingBallOneHandModeEnabled || mode != MODE_IDLE) return
+        val targetSide = resolveGravityDockSide(event.values[0], event.values[1]) ?: return
+        if (targetSide == dockedSide || !::layoutParams.isInitialized) return
+        dockToSide(targetSide, layoutParams.y)
+        updateBubbleLayout()
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun attachBubble() {
         if (bubbleView != null) return
@@ -213,7 +241,8 @@ class FloatingBallService : Service() {
                     val sampleX = bubbleCenter?.x ?: (layoutParams.x + layoutParams.width / 2)
                     val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
                     beginCaptureLaunchSuppression()
-                    dockToNearestSide(sampleX, layoutParams.y)
+                    val nextY = if (settings.isFloatingBallHeightLocked) anchorY else layoutParams.y
+                    dockToNearestSide(sampleX, nextY)
                     updateBubbleLayout()
                     mode = MODE_IDLE
                     BigBangCaptureDispatcher.captureAt(applicationContext, sampleX, sampleY)
@@ -381,6 +410,44 @@ class FloatingBallService : Service() {
         bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
     }
 
+    private fun updateOneHandSensor() {
+        if (settings.isFloatingBallOneHandModeEnabled) {
+            registerOneHandSensor()
+        } else {
+            unregisterOneHandSensor()
+        }
+    }
+
+    private fun registerOneHandSensor() {
+        if (oneHandSensorRegistered) return
+        val sensor = accelerometer ?: return
+        sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        oneHandSensorRegistered = true
+    }
+
+    private fun unregisterOneHandSensor() {
+        if (!oneHandSensorRegistered) return
+        sensorManager?.unregisterListener(this)
+        oneHandSensorRegistered = false
+    }
+
+    @Suppress("DEPRECATION")
+    private fun resolveGravityDockSide(x: Float, y: Float): Int? {
+        val rotation = windowManager.defaultDisplay.rotation
+        val horizontalGravity = when (rotation) {
+            Surface.ROTATION_90 -> -y
+            Surface.ROTATION_270 -> y
+            Surface.ROTATION_180 -> -x
+            else -> x
+        }
+        val angle = Math.toDegrees(atan2(horizontalGravity.toDouble(), EARTH_GRAVITY)).toFloat()
+        return when {
+            angle >= ONE_HAND_SWITCH_ANGLE_DEGREES -> DOCK_LEFT
+            angle <= -ONE_HAND_SWITCH_ANGLE_DEGREES -> DOCK_RIGHT
+            else -> null
+        }
+    }
+
     private fun getBubbleIconCenterOnScreen(): Point? {
         val view = bubbleIconView ?: bubbleView ?: return null
         val location = IntArray(2)
@@ -415,6 +482,7 @@ class FloatingBallService : Service() {
 
     private fun refreshBubbleAppearance() {
         if (!::layoutParams.isInitialized) return
+        updateOneHandSensor()
         val bubbleSizePx = bubbleSizePx()
         layoutParams.width = capsuleWidthPx(bubbleSizePx)
         layoutParams.height = bubbleSizePx
@@ -498,6 +566,10 @@ class FloatingBallService : Service() {
         private const val BUBBLE_APPEAR_DURATION_MS = 220L
         private const val BUBBLE_APPEAR_START_SCALE = 0.86f
         private const val SCREENSHOT_HIDE_SETTLE_MS = 48L
+        private const val LAUNCH_FALLBACK_TIMEOUT_MS = 3_000L
+        private const val ONE_HAND_CHECK_INTERVAL_MS = 1_000L
+        private const val ONE_HAND_SWITCH_ANGLE_DEGREES = 18f
+        private const val EARTH_GRAVITY = 9.80665
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80
         private const val CAPSULE_WIDTH_RATIO = 1.45f
@@ -542,9 +614,11 @@ class FloatingBallService : Service() {
 
         private val visibilitySuppressionTokens = linkedSetOf<Int>()
         private val nextVisibilitySuppressionToken = AtomicInteger(1)
+        private val launchFallbackGeneration = AtomicInteger(0)
         private val activeState = MutableStateFlow(false)
 
         fun start(context: Context) {
+            resetStateMachine()
             if (!Settings.canDrawOverlays(context)) {
                 NovaTextLogger.d("overlay permission missing, skip starting floating ball")
                 return
@@ -553,7 +627,11 @@ class FloatingBallService : Service() {
                 NovaTextLogger.d("accessibility service missing, skip starting floating ball")
                 return
             }
-            if (isRunning) return
+            if (isRunning) {
+                activeService?.settings = BigBangSettings.get(context)
+                activeService?.refreshBubbleAppearance()
+                return
+            }
             val intent = Intent(context, FloatingBallService::class.java).setAction(ACTION_START)
             ContextCompat.startForegroundService(context, intent)
         }
@@ -588,6 +666,24 @@ class FloatingBallService : Service() {
             if (!isRunning) return
             activeService?.settings = BigBangSettings.get(context)
             activeService?.refreshBubbleAppearance()
+        }
+
+        fun resetStateMachine() {
+            launchFallbackGeneration.incrementAndGet()
+            mode = MODE_IDLE
+            synchronized(this) {
+                visibilitySuppressionTokens.clear()
+            }
+            lastScreenshotSuppressionToken = null
+            pendingLaunchSuppressionToken = null
+            searchOverlayVisible = false
+            activeService?.let { service ->
+                service.lastTapAt = 0L
+                service.bubbleHandler.post {
+                    service.applyVisibilitySuppressionState()
+                    service.scheduleBubbleFade()
+                }
+            }
         }
 
         fun hideForScreenshot(afterHidden: (() -> Unit)? = null) {
@@ -637,12 +733,31 @@ class FloatingBallService : Service() {
         fun beginCaptureLaunchSuppression() {
             clearCaptureLaunchSuppression()
             pendingLaunchSuppressionToken = acquireVisibilitySuppression(immediate = true)
+            scheduleLaunchFallback()
         }
 
         fun clearCaptureLaunchSuppression() {
             val token = pendingLaunchSuppressionToken
             pendingLaunchSuppressionToken = null
             releaseVisibilitySuppression(token)
+        }
+
+        fun notifyBigBangShellShown() {
+            launchFallbackGeneration.incrementAndGet()
+            clearCaptureLaunchSuppression()
+        }
+
+        private fun scheduleLaunchFallback() {
+            val service = activeService ?: return
+            val generation = launchFallbackGeneration.incrementAndGet()
+            service.bubbleHandler.postDelayed(
+                {
+                    if (launchFallbackGeneration.get() != generation) return@postDelayed
+                    NovaTextLogger.d("floating ball launch fallback timeout, force show")
+                    resetStateMachine()
+                },
+                LAUNCH_FALLBACK_TIMEOUT_MS,
+            )
         }
 
         fun setSearchOverlayVisible(visible: Boolean) {

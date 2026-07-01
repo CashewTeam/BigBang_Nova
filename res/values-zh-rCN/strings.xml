@@ -71,4 +71,8 @@
     <string name="bigbang_action_language">语言</string>
     <string name="bigbang_pull_previous">松手后获取上一段文本</string>
     <string name="bigbang_pull_next">松手后获取下一段文本</string>
+    <string name="permission_floating_ball_height_lock_title">锁定高度</string>
+    <string name="permission_floating_ball_height_lock_summary">开启后，触发大爆炸不会改变悬浮球停靠高度；只有双击移动位置时才会更新高度。</string>
+    <string name="permission_floating_ball_one_hand_title">单手优化</string>
+    <string name="permission_floating_ball_one_hand_summary">开启后，每 1 秒根据手机倾斜方向自动切换左右停靠，并带角度阈值避免误切换。</string>
 </resources>
