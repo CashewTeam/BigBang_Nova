@@ -137,7 +137,7 @@ object BigBangCaptureDispatcher {
                 "route=accessibility",
             ),
         )
-        launchAccessibilityAfterScreenshot(
+        launchAccessibilityCapture(
             context = context,
             touchX = touchX,
             touchY = touchY,
@@ -169,7 +169,7 @@ object BigBangCaptureDispatcher {
         )
     }
 
-    private fun launchAccessibilityAfterScreenshot(
+    private fun launchAccessibilityCapture(
         context: Context,
         touchX: Int,
         touchY: Int,
@@ -178,39 +178,15 @@ object BigBangCaptureDispatcher {
         traceEnabled: Boolean,
     ) {
         val sourceToken = ManualOcrSourceStore.newActiveToken()
-        val started = AccessibilityScreenshotCapture.captureToCache(
+        BoomActivityLauncher.launchCapture(
             context = context,
-            onFinished = { bitmap ->
-                if (bitmap != null) {
-                    ManualOcrSourceStore.put(
-                        ManualOcrSourceStore.Source(
-                            token = sourceToken,
-                            cachedBitmap = bitmap,
-                            touchX = touchX,
-                            touchY = touchY,
-                            callerPackage = callerPackage,
-                            fullscreen = true,
-                            offsetX = 0,
-                            offsetY = 0,
-                            sourceTag = "accessibility_capture",
-                        ),
-                    )
-                }
-                BoomActivityLauncher.launchCapture(
-                    context = context,
-                    touchX = touchX,
-                    touchY = touchY,
-                    callerPackage = callerPackage,
-                    manualOcrSourceToken = bitmap?.let { sourceToken },
-                    traceId = traceId,
-                    traceEnabled = traceEnabled,
-                )
-            },
-            onCaptured = {},
+            touchX = touchX,
+            touchY = touchY,
+            callerPackage = callerPackage,
+            manualOcrSourceToken = sourceToken,
+            traceId = traceId,
+            traceEnabled = traceEnabled,
         )
-        if (!started) {
-            FloatingBallService.clearCaptureLaunchSuppression()
-        }
     }
 
     private fun logTrace(
