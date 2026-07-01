@@ -25,7 +25,7 @@ import kotlin.math.roundToInt
 object MlKitOcrEngine {
     private const val MAX_BITMAP_EDGE = 2048
     private const val PKG_GALLERY = "com.android.gallery3d"
-    private const val SCALE_SCREENSHOT = 2
+    private const val SCALE_SCREENSHOT = 1
     private const val BELOW_TOUCH_PENALTY_MULTIPLIER = 4.0
     private const val SAME_VISUAL_LINE_TOLERANCE_RATIO = 0.45
 
