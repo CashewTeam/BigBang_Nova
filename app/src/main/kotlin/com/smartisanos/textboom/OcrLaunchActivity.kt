@@ -90,8 +90,7 @@ class OcrLaunchActivity : Activity() {
                 if (launched || cancelled || pendingOcrSelectionLaunch) {
                     return@post
                 }
-                frame.translationX = touchX - frame.width / 2f
-                frame.translationY = touchY - frame.height / 2f
+                positionLaunchAnimationAtTouch()
                 startLaunchAnimation()
             }
             return
@@ -104,8 +103,7 @@ class OcrLaunchActivity : Activity() {
                 if (launched || cancelled || pendingOcrSelectionLaunch) {
                     return@post
                 }
-                frame.translationX = touchX - frame.width / 2f
-                frame.translationY = touchY - frame.height / 2f
+                positionLaunchAnimationAtTouch()
                 startLaunchAnimation()
             }
         }
@@ -148,7 +146,8 @@ class OcrLaunchActivity : Activity() {
                                 replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
                             ),
                         )
-                        launchGateOpen = true
+                        positionLaunchAnimationAtTouch()
+                        startLaunchAnimation()
                         startNearestParagraphOcr()
                     },
                     onCaptured = {},
@@ -225,6 +224,12 @@ class OcrLaunchActivity : Activity() {
         showLoadingIndicator()
         launchGateOpen = true
         maybeLaunchBigBang()
+    }
+
+    private fun positionLaunchAnimationAtTouch() {
+        val frame = loopAnimFrame ?: return
+        frame.translationX = touchX - frame.width / 2f
+        frame.translationY = touchY - frame.height / 2f
     }
 
     private fun startAccessibilityCapture() {
@@ -595,8 +600,7 @@ class OcrLaunchActivity : Activity() {
             if (launched || cancelled || pendingOcrSelectionLaunch) {
                 return@post
             }
-            frame.translationX = touchX - frame.width / 2f
-            frame.translationY = touchY - frame.height / 2f
+            positionLaunchAnimationAtTouch()
             startLaunchAnimation()
         }
     }
