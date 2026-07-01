@@ -98,14 +98,6 @@ class OcrLaunchActivity : Activity() {
         if (captureRequested) {
             startSilentManualOcrCapture()
             startAccessibilityCapture()
-            window.decorView.post {
-                val frame = loopAnimFrame ?: return@post
-                if (launched || cancelled || pendingOcrSelectionLaunch) {
-                    return@post
-                }
-                positionLaunchAnimationAtTouch()
-                startLaunchAnimation()
-            }
         }
     }
 
@@ -523,6 +515,9 @@ class OcrLaunchActivity : Activity() {
         manualOcrSourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newActiveToken()
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = this,
+            onFinished = {
+                startLaunchAnimationAfterScreenshot()
+            },
             onCaptured = { bitmap ->
                 val sourceToken = manualOcrSourceToken ?: return@captureToCache
                 ManualOcrSourceStore.put(
@@ -542,7 +537,16 @@ class OcrLaunchActivity : Activity() {
         )
         if (!started) {
             LogUtils.d("OcrLaunchActivity", "silent OCR cache capture skipped")
+            startLaunchAnimationAfterScreenshot()
         }
+    }
+
+    private fun startLaunchAnimationAfterScreenshot() {
+        if (launched || cancelled || pendingOcrSelectionLaunch || isFinishing || isDestroyed) {
+            return
+        }
+        positionLaunchAnimationAtTouch()
+        startLaunchAnimation()
     }
 
     private fun updateDirectOcrReplayContext(
