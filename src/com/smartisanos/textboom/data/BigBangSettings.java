@@ -26,6 +26,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT = "floating_ball_idle_alpha_percent";
     public static final String KEY_FLOATING_BALL_HEIGHT_LOCKED = "floating_ball_height_locked";
     public static final String KEY_FLOATING_BALL_ONE_HAND_MODE = "floating_ball_one_hand_mode";
+    public static final String KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = "floating_ball_one_hand_angle_degrees";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -64,6 +65,7 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_SIZE_PERCENT = 75;
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
+    private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
 
     private final SharedPreferences preferences;
 
@@ -231,8 +233,25 @@ public final class BigBangSettings {
         preferences.edit().putBoolean(KEY_FLOATING_BALL_ONE_HAND_MODE, enabled).apply();
     }
 
+    public int getFloatingBallOneHandAngleDegrees() {
+        return clampAngleDegrees(preferences.getInt(
+                KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES,
+                DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES
+        ));
+    }
+
+    public void setFloatingBallOneHandAngleDegrees(int value) {
+        preferences.edit()
+                .putInt(KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES, clampAngleDegrees(value))
+                .apply();
+    }
+
     private static int clampPercent(int value) {
         return Math.max(0, Math.min(100, value));
+    }
+
+    private static int clampAngleDegrees(int value) {
+        return Math.max(5, Math.min(45, value));
     }
 
     private static Set<String> defaultOcrWhitelistPackages() {

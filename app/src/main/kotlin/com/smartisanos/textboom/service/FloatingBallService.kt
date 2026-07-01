@@ -441,9 +441,10 @@ class FloatingBallService : Service(), SensorEventListener {
             else -> x
         }
         val angle = Math.toDegrees(atan2(horizontalGravity.toDouble(), EARTH_GRAVITY)).toFloat()
+        val threshold = settings.floatingBallOneHandAngleDegrees.toFloat()
         return when {
-            angle >= ONE_HAND_SWITCH_ANGLE_DEGREES -> DOCK_LEFT
-            angle <= -ONE_HAND_SWITCH_ANGLE_DEGREES -> DOCK_RIGHT
+            angle >= threshold -> DOCK_LEFT
+            angle <= -threshold -> DOCK_RIGHT
             else -> null
         }
     }
@@ -568,7 +569,6 @@ class FloatingBallService : Service(), SensorEventListener {
         private const val SCREENSHOT_HIDE_SETTLE_MS = 48L
         private const val LAUNCH_FALLBACK_TIMEOUT_MS = 3_000L
         private const val ONE_HAND_CHECK_INTERVAL_MS = 1_000L
-        private const val ONE_HAND_SWITCH_ANGLE_DEGREES = 18f
         private const val EARTH_GRAVITY = 9.80665
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80

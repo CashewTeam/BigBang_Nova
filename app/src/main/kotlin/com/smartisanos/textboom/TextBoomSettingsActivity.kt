@@ -167,6 +167,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallIdleAlphaChange = { updateFloatingBallIdleAlphaPercent(it) },
                     onFloatingBallHeightLockedChange = { updateFloatingBallHeightLocked(it) },
                     onFloatingBallOneHandModeChange = { updateFloatingBallOneHandMode(it) },
+                    onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
@@ -278,6 +279,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateFloatingBallOneHandMode(enabled: Boolean) {
         settings.setFloatingBallOneHandModeEnabled(enabled)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallOneHandAngle(value: Int) {
+        settings.setFloatingBallOneHandAngleDegrees(value)
         FloatingBallService.refreshAppearance(this)
     }
 
@@ -516,6 +522,7 @@ private fun SettingsScreen(
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
     onFloatingBallHeightLockedChange: (Boolean) -> Unit,
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
+    onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -578,6 +585,9 @@ private fun SettingsScreen(
     }
     var floatingBallOneHandMode by rememberSaveable {
         mutableStateOf(settings.isFloatingBallOneHandModeEnabled)
+    }
+    var floatingBallOneHandAngle by rememberSaveable {
+        mutableIntStateOf(settings.floatingBallOneHandAngleDegrees)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -678,6 +688,7 @@ private fun SettingsScreen(
                             floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
                             floatingBallHeightLocked = floatingBallHeightLocked,
                             floatingBallOneHandMode = floatingBallOneHandMode,
+                            floatingBallOneHandAngle = floatingBallOneHandAngle,
                             onFloatingBallSizeChange = {
                                 floatingBallSizePercent = it
                                 onFloatingBallSizeChange(it)
@@ -697,6 +708,10 @@ private fun SettingsScreen(
                             onFloatingBallOneHandModeChange = {
                                 floatingBallOneHandMode = it
                                 onFloatingBallOneHandModeChange(it)
+                            },
+                            onFloatingBallOneHandAngleChange = {
+                                floatingBallOneHandAngle = it
+                                onFloatingBallOneHandAngleChange(it)
                             },
                         )
                     }
@@ -1379,11 +1394,13 @@ private fun FloatingBallSection(
     floatingBallIdleAlphaPercent: Int,
     floatingBallHeightLocked: Boolean,
     floatingBallOneHandMode: Boolean,
+    floatingBallOneHandAngle: Int,
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
     onFloatingBallHeightLockedChange: (Boolean) -> Unit,
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
+    onFloatingBallOneHandAngleChange: (Int) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1428,6 +1445,12 @@ private fun FloatingBallSection(
             subtitle = stringResource(R.string.permission_floating_ball_one_hand_summary),
             checked = floatingBallOneHandMode,
             onCheckedChange = onFloatingBallOneHandModeChange,
+        )
+        FloatingBallSlider(
+            title = stringResource(R.string.permission_floating_ball_one_hand_angle_title),
+            value = floatingBallOneHandAngle,
+            valueRange = 5f..45f,
+            onValueChange = onFloatingBallOneHandAngleChange,
         )
     }
 }
