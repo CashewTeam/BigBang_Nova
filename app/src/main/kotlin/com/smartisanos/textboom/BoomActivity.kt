@@ -52,6 +52,7 @@ import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.CppJiebaTokenizer
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
+import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
@@ -63,6 +64,7 @@ class BoomActivity : ComponentActivity() {
     private var currentText = ""
     private var currentSegment: IntArray? = null
     private var manualOcrSourceToken: String? = null
+    private var floatingBallHideToken: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,6 +122,19 @@ class BoomActivity : ComponentActivity() {
             TextSessionCoordinator.clearSession()
         }
         segmentLocally(inputText)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (floatingBallHideToken == null) {
+            floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
+        }
+    }
+
+    override fun onStop() {
+        FloatingBallService.releaseVisibilitySuppression(floatingBallHideToken)
+        floatingBallHideToken = null
+        super.onStop()
     }
 
     private fun dismissPage() {

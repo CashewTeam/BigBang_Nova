@@ -71,6 +71,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
+import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.util.LogUtils
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import com.google.mlkit.vision.text.Text as MlKitText
@@ -95,6 +96,7 @@ class BoomOcrActivity : ComponentActivity() {
     private var manualOcrSourceToken: String? = null
     private var lastSelectionRect: Rect? = null
     private val traceId = UUID.randomUUID().toString().take(8)
+    private var floatingBallHideToken: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -151,6 +153,19 @@ class BoomOcrActivity : ComponentActivity() {
             instance = null
         }
         super.onDestroy()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (floatingBallHideToken == null) {
+            floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
+        }
+    }
+
+    override fun onStop() {
+        FloatingBallService.releaseVisibilitySuppression(floatingBallHideToken)
+        floatingBallHideToken = null
+        super.onStop()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

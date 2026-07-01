@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.util.concurrent.atomic.AtomicInteger
 
 class FloatingBallService : Service() {
     private lateinit var windowManager: WindowManager
@@ -119,7 +120,9 @@ class FloatingBallService : Service() {
         val bubble = FrameLayout(this).apply {
             contentDescription = getString(R.string.overlay_notification_title)
             elevation = 18f
-            alpha = idleAlpha()
+            alpha = 0f
+            scaleX = BUBBLE_APPEAR_START_SCALE
+            scaleY = BUBBLE_APPEAR_START_SCALE
         }
         val icon = ImageView(this).apply {
             setImageResource(R.drawable.icon_bigbang)
@@ -159,6 +162,7 @@ class FloatingBallService : Service() {
         }
         bubble.setOnTouchListener { _, event -> handleTouch(event) }
         windowManager.addView(bubble, layoutParams)
+        applyVisibilitySuppressionState()
         scheduleBubbleFade()
     }
 
@@ -226,12 +230,14 @@ class FloatingBallService : Service() {
     }
 
     private fun showActiveBubble() {
+        if (isVisibilitySuppressed()) return
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
         bubbleView?.animate()?.cancel()
         bubbleView?.alpha = activeAlpha()
     }
 
     private fun scheduleBubbleFade() {
+        if (isVisibilitySuppressed()) return
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
         bubbleHandler.postDelayed(fadeBubbleRunnable, IDLE_FADE_DELAY_MS)
     }
@@ -412,8 +418,40 @@ class FloatingBallService : Service() {
         layoutParams.height = bubbleSizePx
         clampPositionInPlace(layoutParams)
         dockToSide(dockedSide, layoutParams.y)
-        bubbleView?.alpha = idleAlpha()
+        if (!isVisibilitySuppressed()) {
+            bubbleView?.alpha = idleAlpha()
+        }
         updateBubbleLayout()
+    }
+
+    private fun applyVisibilitySuppressionState() {
+        bubbleHandler.removeCallbacks(fadeBubbleRunnable)
+        val bubble = bubbleView ?: return
+        bubble.animate()?.cancel()
+        if (isVisibilitySuppressed()) {
+            bubble.visibility = View.INVISIBLE
+            bubble.alpha = 0f
+            bubble.scaleX = BUBBLE_APPEAR_START_SCALE
+            bubble.scaleY = BUBBLE_APPEAR_START_SCALE
+        } else {
+            val shouldAnimateIn = bubble.visibility != View.VISIBLE || bubble.alpha <= 0f
+            bubble.visibility = View.VISIBLE
+            if (shouldAnimateIn) {
+                bubble.alpha = 0f
+                bubble.scaleX = BUBBLE_APPEAR_START_SCALE
+                bubble.scaleY = BUBBLE_APPEAR_START_SCALE
+                bubble.animate()
+                    .alpha(idleAlpha())
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(BUBBLE_APPEAR_DURATION_MS)
+                    .start()
+            } else {
+                bubble.alpha = idleAlpha()
+                bubble.scaleX = 1f
+                bubble.scaleY = 1f
+            }
+        }
     }
 
     private fun updateBubbleChrome() {
@@ -460,6 +498,8 @@ class FloatingBallService : Service() {
         private const val MOVE_THRESHOLD_PX = 8f
         private const val IDLE_FADE_DELAY_MS = 3_000L
         private const val FADE_DURATION_MS = 240L
+        private const val BUBBLE_APPEAR_DURATION_MS = 220L
+        private const val BUBBLE_APPEAR_START_SCALE = 0.86f
         private const val BASE_BUBBLE_SIZE_PX = 160
         private const val MIN_BUBBLE_SIZE_PX = 80
         private const val CAPSULE_WIDTH_RATIO = 1.45f
@@ -503,6 +543,8 @@ class FloatingBallService : Service() {
         @Volatile
         private var prepared = false
 
+        private val visibilitySuppressionTokens = linkedSetOf<Int>()
+        private val nextVisibilitySuppressionToken = AtomicInteger(1)
         private val activeState = MutableStateFlow(false)
 
         fun start(context: Context) {
@@ -552,22 +594,45 @@ class FloatingBallService : Service() {
         }
 
         fun hideForScreenshot() {
-            activeService?.bubbleHandler?.post {
-                val service = activeService ?: return@post
-                service.bubbleHandler.removeCallbacks(service.fadeBubbleRunnable)
-                service.bubbleView?.animate()?.cancel()
-                service.bubbleView?.visibility = View.INVISIBLE
-                service.bubbleView?.alpha = 0f
-            }
+            lastScreenshotSuppressionToken = acquireVisibilitySuppression()
         }
 
         fun restoreAfterScreenshot() {
-            activeService?.bubbleHandler?.post {
-                val service = activeService ?: return@post
-                service.bubbleView?.visibility = View.VISIBLE
-                service.bubbleView?.alpha = service.idleAlpha()
+            releaseVisibilitySuppression(lastScreenshotSuppressionToken).also {
+                lastScreenshotSuppressionToken = null
             }
         }
+
+        fun acquireVisibilitySuppression(): Int? {
+            val service = activeService ?: return null
+            val token = synchronized(this) {
+                nextVisibilitySuppressionToken.getAndIncrement().also {
+                    visibilitySuppressionTokens += it
+                }
+            }
+            service.bubbleHandler.post {
+                activeService?.applyVisibilitySuppressionState()
+            }
+            return token
+        }
+
+        fun releaseVisibilitySuppression(token: Int?) {
+            if (token == null) return
+            val service = activeService
+            synchronized(this) {
+                visibilitySuppressionTokens.remove(token)
+            }
+            service?.bubbleHandler?.post {
+                activeService?.applyVisibilitySuppressionState()
+            }
+        }
+
+        private fun isVisibilitySuppressed(): Boolean {
+            return synchronized(this) { visibilitySuppressionTokens.isNotEmpty() }
+        }
+
+        @Volatile
+        private var lastScreenshotSuppressionToken: Int? = null
 
         private fun prepare(context: Context) {
             if (prepared) return

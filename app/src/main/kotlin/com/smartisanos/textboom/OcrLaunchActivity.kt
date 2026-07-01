@@ -21,6 +21,7 @@ import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
+import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.util.LogUtils
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlin.concurrent.thread
@@ -52,6 +53,7 @@ class OcrLaunchActivity : Activity() {
     private var replayOcrMode: String? = null
     private var replayMode: String? = null
     private var replayStarted = false
+    private var floatingBallHideToken: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,6 +156,19 @@ class OcrLaunchActivity : Activity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (floatingBallHideToken == null) {
+            floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
+        }
+    }
+
+    override fun onStop() {
+        FloatingBallService.releaseVisibilitySuppression(floatingBallHideToken)
+        floatingBallHideToken = null
+        super.onStop()
     }
 
     override fun onDestroy() {
