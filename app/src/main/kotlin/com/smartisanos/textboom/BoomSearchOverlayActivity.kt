@@ -30,12 +30,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
@@ -207,29 +204,29 @@ private fun SearchOverlayScreen(
 
     val webProviders = remember {
         listOf(
-            SearchProvider(BigBangSettings.TYPE_BAIDU, "百度", R.drawable.boom_win_search_baidu),
-            SearchProvider(BigBangSettings.TYPE_GOOGLE, "Google", R.drawable.boom_win_search_google),
-            SearchProvider(BigBangSettings.TYPE_BING, "Bing", R.drawable.boom_win_search_bing),
-            SearchProvider(BigBangSettings.TYPE_SHENMA, "DuckDuckGo", R.drawable.boom_win_search_shenma),
+            SearchProvider(BigBangSettings.TYPE_BAIDU, "百度", R.drawable.boom_setting_baidu),
+            SearchProvider(BigBangSettings.TYPE_GOOGLE, "Google", R.drawable.boom_setting_google),
+            SearchProvider(BigBangSettings.TYPE_BING, "Bing", R.drawable.boom_setting_bing),
+            SearchProvider(BigBangSettings.TYPE_SHENMA, "DuckDuckGo", R.drawable.boom_setting_shenma),
         )
     }
     val dictProviders = remember {
         listOf(
-            SearchProvider(BigBangSettings.TYPE_YOUDAO, "有道词典", R.drawable.boom_win_search_youdao),
-            SearchProvider(BigBangSettings.TYPE_KINGSOFT, "金山词霸", R.drawable.boom_win_search_kingsoft),
-            SearchProvider(BigBangSettings.TYPE_BINGDICT, "必应词典", R.drawable.boom_win_search_bingdict),
-            SearchProvider(BigBangSettings.TYPE_HIDICT, "海词词典", R.drawable.boom_win_search_hidict),
-            SearchProvider(BigBangSettings.TYPE_BAIDU_TRANSLATE, "百度翻译", R.drawable.boom_win_search_baidu),
-            SearchProvider(BigBangSettings.TYPE_BING_TRANSLATE, "必应翻译", R.drawable.boom_win_search_bing),
-            SearchProvider(BigBangSettings.TYPE_GOOGLE_TRANSLATE, "谷歌翻译", R.drawable.boom_win_search_google),
+            SearchProvider(BigBangSettings.TYPE_YOUDAO, "有道词典", R.drawable.boom_setting_youdao),
+            SearchProvider(BigBangSettings.TYPE_KINGSOFT, "金山词霸", R.drawable.boom_setting_kingsoft),
+            SearchProvider(BigBangSettings.TYPE_BINGDICT, "必应词典", R.drawable.boom_setting_bingdict),
+            SearchProvider(BigBangSettings.TYPE_HIDICT, "海词词典", R.drawable.boom_setting_hidict),
+            SearchProvider(BigBangSettings.TYPE_BAIDU_TRANSLATE, "百度翻译", R.drawable.boom_setting_baidu),
+            SearchProvider(BigBangSettings.TYPE_BING_TRANSLATE, "必应翻译", R.drawable.boom_setting_bing),
+            SearchProvider(BigBangSettings.TYPE_GOOGLE_TRANSLATE, "谷歌翻译", R.drawable.boom_setting_google),
         )
     }
     val wikiProviders = remember {
         listOf(
-            SearchProvider(BigBangSettings.TYPE_WIKI, "互动百科", R.drawable.boom_win_search_hudongdict),
-            SearchProvider(BigBangSettings.TYPE_BAIKE, "百度百科", R.drawable.boom_win_search_baike),
-            SearchProvider(BigBangSettings.TYPE_WIKIPEDIA, "维基百科", R.drawable.boom_win_search_wikipedia),
-            SearchProvider(BigBangSettings.TYPE_MOEGIRL, "萌娘百科", R.drawable.boom_win_search_moegirl),
+            SearchProvider(BigBangSettings.TYPE_WIKI, "互动百科", R.drawable.boom_setting_hudongdict),
+            SearchProvider(BigBangSettings.TYPE_BAIKE, "百度百科", R.drawable.boom_setting_baike),
+            SearchProvider(BigBangSettings.TYPE_WIKIPEDIA, "维基百科", R.drawable.boom_setting_wikipedia),
+            SearchProvider(BigBangSettings.TYPE_MOEGIRL, "萌娘百科", R.drawable.boom_setting_moegirl),
         )
     }
 
@@ -493,10 +490,8 @@ private fun SearchBottomBar(
     providersForKind: (SearchKind) -> List<SearchProvider>,
     onProviderSelected: (SearchProvider, SearchKind) -> Unit,
 ) {
-    val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
     OverlayBottomBar(
         backgroundColor = palette.bottomBar,
-        bottomInset = navigationPadding.calculateBottomPadding(),
         leading = {
             ToolbarIconButton(
                 imageVector = Icons.Outlined.Close,
@@ -648,8 +643,8 @@ private fun SearchProviderButton(
     onProviderSelected: (SearchProvider) -> Unit,
     contentDescription: String,
 ) {
-    val iconSurfaceSize = 34.dp
-    val iconSize = 34.dp
+    val iconSurfaceSize = 27.dp
+    val iconSize = 25.dp
     Box {
         Box(
             modifier = Modifier
@@ -704,7 +699,7 @@ private fun SearchProviderButton(
                         Image(
                             painter = painterResource(item.iconRes),
                             contentDescription = item.title,
-                            modifier = Modifier.size(38.dp),
+                            modifier = Modifier.size(27.dp),
                         )
                     },
                     onClick = { onProviderSelected(item) },

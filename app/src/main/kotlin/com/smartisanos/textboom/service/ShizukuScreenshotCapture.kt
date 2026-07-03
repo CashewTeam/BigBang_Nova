@@ -1,7 +1,6 @@
 package com.cashewteam.novatext.android.service
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -9,17 +8,24 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import android.os.Parcel
+import android.os.RemoteException
 import com.cashewteam.novatext.android.BuildConfig
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import rikka.shizuku.Shizuku
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 object ShizukuScreenshotCapture {
     private const val REQUEST_CODE = 2901
     private const val SERVICE_VERSION = 1
     private const val SERVICE_TIMEOUT_SECONDS = 5L
+
+    @Volatile
+    private var cachedBinder: IBinder? = null
+    private var cachedConnection: ServiceConnection? = null
+    private val bindLock = Any()
 
     enum class Status {
         NOT_ANDROID_10,
@@ -74,8 +80,16 @@ object ShizukuScreenshotCapture {
         }
     }
 
+    fun preBind() {
+        if (getStatus() != Status.READY) return
+        if (cachedBinder?.isBinderAlive == true) return
+        thread(name = "shizuku-prebind") {
+            obtainBinder()
+        }
+    }
+
     private fun captureBytes(): ByteArray? {
-        val binder = bindScreenshotService() ?: return null
+        val binder = obtainBinder() ?: return null
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         try {
@@ -87,18 +101,34 @@ object ShizukuScreenshotCapture {
             )
             if (!ok) {
                 NovaTextLogger.d("shizuku screenshot failed: transact false")
+                invalidateCache()
                 return null
             }
             reply.readException()
             return reply.createByteArray()
+        } catch (e: RemoteException) {
+            NovaTextLogger.d("shizuku screenshot failed: ${e.javaClass.simpleName}")
+            invalidateCache()
+            return null
         } finally {
             data.recycle()
             reply.recycle()
-            unbindScreenshotService()
         }
     }
 
-    private fun bindScreenshotService(): IBinder? {
+    private fun obtainBinder(): IBinder? {
+        cachedBinder?.let { cached ->
+            if (cached.isBinderAlive) return cached
+        }
+        synchronized(bindLock) {
+            cachedBinder?.let { cached ->
+                if (cached.isBinderAlive) return cached
+            }
+            return bindFresh()
+        }
+    }
+
+    private fun bindFresh(): IBinder? {
         val latch = CountDownLatch(1)
         val binderRef = AtomicReference<IBinder?>()
         val connection = object : ServiceConnection {
@@ -108,7 +138,7 @@ object ShizukuScreenshotCapture {
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
-                latch.countDown()
+                cachedBinder = null
             }
         }
         return try {
@@ -117,7 +147,12 @@ object ShizukuScreenshotCapture {
                 NovaTextLogger.d("shizuku screenshot failed: service timeout")
                 null
             } else {
-                binderRef.get()
+                val binder = binderRef.get()
+                if (binder != null) {
+                    cachedBinder = binder
+                    cachedConnection = connection
+                }
+                binder
             }
         } catch (exception: Throwable) {
             NovaTextLogger.d("shizuku screenshot failed: bind ${exception.javaClass.simpleName}")
@@ -125,10 +160,15 @@ object ShizukuScreenshotCapture {
         }
     }
 
-    private fun unbindScreenshotService() {
-        try {
-            Shizuku.unbindUserService(serviceArgs(), null, true)
-        } catch (_: Throwable) {
+    private fun invalidateCache() {
+        cachedBinder = null
+        val conn = cachedConnection
+        if (conn != null) {
+            try {
+                Shizuku.unbindUserService(serviceArgs(), conn, false)
+            } catch (_: Throwable) {
+            }
+            cachedConnection = null
         }
     }
 
@@ -142,6 +182,6 @@ object ShizukuScreenshotCapture {
             .processNameSuffix("shizuku_screenshot")
             .tag("screenshot")
             .version(SERVICE_VERSION)
-            .daemon(false)
+            .daemon(true)
     }
 }

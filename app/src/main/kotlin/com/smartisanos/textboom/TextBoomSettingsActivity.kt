@@ -644,6 +644,12 @@ private fun SettingsScreen(
         }
     }
 
+    LaunchedEffect(shizukuStatus) {
+        if (shizukuStatus == ShizukuScreenshotCapture.Status.READY) {
+            ShizukuScreenshotCapture.preBind()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

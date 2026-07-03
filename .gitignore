@@ -8,3 +8,4 @@
 *.apk
 *.ap_
 .DS_Store
+.alma-snapshots
