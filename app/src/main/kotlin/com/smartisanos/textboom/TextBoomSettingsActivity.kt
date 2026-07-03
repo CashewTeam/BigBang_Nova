@@ -8,6 +8,10 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -31,12 +35,14 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -94,10 +100,14 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -335,6 +345,7 @@ private data class WhitelistAppItem(
 private enum class SettingsPage {
     Main,
     OcrWhitelist,
+    About,
 }
 
 private data class SettingsPalette(
@@ -656,8 +667,21 @@ private fun SettingsScreen(
             .background(palette.background)
             .background(stripeBrush),
     ) {
-        if (currentPage == SettingsPage.OcrWhitelist.name) {
-            OcrWhitelistPage(
+        AnimatedContent(
+            targetState = currentPage,
+            transitionSpec = {
+                if (targetState == SettingsPage.Main.name) {
+                    slideInHorizontally { -it } togetherWith slideOutHorizontally { it }
+                } else {
+                    slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+            label = "settingsPage",
+        ) { page ->
+            when (page) {
+                SettingsPage.OcrWhitelist.name -> {
+                    OcrWhitelistPage(
                 topPadding = listTopPadding,
                 whitelistPackages = ocrWhitelistPackages,
                 apps = launcherApps,
@@ -671,8 +695,15 @@ private fun SettingsScreen(
                     settings.setOcrWhitelistPackages(next)
                 },
             )
-        } else {
-            LazyColumn(
+                }
+                SettingsPage.About.name -> {
+                    AboutPage(
+                topPadding = listTopPadding,
+                onBack = { currentPage = SettingsPage.Main.name },
+            )
+                }
+                else -> {
+                    LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 20.dp),
@@ -685,6 +716,7 @@ private fun SettingsScreen(
                             text = "Alpha ${BuildConfig.VERSION_NAME}",
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable { currentPage = SettingsPage.About.name }
                                 .padding(bottom = 2.dp),
                             color = palette.textSecondary,
                             fontSize = 13.sp,
@@ -843,16 +875,23 @@ private fun SettingsScreen(
                     }
                 }
             }
+                }
+            }
         }
 
         SettingsTopBar(
-            title = if (currentPage == SettingsPage.OcrWhitelist.name) {
-                stringResource(R.string.ocr_whitelist_title)
-            } else {
-                stringResource(R.string.text_boom_settings)
+            title = when (currentPage) {
+                SettingsPage.OcrWhitelist.name -> stringResource(R.string.ocr_whitelist_title)
+                SettingsPage.About.name -> stringResource(R.string.about_title)
+                else -> stringResource(R.string.text_boom_settings)
             },
-            showBack = currentPage == SettingsPage.OcrWhitelist.name,
+            showBack = currentPage != SettingsPage.Main.name,
             onBack = { currentPage = SettingsPage.Main.name },
+            onTitleClick = if (currentPage == SettingsPage.Main.name) {
+                { currentPage = SettingsPage.About.name }
+            } else {
+                null
+            },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
@@ -961,6 +1000,7 @@ private fun SettingsTopBar(
     showBack: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onTitleClick: (() -> Unit)? = null,
 ) {
     val palette = LocalSettingsPalette.current
     val shape = RoundedCornerShape(0.dp)
@@ -980,7 +1020,8 @@ private fun SettingsTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                    .heightIn(min = 32.dp),
             ) {
                 if (showBack) {
                     Box(
@@ -1003,7 +1044,15 @@ private fun SettingsTopBar(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .then(
+                            if (onTitleClick != null) {
+                                Modifier.clickable(onClick = onTitleClick)
+                            } else {
+                                Modifier
+                            }
+                        ),
                 )
             }
         }
@@ -1154,6 +1203,161 @@ private fun WhitelistAppRow(
     }
 }
 
+@Composable
+private fun AboutPage(
+    topPadding: androidx.compose.ui.unit.Dp,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val palette = LocalSettingsPalette.current
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(top = topPadding, bottom = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(modifier = Modifier.height(28.dp))
+                Image(
+                    painter = painterResource(R.drawable.icon_bigbang),
+                    contentDescription = null,
+                    modifier = Modifier.size(96.dp),
+                    contentScale = ContentScale.Fit,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Nova Text",
+                    color = palette.textPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Alpha ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    color = palette.textSecondary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+
+        item {
+            SettingsSectionCard {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.about_description),
+                        color = palette.textSecondary,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                    )
+                    HorizontalDivider(color = palette.divider)
+                    Text(
+                        text = stringResource(R.string.about_open_source_refs),
+                        color = palette.textPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    val cppjiebaUrl = "https://github.com/yanyiwu/cppjieba"
+                    val bigbangUrl = "https://github.com/SmartisanTech/packages_apps_BigBang"
+                    val cppjiebaLine = buildAnnotatedString {
+                        append("本地分词算法：")
+                        pushStringAnnotation(tag = "URL", annotation = cppjiebaUrl)
+                        withStyle(SpanStyle(color = palette.accent)) {
+                            append("yanyiwu/cppjieba")
+                        }
+                        pop()
+                    }
+                    val bigbangLine = buildAnnotatedString {
+                        append("原项目：")
+                        pushStringAnnotation(tag = "URL", annotation = bigbangUrl)
+                        withStyle(SpanStyle(color = palette.accent)) {
+                            append("SmartisanTech/BigBang")
+                        }
+                        pop()
+                    }
+                    ClickableText(
+                        text = cppjiebaLine,
+                        onClick = { offset ->
+                            cppjiebaLine.getStringAnnotations("URL", offset, offset)
+                                .firstOrNull()?.let {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(it.item))
+                                    )
+                                }
+                        },
+                        style = TextStyle(
+                            color = palette.textSecondary,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                        ),
+                    )
+                    ClickableText(
+                        text = bigbangLine,
+                        onClick = { offset ->
+                            bigbangLine.getStringAnnotations("URL", offset, offset)
+                                .firstOrNull()?.let {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(it.item))
+                                    )
+                                }
+                        },
+                        style = TextStyle(
+                            color = palette.textSecondary,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                        ),
+                    )
+                }
+            }
+        }
+
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SecondaryActionButton(
+                    text = stringResource(R.string.about_bilibili),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://space.bilibili.com/9565289"))
+                        )
+                    },
+                )
+                SecondaryActionButton(
+                    text = stringResource(R.string.about_github),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/CashewTeam/BigBang_NovaText"))
+                        )
+                    },
+                )
+                SecondaryActionButton(
+                    text = stringResource(R.string.about_check_update),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/CashewTeam/BigBang_NovaText/releases"))
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
 @Composable
 private fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalSettingsPalette.current

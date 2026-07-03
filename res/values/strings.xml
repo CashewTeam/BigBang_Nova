@@ -135,4 +135,10 @@
     <string name="bigbang_action_placeholder">功能建设中</string>
     <string name="bigbang_pull_previous">松手后获取上一段文本</string>
     <string name="bigbang_pull_next">松手后获取下一段文本</string>
+    <string name="about_title">关于</string>
+    <string name="about_description">Nova Text 是 Smartisan OS「大爆炸」功能的现代化重制版，提供屏幕文本提取、OCR 识别、分词处理与快捷搜索，兼容 Android 10+ 设备。</string>
+    <string name="about_github">GitHub 项目主页</string>
+    <string name="about_check_update">检查更新</string>
+    <string name="about_bilibili">映像同好会 B站主页</string>
+    <string name="about_open_source_refs">开源项目引用</string>
 </resources>

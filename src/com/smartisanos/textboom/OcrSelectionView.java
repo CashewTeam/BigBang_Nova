@@ -51,7 +51,7 @@ public class OcrSelectionView extends View {
         mTouchThresholdPx = dp(26);
         mHandleRadiusPx = dp(13);
         mHandleHitRadiusPx = dp(28);
-        mMinSelectionSizePx = dp(96);
+        mMinSelectionSizePx = dp(72);
 
         mScrimPaint.setColor(0x7A000000);
         mBorderPaint.setColor(0xFF6FA0FF);
@@ -74,7 +74,7 @@ public class OcrSelectionView extends View {
         if (!mHasSelection) {
             resetSelection();
         } else {
-            clampRect(mSelectionRect);
+            clampRect(mSelectionRect, MODE_MOVE);
             invalidate();
         }
     }
@@ -93,8 +93,8 @@ public class OcrSelectionView extends View {
                 mImageBounds.right,
                 centerY + selectionHeight / 2f
         );
-        ensureMinimumSize(mSelectionRect);
-        clampRect(mSelectionRect);
+        ensureMinimumSize(mSelectionRect, MODE_MOVE);
+        clampRect(mSelectionRect, MODE_MOVE);
         mHasSelection = true;
         invalidate();
     }
@@ -224,8 +224,8 @@ public class OcrSelectionView extends View {
             default:
                 return;
         }
-        ensureMinimumSize(next);
-        clampRect(next);
+        ensureMinimumSize(next, mMode);
+        clampRect(next, mMode);
         mSelectionRect.set(next);
     }
 
@@ -244,11 +244,29 @@ public class OcrSelectionView extends View {
         if (nearTop && withinHorizontalBounds(x)) return MODE_TOP;
         if (nearBottom && withinHorizontalBounds(x)) return MODE_BOTTOM;
 
-        if (!containsWithSlop(mImageBounds, x, y, mTouchThresholdPx)) {
-            return MODE_NONE;
-        }
         if (mSelectionRect.contains(x, y)) return MODE_MOVE;
+
+        // Outside image → grab nearest edge so the user can shrink
+        // the selection even when it fills the entire image.
+        if (!mImageBounds.contains(x, y)) {
+            return nearestEdgeMode(x, y);
+        }
+
         return MODE_NONE;
+    }
+
+    private int nearestEdgeMode(float x, float y) {
+        float distLeft = Math.abs(x - mSelectionRect.left);
+        float distRight = Math.abs(x - mSelectionRect.right);
+        float distTop = Math.abs(y - mSelectionRect.top);
+        float distBottom = Math.abs(y - mSelectionRect.bottom);
+
+        float minDist = Math.min(Math.min(distLeft, distRight), Math.min(distTop, distBottom));
+
+        if (minDist == distLeft) return MODE_LEFT;
+        if (minDist == distRight) return MODE_RIGHT;
+        if (minDist == distTop) return MODE_TOP;
+        return MODE_BOTTOM;
     }
 
     private boolean isNearHandle(float x, float y, float handleX, float handleY) {
@@ -272,20 +290,46 @@ public class OcrSelectionView extends View {
         return y >= mSelectionRect.top - mTouchThresholdPx && y <= mSelectionRect.bottom + mTouchThresholdPx;
     }
 
-    private void ensureMinimumSize(RectF rect) {
+    /**
+     * Enforce minimum selection size. For edge/corner resize modes, only
+     * push back the edge(s) being dragged so the opposite edge stays put.
+     * For MODE_MOVE, expand from center symmetrically.
+     */
+    private void ensureMinimumSize(RectF rect, int mode) {
         if (rect.width() < mMinSelectionSizePx) {
-            float centerX = rect.centerX();
-            rect.left = centerX - mMinSelectionSizePx / 2f;
-            rect.right = centerX + mMinSelectionSizePx / 2f;
+            boolean dragLeft = mode == MODE_LEFT || mode == MODE_LEFT_TOP || mode == MODE_LEFT_BOTTOM;
+            boolean dragRight = mode == MODE_RIGHT || mode == MODE_RIGHT_TOP || mode == MODE_RIGHT_BOTTOM;
+            if (dragLeft && !dragRight) {
+                rect.left = rect.right - mMinSelectionSizePx;
+            } else if (dragRight && !dragLeft) {
+                rect.right = rect.left + mMinSelectionSizePx;
+            } else {
+                float cx = rect.centerX();
+                rect.left = cx - mMinSelectionSizePx / 2f;
+                rect.right = cx + mMinSelectionSizePx / 2f;
+            }
         }
         if (rect.height() < mMinSelectionSizePx) {
-            float centerY = rect.centerY();
-            rect.top = centerY - mMinSelectionSizePx / 2f;
-            rect.bottom = centerY + mMinSelectionSizePx / 2f;
+            boolean dragTop = mode == MODE_TOP || mode == MODE_LEFT_TOP || mode == MODE_RIGHT_TOP;
+            boolean dragBottom = mode == MODE_BOTTOM || mode == MODE_LEFT_BOTTOM || mode == MODE_RIGHT_BOTTOM;
+            if (dragTop && !dragBottom) {
+                rect.top = rect.bottom - mMinSelectionSizePx;
+            } else if (dragBottom && !dragTop) {
+                rect.bottom = rect.top + mMinSelectionSizePx;
+            } else {
+                float cy = rect.centerY();
+                rect.top = cy - mMinSelectionSizePx / 2f;
+                rect.bottom = cy + mMinSelectionSizePx / 2f;
+            }
         }
     }
 
-    private void clampRect(RectF rect) {
+    /**
+     * Clamp the selection rect to image bounds. For edge/corner resize modes,
+     * clamp each edge independently so the opposite edge doesn't move.
+     * For MODE_MOVE, shift the entire rect to keep it within bounds.
+     */
+    private void clampRect(RectF rect, int mode) {
         if (rect.width() > mImageBounds.width()) {
             rect.left = mImageBounds.left;
             rect.right = mImageBounds.right;
@@ -294,18 +338,22 @@ public class OcrSelectionView extends View {
             rect.top = mImageBounds.top;
             rect.bottom = mImageBounds.bottom;
         }
-        if (rect.left < mImageBounds.left) {
-            rect.offset(mImageBounds.left - rect.left, 0);
+
+        if (mode == MODE_MOVE) {
+            if (rect.left < mImageBounds.left) {
+                rect.offset(mImageBounds.left - rect.left, 0);
+            }
+            if (rect.top < mImageBounds.top) {
+                rect.offset(0, mImageBounds.top - rect.top);
+            }
+            if (rect.right > mImageBounds.right) {
+                rect.offset(mImageBounds.right - rect.right, 0);
+            }
+            if (rect.bottom > mImageBounds.bottom) {
+                rect.offset(0, mImageBounds.bottom - rect.bottom);
+            }
         }
-        if (rect.top < mImageBounds.top) {
-            rect.offset(0, mImageBounds.top - rect.top);
-        }
-        if (rect.right > mImageBounds.right) {
-            rect.offset(mImageBounds.right - rect.right, 0);
-        }
-        if (rect.bottom > mImageBounds.bottom) {
-            rect.offset(0, mImageBounds.bottom - rect.bottom);
-        }
+
         rect.left = Math.max(rect.left, mImageBounds.left);
         rect.top = Math.max(rect.top, mImageBounds.top);
         rect.right = Math.min(rect.right, mImageBounds.right);
