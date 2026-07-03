@@ -321,6 +321,10 @@ class FloatingBallService : Service(), SensorEventListener {
         val root = launchLoopView ?: return
         frame.visibility = View.INVISIBLE
         rotate.visibility = View.INVISIBLE
+        frame.animate().cancel()
+        frame.alpha = 0f
+        frame.scaleX = LAUNCH_LOOP_START_SCALE
+        frame.scaleY = LAUNCH_LOOP_START_SCALE
         frame.post {
             val width = frame.width.takeIf { it > 0 } ?: frame.measuredWidth
             val height = frame.height.takeIf { it > 0 } ?: frame.measuredHeight
@@ -333,6 +337,12 @@ class FloatingBallService : Service(), SensorEventListener {
             root.visibility = View.VISIBLE
             frame.visibility = View.VISIBLE
             rotate.visibility = View.VISIBLE
+            frame.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(LAUNCH_LOOP_SCALE_DURATION_MS)
+                .start()
         }
         if (launchLoopAnimator?.isRunning == true) return
         launchLoopAnimator = ObjectAnimator.ofFloat(rotate, "rotation", rotate.rotation, rotate.rotation + 360f).apply {
@@ -638,6 +648,8 @@ class FloatingBallService : Service(), SensorEventListener {
         private const val FADE_DURATION_MS = 240L
         private const val BUBBLE_APPEAR_DURATION_MS = 220L
         private const val BUBBLE_APPEAR_START_SCALE = 0.86f
+        private const val LAUNCH_LOOP_SCALE_DURATION_MS = 160L
+        private const val LAUNCH_LOOP_START_SCALE = 0.72f
         private const val SCREENSHOT_HIDE_SETTLE_MS = 48L
         private const val LAUNCH_FALLBACK_TIMEOUT_MS = 3_000L
         private const val ONE_HAND_CHECK_INTERVAL_MS = 1_000L
