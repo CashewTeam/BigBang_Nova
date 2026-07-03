@@ -602,13 +602,16 @@ class FloatingBallService : Service(), SensorEventListener {
         val bubble = bubbleView ?: return
         bubble.animate()?.cancel()
         if (shouldHideBubble()) {
+            ballIdle = false
             bubble.visibility = View.INVISIBLE
             bubble.alpha = 0f
             bubble.scaleX = BUBBLE_APPEAR_START_SCALE
             bubble.scaleY = BUBBLE_APPEAR_START_SCALE
         } else {
+            ballIdle = true
             val shouldAnimateIn = bubble.visibility != View.VISIBLE || bubble.alpha <= 0f
             bubble.visibility = View.VISIBLE
+            updateBubbleChrome()
             if (shouldAnimateIn) {
                 bubble.alpha = 0f
                 bubble.scaleX = BUBBLE_APPEAR_START_SCALE
