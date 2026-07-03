@@ -71,6 +71,7 @@ object BoomOcrLauncher {
         traceId: String? = null,
         traceEnabled: Boolean = false,
         captureScreenshot: Boolean = false,
+        externalLaunchLoop: Boolean = false,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
             if (imageUri != null) {
@@ -78,6 +79,7 @@ object BoomOcrLauncher {
             }
             putExtra(OcrLaunchActivity.EXTRA_AUTO_NEAREST_OCR, true)
             putExtra(EXTRA_CAPTURE_OCR_SCREENSHOT, captureScreenshot)
+            putExtra(OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP, externalLaunchLoop)
             putExtra("boom_startx", touchX)
             putExtra("boom_starty", touchY)
             putExtra("boom_fullscreen", fullscreen)

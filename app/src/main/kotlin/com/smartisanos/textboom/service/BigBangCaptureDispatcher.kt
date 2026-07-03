@@ -210,6 +210,7 @@ object BigBangCaptureDispatcher {
                 return
             }
             mainHandler.post {
+                FloatingBallService.showLaunchLoopAt(touchX, touchY)
                 BoomOcrLauncher.launchCapture(
                     context = context,
                     touchX = touchX,
@@ -220,6 +221,7 @@ object BigBangCaptureDispatcher {
                     traceId = traceId,
                     traceEnabled = traceEnabled,
                     captureScreenshot = false,
+                    externalLaunchLoop = true,
                 )
             }
         }
@@ -266,6 +268,7 @@ object BigBangCaptureDispatcher {
         val sourceToken = ManualOcrSourceStore.newActiveToken()
         fun launchOcrFallback() {
             if (!allowOcrFallback || ManualOcrSourceStore.get(sourceToken) == null) {
+                FloatingBallService.hideLaunchLoop()
                 FloatingBallService.clearCaptureLaunchSuppression()
                 return
             }
@@ -280,10 +283,12 @@ object BigBangCaptureDispatcher {
                     traceId = traceId,
                     traceEnabled = traceEnabled,
                     captureScreenshot = false,
+                    externalLaunchLoop = true,
                 )
             }
         }
         fun launchTextCapture() {
+            FloatingBallService.showLaunchLoopAt(touchX, touchY)
             thread(name = "bigbang-dispatcher-accessibility") {
                 val snapshot = TextSessionCoordinator.runAccessibilityFirst(
                     CaptureRequestContract(
@@ -311,6 +316,7 @@ object BigBangCaptureDispatcher {
                         animateLaunch = true,
                         enableAdjacentSession = true,
                         manualOcrSourceToken = sourceToken,
+                        externalLaunchLoop = true,
                     )
                 }
             }

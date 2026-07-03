@@ -60,6 +60,7 @@ class OcrLaunchActivity : Activity() {
     private var accessibilityCaptureFailed = false
     private var accessibilityOcrFallbackStarted = false
     private var allowAccessibilityOcrFallback = false
+    private var externalLaunchLoop = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,6 +76,7 @@ class OcrLaunchActivity : Activity() {
         manualOcrSourceToken = intent.getStringExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN)
         replayOcrMode = intent.getStringExtra(EXTRA_REPLAY_OCR_MODE)
         replayMode = intent.getStringExtra(EXTRA_REPLAY_MODE)
+        externalLaunchLoop = intent.getBooleanExtra(EXTRA_EXTERNAL_LAUNCH_LOOP, false)
         traceEnabled = intent.getBooleanExtra(EXTRA_CAPTURE_TRACE_ENABLED, false)
         traceId = intent.getStringExtra(EXTRA_CAPTURE_TRACE_ID)?.takeIf { it.isNotBlank() }
             ?: traceId
@@ -90,11 +92,11 @@ class OcrLaunchActivity : Activity() {
             return
         }
         if (isReplayRequested()) {
-            startLaunchAnimationAtTouch()
+            openLaunchGate()
             return
         }
         if (pendingText != null) {
-            startLaunchAnimationAtTouch()
+            openLaunchGate()
             return
         }
         if (captureRequested) {
@@ -143,7 +145,7 @@ class OcrLaunchActivity : Activity() {
                                 replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
                             ),
                         )
-                        startLaunchAnimationAtTouch()
+                        openLaunchGate()
                         startNearestParagraphOcr()
                     },
                     onCaptured = {},
@@ -163,6 +165,7 @@ class OcrLaunchActivity : Activity() {
                 finish()
                 return
             }
+            openLaunchGate()
             startNearestParagraphOcr()
             return
         }
@@ -239,6 +242,15 @@ class OcrLaunchActivity : Activity() {
                 return@post
             }
             startLaunchAnimation()
+        }
+    }
+
+    private fun openLaunchGate() {
+        if (externalLaunchLoop) {
+            launchGateOpen = true
+            maybeLaunchBigBang()
+        } else {
+            startLaunchAnimationAtTouch()
         }
     }
 
@@ -600,7 +612,7 @@ class OcrLaunchActivity : Activity() {
         }
         accessibilityOcrFallbackStarted = true
         enableAdjacentSession = true
-        startLaunchAnimationAtTouch()
+        openLaunchGate()
         startNearestParagraphOcr()
         return true
     }
@@ -609,7 +621,7 @@ class OcrLaunchActivity : Activity() {
         if (launched || cancelled || pendingOcrSelectionLaunch || isFinishing || isDestroyed) {
             return
         }
-        startLaunchAnimationAtTouch()
+        openLaunchGate()
     }
 
     private fun updateDirectOcrReplayContext(
@@ -667,7 +679,7 @@ class OcrLaunchActivity : Activity() {
             if (launched || cancelled || pendingOcrSelectionLaunch) {
                 return@post
             }
-            startLaunchAnimationAtTouch()
+            openLaunchGate()
         }
     }
 
@@ -754,6 +766,7 @@ class OcrLaunchActivity : Activity() {
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK = "extra_allow_accessibility_ocr_fallback"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
+        const val EXTRA_EXTERNAL_LAUNCH_LOOP = "extra_external_launch_loop"
         const val EXTRA_AUTO_NEAREST_OCR = "extra_auto_nearest_ocr"
         const val EXTRA_REPLAY_OCR_MODE = "extra_replay_ocr_mode"
         const val EXTRA_REPLAY_MODE = "extra_replay_mode"

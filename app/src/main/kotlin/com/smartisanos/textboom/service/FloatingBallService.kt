@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -26,6 +28,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Display
 import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.View
@@ -34,6 +37,7 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.view.animation.LinearInterpolator
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -71,6 +75,10 @@ class FloatingBallService : Service(), SensorEventListener {
     private var accelerometer: Sensor? = null
     private var oneHandSensorRegistered = false
     private var lastOneHandCheckAt = 0L
+    private var launchLoopView: View? = null
+    private var launchLoopFrame: FrameLayout? = null
+    private var launchLoopRotateView: ImageView? = null
+    private var launchLoopAnimator: ObjectAnimator? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -120,6 +128,7 @@ class FloatingBallService : Service(), SensorEventListener {
     override fun onDestroy() {
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
         unregisterOneHandSensor()
+        hideLaunchLoopInternal()
         bubbleView?.let { windowManager.removeView(it) }
         bubbleView = null
         isRunning = false
@@ -281,6 +290,68 @@ class FloatingBallService : Service(), SensorEventListener {
             .setSmallIcon(android.R.drawable.ic_menu_search)
             .setOngoing(true)
             .build()
+    }
+
+    private fun showLaunchLoopAtInternal(x: Int, y: Int) {
+        if (!::windowManager.isInitialized) return
+        if (launchLoopView == null) {
+            val view = LayoutInflater.from(this).inflate(R.layout.boom_ocr_launch_layout, null)
+            view.visibility = View.INVISIBLE
+            launchLoopView = view
+            launchLoopFrame = view.findViewById(R.id.anim_loop)
+            launchLoopRotateView = view.findViewById(R.id.loop_rotate)
+            windowManager.addView(
+                view,
+                WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT,
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                },
+            )
+        }
+        val frame = launchLoopFrame ?: return
+        val rotate = launchLoopRotateView ?: return
+        val root = launchLoopView ?: return
+        frame.visibility = View.INVISIBLE
+        rotate.visibility = View.INVISIBLE
+        frame.post {
+            val width = frame.width.takeIf { it > 0 } ?: frame.measuredWidth
+            val height = frame.height.takeIf { it > 0 } ?: frame.measuredHeight
+            if (width > 0 && height > 0) {
+                val location = IntArray(2)
+                root.getLocationOnScreen(location)
+                frame.translationX = (x - location[0]) - width / 2f
+                frame.translationY = (y - location[1]) - height / 2f
+            }
+            root.visibility = View.VISIBLE
+            frame.visibility = View.VISIBLE
+            rotate.visibility = View.VISIBLE
+        }
+        if (launchLoopAnimator?.isRunning == true) return
+        launchLoopAnimator = ObjectAnimator.ofFloat(rotate, "rotation", rotate.rotation, rotate.rotation + 360f).apply {
+            duration = 900L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+        }
+    }
+
+    private fun hideLaunchLoopInternal() {
+        launchLoopAnimator?.cancel()
+        launchLoopAnimator = null
+        launchLoopRotateView = null
+        launchLoopFrame = null
+        launchLoopView?.let { view ->
+            runCatching { windowManager.removeView(view) }
+        }
+        launchLoopView = null
     }
 
     private fun resetPositionNow() {
@@ -696,6 +767,7 @@ class FloatingBallService : Service(), SensorEventListener {
             activeService?.let { service ->
                 service.lastTapAt = 0L
                 service.bubbleHandler.post {
+                    service.hideLaunchLoopInternal()
                     service.applyVisibilitySuppressionState()
                     service.scheduleBubbleFade()
                 }
@@ -760,7 +832,20 @@ class FloatingBallService : Service(), SensorEventListener {
 
         fun notifyBigBangShellShown() {
             launchFallbackGeneration.incrementAndGet()
+            hideLaunchLoop()
             clearCaptureLaunchSuppression()
+        }
+
+        fun showLaunchLoopAt(x: Int, y: Int) {
+            activeService?.bubbleHandler?.post {
+                activeService?.showLaunchLoopAtInternal(x, y)
+            }
+        }
+
+        fun hideLaunchLoop() {
+            activeService?.bubbleHandler?.post {
+                activeService?.hideLaunchLoopInternal()
+            }
         }
 
         private fun scheduleLaunchFallback() {
