@@ -100,6 +100,15 @@ class OcrLaunchActivity : Activity() {
             }
             return
         }
+        if (pendingText != null) {
+            window.decorView.post {
+                if (!launched && !cancelled && !isFinishing && !isDestroyed) {
+                    positionLaunchAnimationAtTouch()
+                    startLaunchAnimation()
+                }
+            }
+            return
+        }
         if (captureRequested) {
             startSilentManualOcrCapture()
             startAccessibilityCapture()
