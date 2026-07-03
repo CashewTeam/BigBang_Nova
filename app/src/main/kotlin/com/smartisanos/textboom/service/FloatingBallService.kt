@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -623,7 +624,7 @@ class FloatingBallService : Service(), SensorEventListener {
                 NovaTextLogger.d("overlay permission missing, skip starting floating ball")
                 return
             }
-            if (NovaTextAccessibilityService.activeInstance == null) {
+            if (!isAccessibilityEnabled(context)) {
                 NovaTextLogger.d("accessibility service missing, skip starting floating ball")
                 return
             }
@@ -661,6 +662,21 @@ class FloatingBallService : Service(), SensorEventListener {
         fun isActive(): Boolean = isRunning
 
         fun getActiveStateFlow(): StateFlow<Boolean> = activeState
+
+        fun isAccessibilityEnabled(context: Context): Boolean {
+            val serviceComponent = ComponentName(context, NovaTextAccessibilityService::class.java)
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+            ) ?: return false
+            val expected = serviceComponent.flattenToString()
+            val expectedShort = serviceComponent.flattenToShortString()
+            return enabledServices.split(':').any { value ->
+                val normalized = value.trim()
+                normalized.equals(expected, ignoreCase = true) ||
+                    normalized.equals(expectedShort, ignoreCase = true)
+            }
+        }
 
         fun refreshAppearance(context: Context) {
             if (!isRunning) return

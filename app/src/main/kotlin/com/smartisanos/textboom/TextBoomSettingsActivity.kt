@@ -1,6 +1,5 @@
 package com.cashewteam.novatext.android
 
-import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -110,7 +109,6 @@ import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
-import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -562,11 +560,11 @@ private fun SettingsScreen(
         initial = FloatingBallService.isActive(),
     )
     val currentPermissionState = {
-        PermissionState(
-            overlayGranted = canDrawOverlays(context),
-            accessibilityEnabled = isAccessibilityServiceEnabled(context),
-            floatingBallRunning = floatingBallRunning,
-        )
+            PermissionState(
+                overlayGranted = canDrawOverlays(context),
+                accessibilityEnabled = FloatingBallService.isAccessibilityEnabled(context),
+                floatingBallRunning = floatingBallRunning,
+            )
     }
     var permissionState by remember {
         mutableStateOf(currentPermissionState())
@@ -900,21 +898,6 @@ private fun OcrSection(
 
 private fun canDrawOverlays(context: android.content.Context): Boolean {
     return Settings.canDrawOverlays(context)
-}
-
-private fun isAccessibilityServiceEnabled(context: android.content.Context): Boolean {
-    val serviceComponent = ComponentName(context, NovaTextAccessibilityService::class.java)
-    val enabledServices = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-    ) ?: return false
-    val expected = serviceComponent.flattenToString()
-    val expectedShort = serviceComponent.flattenToShortString()
-    return enabledServices.split(':').any { value ->
-        val normalized = value.trim()
-        normalized.equals(expected, ignoreCase = true) ||
-            normalized.equals(expectedShort, ignoreCase = true)
-    }
 }
 
 @Composable

@@ -136,7 +136,11 @@ public class BoomChipPage {
             @Override
             public void onClick(View v) {
                 if (!handleClick()) {
-                    mActivity.finish();
+                    if (mActivity instanceof BoomActivity) {
+                        ((BoomActivity) mActivity).requestAnimatedDismissFromLegacy();
+                    } else {
+                        mActivity.finish();
+                    }
                 }
             }
         };

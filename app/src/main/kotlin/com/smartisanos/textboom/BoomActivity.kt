@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,6 +66,7 @@ class BoomActivity : ComponentActivity() {
     private var currentSegment: IntArray? = null
     private var manualOcrSourceToken: String? = null
     private var floatingBallHideToken: Int? = null
+    private var animatedDismissRequester: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,7 +104,9 @@ class BoomActivity : ComponentActivity() {
                 touchY = launchTouchY,
                 manualOcrSourceToken = manualOcrSourceToken,
                 ocrRecognizerMode = settings.ocrRecognizerMode,
-                onDismiss = { dismissPage() },
+                onDismissRequesterChanged = { animatedDismissRequester = it },
+                onDismissRequest = { shouldDismissPage() },
+                onDismissFinished = { finish() },
                 onOcr = { reopenManualOcr() },
                 onLanguageSelected = { rerunOcrWithLanguage(it) },
                 onEditMode = { showPlaceholder() },
@@ -138,10 +142,17 @@ class BoomActivity : ComponentActivity() {
         super.onStop()
     }
 
-    private fun dismissPage() {
-        if (boomChipPage?.handleClick() != true) {
-            finish()
-        }
+    override fun finish() {
+        super.finish()
+        overridePendingTransition(0, 0)
+    }
+
+    private fun shouldDismissPage(): Boolean {
+        return boomChipPage?.handleClick() != true
+    }
+
+    fun requestAnimatedDismissFromLegacy() {
+        animatedDismissRequester?.invoke() ?: finish()
     }
 
     private fun selectAll() {
@@ -390,7 +401,9 @@ private fun BigBangOverlayContent(
     touchY: Int,
     manualOcrSourceToken: String?,
     ocrRecognizerMode: String,
-    onDismiss: () -> Unit,
+    onDismissRequesterChanged: ((() -> Unit)?) -> Unit,
+    onDismissRequest: () -> Boolean,
+    onDismissFinished: () -> Unit,
     onOcr: () -> Unit,
     onLanguageSelected: (String) -> Unit,
     onEditMode: () -> Unit,
@@ -405,15 +418,21 @@ private fun BigBangOverlayContent(
     val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.48f)
     val shadowColor = Color.Black.copy(alpha = 0.5f)
     val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(panelMetrics.cornerRadius)
-    var enterAnimationStarted by remember { mutableStateOf(false) }
+    var panelVisible by remember { mutableStateOf(false) }
+    var dismissing by remember { mutableStateOf(false) }
     var panelBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val enterProgress by animateFloatAsState(
-        targetValue = if (enterAnimationStarted) 1f else 0f,
+        targetValue = if (panelVisible) 1f else 0f,
         animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
         label = "bigbang_panel_enter",
+        finishedListener = {
+            if (dismissing && it == 0f) {
+                onDismissFinished()
+            }
+        },
     )
     val scrimProgress by animateFloatAsState(
-        targetValue = if (enterAnimationStarted) 1f else 0f,
+        targetValue = if (panelVisible) 1f else 0f,
         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "bigbang_scrim_enter",
     )
@@ -443,13 +462,27 @@ private fun BigBangOverlayContent(
         stringResource(R.string.ocr_mode_korean) to BigBangSettings.OCR_MODE_KOREAN,
         stringResource(R.string.ocr_mode_latin) to BigBangSettings.OCR_MODE_LATIN,
     )
-
-    LaunchedEffect(Unit) {
-        enterAnimationStarted = true
+    val requestDismiss = {
+        if (!dismissing && onDismissRequest()) {
+            languageMenuExpanded = false
+            dismissing = true
+            panelVisible = false
+        }
     }
 
-    BackHandler(onBack = onDismiss)
-    OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = onDismiss) {
+    DisposableEffect(requestDismiss) {
+        onDismissRequesterChanged(requestDismiss)
+        onDispose {
+            onDismissRequesterChanged(null)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        panelVisible = true
+    }
+
+    BackHandler(onBack = requestDismiss)
+    OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = requestDismiss) {
         FloatingPanel(
             width = panelMetrics.width,
             height = panelMetrics.height,
@@ -530,7 +563,7 @@ private fun BigBangOverlayContent(
                             OverlayIconAction(
                                 iconRes = R.drawable.boom_cancel,
                                 tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                                onClick = onDismiss,
+                                onClick = requestDismiss,
                                 contentDescription = stringResource(R.string.search_overlay_close),
                             )
                         },
