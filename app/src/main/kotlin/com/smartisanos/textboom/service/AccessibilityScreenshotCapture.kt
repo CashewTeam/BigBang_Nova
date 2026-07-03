@@ -3,12 +3,15 @@ package com.cashewteam.novatext.android.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Point
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Display
+import android.view.WindowManager
 import android.widget.Toast
 import com.cashewteam.novatext.android.R
+import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.Executors
@@ -143,20 +146,26 @@ object AccessibilityScreenshotCapture {
         }
         FloatingBallService.hideForScreenshot {
             screenshotExecutor.execute {
-                NovaTextLogger.d("shizuku screenshot request")
-                val bitmap = ShizukuScreenshotCapture.capture()
+                val debugLog = BigBangSettings.get(context).isDebugCaptureTraceEnabled
+                if (debugLog) NovaTextLogger.d("shizuku screenshot request")
+                val point = Point()
+                @Suppress("DEPRECATION")
+                (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager)
+                    .defaultDisplay
+                    .getRealSize(point)
+                val bitmap = ShizukuScreenshotCapture.capture(point.x, point.y, debugLog)
                 mainHandler.post {
                     captureInFlight.set(false)
                     FloatingBallService.restoreAfterScreenshot()
                     if (bitmap == null) {
-                        NovaTextLogger.d("shizuku screenshot failed")
+                        if (debugLog) NovaTextLogger.d("shizuku screenshot failed")
                         if (!silent) {
                             Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
                         }
                         onFinished?.invoke(null)
                         return@post
                     }
-                    NovaTextLogger.d("shizuku screenshot success ${bitmap.width}x${bitmap.height}")
+                    if (debugLog) NovaTextLogger.d("shizuku screenshot success ${bitmap.width}x${bitmap.height}")
                     onCaptured(bitmap)
                     onFinished?.invoke(bitmap)
                 }

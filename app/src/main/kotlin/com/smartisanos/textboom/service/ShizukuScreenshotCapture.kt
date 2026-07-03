@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import android.os.Parcel
@@ -19,7 +18,7 @@ import kotlin.concurrent.thread
 
 object ShizukuScreenshotCapture {
     private const val REQUEST_CODE = 2901
-    private const val SERVICE_VERSION = 1
+    private const val SERVICE_VERSION = 6
     private const val SERVICE_TIMEOUT_SECONDS = 5L
 
     @Volatile
@@ -69,13 +68,16 @@ object ShizukuScreenshotCapture {
         }
     }
 
-    fun capture(): Bitmap? {
-        if (getStatus() != Status.READY) return null
+    fun capture(width: Int, height: Int, debugLog: Boolean = false): Bitmap? {
+        val status = getStatus()
+        if (status != Status.READY) {
+            if (debugLog) NovaTextLogger.d("shizuku screenshot skipped: status=$status")
+            return null
+        }
         return try {
-            val bytes = captureBytes() ?: return null
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            captureBitmap(width, height, debugLog)
         } catch (exception: Throwable) {
-            NovaTextLogger.d("shizuku screenshot failed: ${exception.javaClass.simpleName}")
+            if (debugLog) NovaTextLogger.d("shizuku screenshot failed: ${exception.javaClass.simpleName}")
             null
         }
     }
@@ -88,11 +90,18 @@ object ShizukuScreenshotCapture {
         }
     }
 
-    private fun captureBytes(): ByteArray? {
-        val binder = obtainBinder() ?: return null
+    private fun captureBitmap(width: Int, height: Int, debugLog: Boolean): Bitmap? {
+        val binder = obtainBinder()
+        if (binder == null) {
+            if (debugLog) NovaTextLogger.d("shizuku screenshot failed: no binder")
+            return null
+        }
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         try {
+            data.writeInt(width)
+            data.writeInt(height)
+            data.writeInt(if (debugLog) 1 else 0)
             val ok = binder.transact(
                 ShizukuScreenshotUserService.TRANSACTION_CAPTURE_SCREENSHOT,
                 data,
@@ -100,14 +109,18 @@ object ShizukuScreenshotCapture {
                 0,
             )
             if (!ok) {
-                NovaTextLogger.d("shizuku screenshot failed: transact false")
+                if (debugLog) NovaTextLogger.d("shizuku screenshot failed: transact false")
                 invalidateCache()
                 return null
             }
             reply.readException()
-            return reply.createByteArray()
+            val bitmap = reply.readTypedObject(Bitmap.CREATOR)
+            if (bitmap == null && debugLog) {
+                NovaTextLogger.d("shizuku screenshot failed: service returned null bitmap")
+            }
+            return bitmap
         } catch (e: RemoteException) {
-            NovaTextLogger.d("shizuku screenshot failed: ${e.javaClass.simpleName}")
+            if (debugLog) NovaTextLogger.d("shizuku screenshot failed: ${e.javaClass.simpleName}")
             invalidateCache()
             return null
         } finally {
