@@ -81,6 +81,8 @@
     <string name="permission_floating_ball_one_hand_title">单手优化</string>
     <string name="permission_floating_ball_one_hand_summary">开启后，每 1 秒根据手机倾斜方向自动切换左右停靠，并带角度阈值避免误切换。</string>
     <string name="permission_floating_ball_one_hand_angle_title">单手切换角度</string>
+    <string name="permission_floating_ball_hidden_title">隐藏悬浮球</string>
+    <string name="permission_floating_ball_hidden_summary">静置时隐藏胶囊背景和圆球，仅保留蓝色指示条，触控区域不变</string>
     <string name="ocr_section_title">OCR 识别</string>
     <string name="ocr_section_summary">使用离线 ML Kit V2 识别图片文字，并直接进入大爆炸。当前提供中文、日语、韩语和英语四种识别模式。</string>
     <string name="ocr_mode_chinese">中文</string>

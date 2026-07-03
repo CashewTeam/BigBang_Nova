@@ -27,6 +27,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_HEIGHT_LOCKED = "floating_ball_height_locked";
     public static final String KEY_FLOATING_BALL_ONE_HAND_MODE = "floating_ball_one_hand_mode";
     public static final String KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = "floating_ball_one_hand_angle_degrees";
+    public static final String KEY_FLOATING_BALL_HIDDEN = "floating_ball_hidden";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -244,6 +245,14 @@ public final class BigBangSettings {
         preferences.edit()
                 .putInt(KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES, clampAngleDegrees(value))
                 .apply();
+    }
+
+    public boolean isFloatingBallHidden() {
+        return preferences.getBoolean(KEY_FLOATING_BALL_HIDDEN, false);
+    }
+
+    public void setFloatingBallHidden(boolean enabled) {
+        preferences.edit().putBoolean(KEY_FLOATING_BALL_HIDDEN, enabled).apply();
     }
 
     private static int clampPercent(int value) {

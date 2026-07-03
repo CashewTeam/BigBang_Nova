@@ -178,6 +178,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallHeightLockedChange = { updateFloatingBallHeightLocked(it) },
                     onFloatingBallOneHandModeChange = { updateFloatingBallOneHandMode(it) },
                     onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
+                    onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
@@ -294,6 +295,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateFloatingBallOneHandAngle(value: Int) {
         settings.setFloatingBallOneHandAngleDegrees(value)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallHidden(enabled: Boolean) {
+        settings.setFloatingBallHidden(enabled)
         FloatingBallService.refreshAppearance(this)
     }
 
@@ -534,6 +540,7 @@ private fun SettingsScreen(
     onFloatingBallHeightLockedChange: (Boolean) -> Unit,
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
+    onFloatingBallHiddenChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -602,6 +609,9 @@ private fun SettingsScreen(
     }
     var floatingBallOneHandAngle by rememberSaveable {
         mutableIntStateOf(settings.floatingBallOneHandAngleDegrees)
+    }
+    var floatingBallHidden by rememberSaveable {
+        mutableStateOf(settings.isFloatingBallHidden)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -745,6 +755,7 @@ private fun SettingsScreen(
                             floatingBallHeightLocked = floatingBallHeightLocked,
                             floatingBallOneHandMode = floatingBallOneHandMode,
                             floatingBallOneHandAngle = floatingBallOneHandAngle,
+                            floatingBallHidden = floatingBallHidden,
                             onFloatingBallSizeChange = {
                                 floatingBallSizePercent = it
                                 onFloatingBallSizeChange(it)
@@ -768,6 +779,10 @@ private fun SettingsScreen(
                             onFloatingBallOneHandAngleChange = {
                                 floatingBallOneHandAngle = it
                                 onFloatingBallOneHandAngleChange(it)
+                            },
+                            onFloatingBallHiddenChange = {
+                                floatingBallHidden = it
+                                onFloatingBallHiddenChange(it)
                             },
                         )
                     }
@@ -1637,12 +1652,14 @@ private fun FloatingBallSection(
     floatingBallHeightLocked: Boolean,
     floatingBallOneHandMode: Boolean,
     floatingBallOneHandAngle: Int,
+    floatingBallHidden: Boolean,
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
     onFloatingBallHeightLockedChange: (Boolean) -> Unit,
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
+    onFloatingBallHiddenChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1693,6 +1710,12 @@ private fun FloatingBallSection(
             value = floatingBallOneHandAngle,
             valueRange = 5f..45f,
             onValueChange = onFloatingBallOneHandAngleChange,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.permission_floating_ball_hidden_title),
+            subtitle = stringResource(R.string.permission_floating_ball_hidden_summary),
+            checked = floatingBallHidden,
+            onCheckedChange = onFloatingBallHiddenChange,
         )
     }
 }

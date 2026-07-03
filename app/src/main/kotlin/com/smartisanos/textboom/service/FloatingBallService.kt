@@ -58,9 +58,12 @@ class FloatingBallService : Service(), SensorEventListener {
     private lateinit var settings: BigBangSettings
     private var bubbleView: View? = null
     private var bubbleIconView: ImageView? = null
+    private var blueCapsuleView: View? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
     private val bubbleHandler = Handler(Looper.getMainLooper())
     private val fadeBubbleRunnable = Runnable {
+        ballIdle = true
+        updateBubbleChrome()
         bubbleView?.animate()?.alpha(idleAlpha())?.setDuration(FADE_DURATION_MS)?.start()
     }
 
@@ -70,6 +73,7 @@ class FloatingBallService : Service(), SensorEventListener {
     private var downY = 0
     private var lastTapAt = 0L
     private var capsuleBackgroundVisible = true
+    private var ballIdle = true
     private var lastSafeArea: Rect? = null
     private var sensorManager: SensorManager? = null
     private var accelerometer: Sensor? = null
@@ -173,8 +177,17 @@ class FloatingBallService : Service(), SensorEventListener {
             clipToOutline = true
         }
         bubble.addView(icon)
+        val blueCapsule = View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = iconSizePx / 2f
+                setColor(BLUE_CAPSULE_COLOR)
+            }
+        }
+        bubble.addView(blueCapsule)
         bubbleView = bubble
         bubbleIconView = icon
+        blueCapsuleView = blueCapsule
         updateBubbleChrome()
 
         layoutParams = WindowManager.LayoutParams(
@@ -272,9 +285,11 @@ class FloatingBallService : Service(), SensorEventListener {
 
     private fun showActiveBubble() {
         if (isVisibilitySuppressed()) return
+        ballIdle = false
         bubbleHandler.removeCallbacks(fadeBubbleRunnable)
         bubbleView?.animate()?.cancel()
         bubbleView?.alpha = activeAlpha()
+        updateBubbleChrome()
     }
 
     private fun scheduleBubbleFade() {
@@ -551,6 +566,10 @@ class FloatingBallService : Service(), SensorEventListener {
         return (iconSizePx * CAPSULE_WIDTH_RATIO).roundToInt()
     }
 
+    private fun dp(value: Float): Int {
+        return (value * resources.displayMetrics.density).toInt()
+    }
+
     private fun rightDockedWidth(params: WindowManager.LayoutParams): Int {
         return if (isLandscape()) params.width + params.height / 2 else params.height
     }
@@ -574,6 +593,7 @@ class FloatingBallService : Service(), SensorEventListener {
         if (!isVisibilitySuppressed()) {
             bubbleView?.alpha = idleAlpha()
         }
+        updateBubbleChrome()
         updateBubbleLayout()
     }
 
@@ -609,11 +629,16 @@ class FloatingBallService : Service(), SensorEventListener {
 
     private fun updateBubbleChrome() {
         val iconSizePx = bubbleSizePx()
+        val hiddenMode = settings.isFloatingBallHidden()
+        val isIdle = ballIdle && capsuleBackgroundVisible && !isLandscape()
+        val showCapsuleBg = capsuleBackgroundVisible && !isLandscape()
         bubbleView?.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = iconSizePx / 2f
             setColor(
-                if (capsuleBackgroundVisible && !isLandscape()) {
+                if (hiddenMode && isIdle) {
+                    Color.TRANSPARENT
+                } else if (showCapsuleBg) {
                     CAPSULE_BACKGROUND_COLOR
                 } else {
                     Color.TRANSPARENT
@@ -626,6 +651,32 @@ class FloatingBallService : Service(), SensorEventListener {
             } else {
                 Gravity.START or Gravity.CENTER_VERTICAL
             }
+        }
+        bubbleIconView?.visibility = if (hiddenMode && isIdle) {
+            View.INVISIBLE
+        } else {
+            View.VISIBLE
+        }
+        val capsuleW = capsuleWidthPx(iconSizePx)
+        val iconCenterX = if (dockedSide == DOCK_LEFT) {
+            capsuleW - iconSizePx / 2
+        } else {
+            iconSizePx / 2
+        }
+        val blueWidthPx = dp(4f)
+        val gapPx = dp(10f)
+        blueCapsuleView?.layoutParams = FrameLayout.LayoutParams(blueWidthPx, iconSizePx).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            marginStart = if (dockedSide == DOCK_RIGHT) {
+                iconCenterX + gapPx + blueWidthPx
+            } else {
+                iconCenterX - gapPx - blueWidthPx
+            }
+        }
+        blueCapsuleView?.visibility = if (hiddenMode && isIdle) {
+            View.VISIBLE
+        } else {
+            View.GONE
         }
     }
 
@@ -664,6 +715,7 @@ class FloatingBallService : Service(), SensorEventListener {
         private const val DOCK_LEFT = 0
         private const val DOCK_RIGHT = 1
         private val CAPSULE_BACKGROUND_COLOR = Color.argb(150, 0, 0, 0)
+        private val BLUE_CAPSULE_COLOR = Color.parseColor("#5D91FF")
         private const val MODE_IDLE = "idle"
         private const val MODE_DETECT = "detect"
         private const val MODE_RELOCATE = "relocate"
