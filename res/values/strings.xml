@@ -96,6 +96,12 @@
     <string name="ocr_capture_failed">截图失败，请重试</string>
     <string name="ocr_capture_in_progress">正在截图，请稍候</string>
     <string name="ocr_capture_unsupported">当前系统版本不支持无障碍截图</string>
+    <string name="shizuku_status_title">Android 10 截图</string>
+    <string name="shizuku_status_not_required">当前系统无需 Shizuku</string>
+    <string name="shizuku_status_service_unavailable">Shizuku 未安装或未运行</string>
+    <string name="shizuku_status_permission_required">Shizuku 未授权</string>
+    <string name="shizuku_status_ready">Shizuku 已就绪</string>
+    <string name="shizuku_request_permission">请求 Shizuku 授权</string>
     <string name="ocr_foreground_package_missing">无法识别当前前台应用，请稍后重试。</string>
     <string name="accessibility_required_message">请先开启无障碍服务，或打开调试开关后再使用预制文本链路。</string>
     <string name="ocr_select_region_hint">调整识别区域，然后开始识别</string>

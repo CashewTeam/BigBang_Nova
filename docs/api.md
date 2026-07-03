@@ -126,16 +126,18 @@ Activity 上下文：
 
 用途：
 
-- 悬浮球白名单 OCR 链路的“先前台、再截图”入口
-- 命中 OCR 白名单时只能用这个入口先启动 `OcrLaunchActivity`
+- 悬浮球白名单 OCR 链路的代理页启动入口
+- 命中 OCR 白名单时，`BigBangCaptureDispatcher` 先截图写入 `ManualOcrSourceStore`，再用这个入口启动 `OcrLaunchActivity`
 
 实际启动：
 
 - `OcrLaunchActivity`
 
-写入 extras：
+关键 extras：
 
-- `BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT = true`
+- `BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT`
+  - `false`：白名单 OCR 主路径，使用 dispatcher 已缓存截图
+  - `true`：保留给需要代理页自行截图的兼容入口
 - `boom_startx`
 - `boom_starty`
 - `boom_fullscreen`
@@ -145,8 +147,8 @@ Activity 上下文：
 
 约束：
 
-- `BigBangCaptureDispatcher` 不直接截图后再启动 Activity
-- `OcrLaunchActivity` 收到 `EXTRA_CAPTURE_OCR_SCREENSHOT = true` 后，在自身窗口内调用 `AccessibilityScreenshotCapture.captureToOcr(...)`
+- 白名单 OCR 主路径不在 `OcrLaunchActivity` 内重复首张截图
+- `OcrLaunchActivity` 读取 `manual_ocr_source_token` 对应的缓存图后做 OCR
 - OCR 成功拿到最近段落后，由 `OcrLaunchActivity` 继续拉起 `OverlayActivity -> BoomActivity`
 
 ### 3.5 `BoomOcrLauncher.replayWithLanguage(...)`

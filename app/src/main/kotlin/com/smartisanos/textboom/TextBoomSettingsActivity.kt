@@ -109,6 +109,8 @@ import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
+import com.cashewteam.novatext.android.service.ShizukuScreenshotCapture
+import rikka.shizuku.Shizuku
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -553,6 +555,9 @@ private fun SettingsScreen(
     var ocrWhitelistPackages by remember {
         mutableStateOf(settings.ocrWhitelistPackages.toSet())
     }
+    var shizukuStatus by remember {
+        mutableStateOf(ShizukuScreenshotCapture.getStatus())
+    }
     val warmUpState by JiebaWarmUpTracker.getStateFlow().collectAsState(
         initial = JiebaWarmUpTracker.getCurrentState(),
     )
@@ -616,11 +621,26 @@ private fun SettingsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permissionState = currentPermissionState()
+                shizukuStatus = ShizukuScreenshotCapture.getStatus()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val listener = Shizuku.OnRequestPermissionResultListener { _, _ ->
+            shizukuStatus = ShizukuScreenshotCapture.getStatus()
+        }
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            Shizuku.addRequestPermissionResultListener(listener)
+        }
+        onDispose {
+            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                Shizuku.removeRequestPermissionResultListener(listener)
+            }
         }
     }
 
@@ -721,12 +741,17 @@ private fun SettingsScreen(
                             selectedMode = selectedOcrMode,
                             modes = ocrModes,
                             whitelistCount = selectedCount,
+                            shizukuStatus = shizukuStatus,
                             onModeSelected = {
                                 selectedOcrMode = it
                                 settings.setOcrRecognizerMode(it)
                             },
                             onPickImage = onOpenOcrDebugPicker,
                             onManageWhitelist = { currentPage = SettingsPage.OcrWhitelist.name },
+                            onRequestShizukuPermission = {
+                                ShizukuScreenshotCapture.requestPermission()
+                                shizukuStatus = ShizukuScreenshotCapture.getStatus()
+                            },
                         )
                     }
                 }
@@ -835,11 +860,14 @@ private fun OcrSection(
     selectedMode: String,
     modes: List<OcrModeItem>,
     whitelistCount: Int,
+    shizukuStatus: ShizukuScreenshotCapture.Status,
     onModeSelected: (String) -> Unit,
     onPickImage: () -> Unit,
     onManageWhitelist: () -> Unit,
+    onRequestShizukuPermission: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
+    val showShizukuStatus = Build.VERSION.SDK_INT == Build.VERSION_CODES.Q
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
             text = stringResource(R.string.ocr_section_title),
@@ -893,6 +921,27 @@ private fun OcrSection(
             text = stringResource(R.string.ocr_debug_pick_image_button),
             onClick = onPickImage,
         )
+        if (showShizukuStatus) {
+            val statusText = when (shizukuStatus) {
+                ShizukuScreenshotCapture.Status.READY -> R.string.shizuku_status_ready
+                ShizukuScreenshotCapture.Status.PERMISSION_REQUIRED -> R.string.shizuku_status_permission_required
+                ShizukuScreenshotCapture.Status.SERVICE_UNAVAILABLE -> R.string.shizuku_status_service_unavailable
+                ShizukuScreenshotCapture.Status.NOT_ANDROID_10 -> R.string.shizuku_status_not_required
+            }
+            PermissionStatusRow(
+                title = stringResource(R.string.shizuku_status_title),
+                granted = shizukuStatus == ShizukuScreenshotCapture.Status.READY,
+                grantedText = stringResource(R.string.shizuku_status_ready),
+                deniedText = stringResource(statusText),
+            )
+            if (shizukuStatus == ShizukuScreenshotCapture.Status.PERMISSION_REQUIRED) {
+                SecondaryActionButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = stringResource(R.string.shizuku_request_permission),
+                    onClick = onRequestShizukuPermission,
+                )
+            }
+        }
     }
 }
 

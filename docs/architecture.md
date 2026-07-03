@@ -143,9 +143,10 @@
 
 `FloatingBallService`
 -> `BigBangCaptureDispatcher.captureAt(...)`
+-> `AccessibilityScreenshotCapture.captureToOcr(...)`
+-> `ManualOcrSourceStore`
 -> `BoomOcrLauncher.launchCapture(...)`
 -> `OcrLaunchActivity`
--> `AccessibilityScreenshotCapture.captureToOcr(...)`
 -> `MlKitOcrEngine.recognize(...)`
 -> 段落级结果合并
 -> 取最近段落
@@ -155,9 +156,8 @@
 说明：
 
 - 当前不会进入范围选择页
-- 这条链路必须先启动 `OcrLaunchActivity`，再在代理页内截图和 OCR
-- 不要从 `BigBangCaptureDispatcher` 或 service 里先截图再拉起 `OcrLaunchActivity`，后台启动限制会导致截图成功但 BigBang 不出现
-- 代理页内截图 OCR 成功后必须打开 BigBang 启动门槛，再进入 `OverlayActivity`
+- 这条链路先在 `BigBangCaptureDispatcher` 截图并写入内存缓存，再启动 `OcrLaunchActivity`
+- `OcrLaunchActivity` 只负责启动动画、读取缓存图做 OCR，并打开 BigBang 启动门槛
 - 最近文本选择统一收口在 `MlKitOcrEngine`
 - OCR 结果先按 ML Kit `TextBlock` 取段落
 - 自带多行文本的 `TextBlock` 清洗换行后直接输出，不再参与后续合并
@@ -235,8 +235,8 @@
 ### `OcrLaunchActivity`
 
 - 通用启动代理页
-- 负责炸开动画、无障碍文本抓取、白名单 OCR 的前台截图与直接识别
-- 白名单 OCR 模式下不先播放会进入截图的动画；截图成功后再打开 BigBang 启动门槛
+- 负责炸开动画、无障碍文本抓取、白名单 OCR 的缓存图直接识别
+- 白名单 OCR 模式下使用 dispatcher 已缓存的截图；识别成功后打开 BigBang 启动门槛
 
 ## 配置边界
 

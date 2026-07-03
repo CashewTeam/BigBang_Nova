@@ -52,10 +52,19 @@ object AccessibilityScreenshotCapture {
     ): Boolean {
         val service = NovaTextAccessibilityService.activeInstance ?: return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            if (!silent) {
-                Toast.makeText(service, R.string.ocr_capture_unsupported, Toast.LENGTH_SHORT).show()
+            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                captureShizukuScreenshot(
+                    context = context,
+                    silent = silent,
+                    onFinished = onFinished,
+                    onCaptured = onCaptured,
+                )
+            } else {
+                if (!silent) {
+                    Toast.makeText(service, R.string.ocr_capture_unsupported, Toast.LENGTH_SHORT).show()
+                }
+                onFinished?.invoke(null)
             }
-            onFinished?.invoke(null)
             return true
         }
         if (!captureInFlight.compareAndSet(false, true)) {
@@ -116,6 +125,43 @@ object AccessibilityScreenshotCapture {
             }
         }
         return true
+    }
+
+    private fun captureShizukuScreenshot(
+        context: Context,
+        silent: Boolean,
+        onFinished: ((Bitmap?) -> Unit)?,
+        onCaptured: (Bitmap) -> Unit,
+    ) {
+        if (!captureInFlight.compareAndSet(false, true)) {
+            NovaTextLogger.d("shizuku screenshot skipped: capture in flight")
+            if (!silent) {
+                Toast.makeText(context, R.string.ocr_capture_in_progress, Toast.LENGTH_SHORT).show()
+            }
+            onFinished?.invoke(null)
+            return
+        }
+        FloatingBallService.hideForScreenshot {
+            screenshotExecutor.execute {
+                NovaTextLogger.d("shizuku screenshot request")
+                val bitmap = ShizukuScreenshotCapture.capture()
+                mainHandler.post {
+                    captureInFlight.set(false)
+                    FloatingBallService.restoreAfterScreenshot()
+                    if (bitmap == null) {
+                        NovaTextLogger.d("shizuku screenshot failed")
+                        if (!silent) {
+                            Toast.makeText(context, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                        }
+                        onFinished?.invoke(null)
+                        return@post
+                    }
+                    NovaTextLogger.d("shizuku screenshot success ${bitmap.width}x${bitmap.height}")
+                    onCaptured(bitmap)
+                    onFinished?.invoke(bitmap)
+                }
+            }
+        }
     }
 
     private fun captureBitmap(
