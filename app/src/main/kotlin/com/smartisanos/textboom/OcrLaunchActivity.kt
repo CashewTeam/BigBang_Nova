@@ -111,6 +111,9 @@ class OcrLaunchActivity : Activity() {
         }
         if (captureRequested) {
             startSilentManualOcrCapture()
+            if (ManualOcrSourceStore.get(manualOcrSourceToken) != null) {
+                startLaunchAnimationAfterScreenshot()
+            }
             startAccessibilityCapture()
         }
     }
@@ -263,6 +266,7 @@ class OcrLaunchActivity : Activity() {
                     return@runOnUiThread
                 }
                 ForegroundAppResolver.cacheForegroundPackage(this, callerPackage)
+                enableAdjacentSession = true
                 pendingText = text
                 maybeLaunchBigBang()
             }

@@ -2,22 +2,15 @@ package com.cashewteam.novatext.android.service
 
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import com.cashewteam.novatext.android.R
 import com.cashewteam.novatext.android.ManualOcrSourceStore
 import com.cashewteam.novatext.android.data.BigBangSettings
-import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
-import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.util.NovaTextLogger
-import kotlin.concurrent.thread
 import java.util.UUID
 
 object BigBangCaptureDispatcher {
-    private val mainHandler = Handler(Looper.getMainLooper())
-
     fun captureAt(
         context: Context,
         touchX: Int,
@@ -227,71 +220,22 @@ object BigBangCaptureDispatcher {
         allowOcrFallback: Boolean,
     ) {
         val sourceToken = ManualOcrSourceStore.newActiveToken()
-        thread(name = "bigbang-dispatcher-accessibility") {
-            val snapshot = TextSessionCoordinator.runAccessibilityFirst(
-                CaptureRequestContract(
-                    touchX = touchX.toDouble(),
-                    touchY = touchY.toDouble(),
-                    packageName = callerPackage,
-                    allowOcrFallback = allowOcrFallback,
-                ),
-                traceEnabled = traceEnabled,
-                traceId = traceId,
-            )
-            val text = snapshot.originalText.trim()
-            mainHandler.post {
-                if (text.isEmpty()) {
-                    if (allowOcrFallback) {
-                        launchOcrAfterScreenshot(
-                            context = context,
-                            touchX = touchX,
-                            touchY = touchY,
-                            callerPackage = callerPackage,
-                            traceId = traceId,
-                            traceEnabled = traceEnabled,
-                        )
-                    } else {
-                        FloatingBallService.clearCaptureLaunchSuppression()
-                    }
-                    return@post
-                }
-                ForegroundAppResolver.cacheForegroundPackage(context, callerPackage)
-                openTextAfterManualOcrScreenshot(
-                    context = context,
-                    text = text,
-                    touchX = touchX,
-                    touchY = touchY,
-                    callerPackage = callerPackage,
-                    sourceToken = sourceToken,
-                )
-            }
-        }
-    }
-
-    private fun openTextAfterManualOcrScreenshot(
-        context: Context,
-        text: String,
-        touchX: Int,
-        touchY: Int,
-        callerPackage: String,
-        sourceToken: String,
-    ) {
-        fun openText() {
-            BoomActivityLauncher.openText(
+        fun launchCapture() {
+            BoomActivityLauncher.launchCapture(
                 context = context,
-                text = text,
                 touchX = touchX,
                 touchY = touchY,
-                isPreview = false,
-                animateLaunch = true,
-                enableAdjacentSession = true,
+                callerPackage = callerPackage,
                 manualOcrSourceToken = sourceToken,
+                traceId = traceId,
+                traceEnabled = traceEnabled,
+                allowOcrFallback = allowOcrFallback,
             )
         }
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = context,
             onFinished = {
-                openText()
+                launchCapture()
             },
             onCaptured = { bitmap ->
                 ManualOcrSourceStore.put(
@@ -310,7 +254,7 @@ object BigBangCaptureDispatcher {
             },
         )
         if (!started) {
-            openText()
+            launchCapture()
         }
     }
 
