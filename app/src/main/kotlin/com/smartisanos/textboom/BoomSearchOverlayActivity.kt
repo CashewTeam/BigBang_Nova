@@ -496,6 +496,7 @@ private fun SearchBottomBar(
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
     OverlayBottomBar(
         backgroundColor = palette.bottomBar,
+        bottomInset = navigationPadding.calculateBottomPadding(),
         leading = {
             ToolbarIconButton(
                 imageVector = Icons.Outlined.Close,
@@ -508,9 +509,7 @@ private fun SearchBottomBar(
         },
         center = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = navigationPadding.calculateBottomPadding()),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
             ) {
                 SearchProviderButton(
@@ -649,6 +648,8 @@ private fun SearchProviderButton(
     onProviderSelected: (SearchProvider) -> Unit,
     contentDescription: String,
 ) {
+    val iconSurfaceSize = 34.dp
+    val iconSize = 34.dp
     Box {
         Box(
             modifier = Modifier
@@ -672,7 +673,7 @@ private fun SearchProviderButton(
             }
             Box(
                 modifier = Modifier
-                    .size(27.dp)
+                    .size(iconSurfaceSize)
                     .shadow(
                         elevation = 2.dp,
                         shape = CircleShape,
@@ -682,20 +683,11 @@ private fun SearchProviderButton(
                     .clip(CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        ImageView(context).apply {
-                            scaleType = ImageView.ScaleType.FIT_CENTER
-                        }
-                    },
-                    update = { view ->
-                        view.setImageResource(provider.iconRes)
-                        view.contentDescription = contentDescription
-                        view.alpha = if (selected) 1f else 0.82f
-                        view.scaleX = 2.3f
-                        view.scaleY = 2.3f
-                    },
+                Image(
+                    modifier = Modifier.size(iconSize),
+                    painter = painterResource(provider.iconRes),
+                    contentDescription = contentDescription,
+                    alpha = if (selected) 1f else 0.82f,
                 )
             }
         }

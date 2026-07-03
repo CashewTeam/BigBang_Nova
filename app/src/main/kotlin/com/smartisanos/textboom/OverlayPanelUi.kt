@@ -204,6 +204,7 @@ internal fun OverlayHeaderBar(
 @Composable
 internal fun OverlayBottomBar(
     backgroundColor: Color,
+    bottomInset: Dp = 0.dp,
     leading: @Composable BoxScope.() -> Unit = {},
     center: @Composable BoxScope.() -> Unit = {},
     trailing: @Composable BoxScope.() -> Unit = {},
@@ -211,9 +212,9 @@ internal fun OverlayBottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(52.dp + bottomInset)
             .background(backgroundColor)
-            .padding(horizontal = 14.dp),
+            .padding(start = 14.dp, end = 14.dp, bottom = bottomInset),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
