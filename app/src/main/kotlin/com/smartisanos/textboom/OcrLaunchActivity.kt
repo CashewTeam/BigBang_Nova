@@ -90,23 +90,11 @@ class OcrLaunchActivity : Activity() {
             return
         }
         if (isReplayRequested()) {
-            window.decorView.post {
-                val frame = loopAnimFrame ?: return@post
-                if (launched || cancelled || pendingOcrSelectionLaunch) {
-                    return@post
-                }
-                positionLaunchAnimationAtTouch()
-                startLaunchAnimation()
-            }
+            startLaunchAnimationAtTouch()
             return
         }
         if (pendingText != null) {
-            window.decorView.post {
-                if (!launched && !cancelled && !isFinishing && !isDestroyed) {
-                    positionLaunchAnimationAtTouch()
-                    startLaunchAnimation()
-                }
-            }
+            startLaunchAnimationAtTouch()
             return
         }
         if (captureRequested) {
@@ -155,8 +143,7 @@ class OcrLaunchActivity : Activity() {
                                 replayMode = ManualOcrSourceStore.REPLAY_MODE_NEAREST_PARAGRAPH,
                             ),
                         )
-                        positionLaunchAnimationAtTouch()
-                        startLaunchAnimation()
+                        startLaunchAnimationAtTouch()
                         startNearestParagraphOcr()
                     },
                     onCaptured = {},
@@ -235,10 +222,39 @@ class OcrLaunchActivity : Activity() {
         maybeLaunchBigBang()
     }
 
-    private fun positionLaunchAnimationAtTouch() {
+    private fun startLaunchAnimationAtTouch() {
         val frame = loopAnimFrame ?: return
-        frame.translationX = touchX - frame.width / 2f
-        frame.translationY = touchY - frame.height / 2f
+        frame.post {
+            if (launched || cancelled || pendingOcrSelectionLaunch || isFinishing || isDestroyed) {
+                return@post
+            }
+            if (!positionLaunchAnimationAtTouch()) {
+                frame.post {
+                    if (!launched && !cancelled && !pendingOcrSelectionLaunch && !isFinishing && !isDestroyed) {
+                        if (positionLaunchAnimationAtTouch()) {
+                            startLaunchAnimation()
+                        }
+                    }
+                }
+                return@post
+            }
+            startLaunchAnimation()
+        }
+    }
+
+    private fun positionLaunchAnimationAtTouch(): Boolean {
+        val frame = loopAnimFrame ?: return false
+        val root = contentFrame ?: window.decorView
+        val location = IntArray(2)
+        root.getLocationOnScreen(location)
+        val width = frame.width.takeIf { it > 0 } ?: frame.measuredWidth
+        val height = frame.height.takeIf { it > 0 } ?: frame.measuredHeight
+        if (width <= 0 || height <= 0) {
+            return false
+        }
+        frame.translationX = (touchX - location[0]) - width / 2f
+        frame.translationY = (touchY - location[1]) - height / 2f
+        return true
     }
 
     private fun startAccessibilityCapture() {
@@ -584,8 +600,7 @@ class OcrLaunchActivity : Activity() {
         }
         accessibilityOcrFallbackStarted = true
         enableAdjacentSession = true
-        positionLaunchAnimationAtTouch()
-        startLaunchAnimation()
+        startLaunchAnimationAtTouch()
         startNearestParagraphOcr()
         return true
     }
@@ -594,8 +609,7 @@ class OcrLaunchActivity : Activity() {
         if (launched || cancelled || pendingOcrSelectionLaunch || isFinishing || isDestroyed) {
             return
         }
-        positionLaunchAnimationAtTouch()
-        startLaunchAnimation()
+        startLaunchAnimationAtTouch()
     }
 
     private fun updateDirectOcrReplayContext(
@@ -653,8 +667,7 @@ class OcrLaunchActivity : Activity() {
             if (launched || cancelled || pendingOcrSelectionLaunch) {
                 return@post
             }
-            positionLaunchAnimationAtTouch()
-            startLaunchAnimation()
+            startLaunchAnimationAtTouch()
         }
     }
 
