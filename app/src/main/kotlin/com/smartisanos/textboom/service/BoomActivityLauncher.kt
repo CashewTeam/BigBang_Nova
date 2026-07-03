@@ -54,12 +54,14 @@ object BoomActivityLauncher {
         manualOcrSourceToken: String? = null,
         traceId: String? = null,
         traceEnabled: Boolean = false,
+        allowOcrFallback: Boolean = false,
     ) {
         context.startActivity(
             Intent(context, OcrLaunchActivity::class.java).apply {
                 putExtra("boom_startx", touchX)
                 putExtra("boom_starty", touchY)
                 putExtra(OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY, true)
+                putExtra(OcrLaunchActivity.EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK, allowOcrFallback)
                 if (!callerPackage.isNullOrEmpty()) {
                     putExtra("caller_pkg", callerPackage)
                 }

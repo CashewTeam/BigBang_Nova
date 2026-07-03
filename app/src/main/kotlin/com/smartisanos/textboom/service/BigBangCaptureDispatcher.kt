@@ -2,15 +2,22 @@ package com.cashewteam.novatext.android.service
 
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import com.cashewteam.novatext.android.R
 import com.cashewteam.novatext.android.ManualOcrSourceStore
 import com.cashewteam.novatext.android.data.BigBangSettings
+import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
+import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.util.NovaTextLogger
+import kotlin.concurrent.thread
 import java.util.UUID
 
 object BigBangCaptureDispatcher {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     fun captureAt(
         context: Context,
         touchX: Int,
@@ -70,9 +77,48 @@ object BigBangCaptureDispatcher {
             )
             return
         }
-        val resolvedPackage = ForegroundAppResolver.resolveForegroundPackage(context)
-        val foregroundPackage = resolvedPackage ?: ForegroundAppResolver.cachedForegroundPackage(context)
-        if (foregroundPackage.isNullOrBlank()) {
+        val currentPackage = ForegroundAppResolver.resolveForegroundPackage(context)
+        val cachedPackage = ForegroundAppResolver.cachedForegroundPackage(context)
+        if (currentPackage.isNullOrBlank()) {
+            if (!cachedPackage.isNullOrBlank()) {
+                val cachedWhitelistHit = settings.ocrWhitelistPackages.contains(cachedPackage)
+                logTrace(
+                    enabled = traceEnabled,
+                    traceId = traceId,
+                    lines = listOf(
+                        "phase=dispatcher",
+                        "touch=($touchX,$touchY)",
+                        "accessibility=true",
+                        "foregroundResolver=accessibility",
+                        "foregroundPackage=$cachedPackage",
+                        "foregroundPackageSource=cache",
+                        "whitelistHit=$cachedWhitelistHit",
+                        "route=${if (cachedWhitelistHit) "ocr" else "accessibility"}",
+                        "reason=foreground_package_cache",
+                    ),
+                )
+                if (cachedWhitelistHit) {
+                    launchOcrAfterScreenshot(
+                        context = context,
+                        touchX = touchX,
+                        touchY = touchY,
+                        callerPackage = cachedPackage,
+                        traceId = traceId,
+                        traceEnabled = traceEnabled,
+                    )
+                } else {
+                    launchAccessibilityCapture(
+                        context = context,
+                        touchX = touchX,
+                        touchY = touchY,
+                        callerPackage = cachedPackage,
+                        traceId = traceId,
+                        traceEnabled = traceEnabled,
+                        allowOcrFallback = true,
+                    )
+                }
+                return
+            }
             logTrace(
                 enabled = traceEnabled,
                 traceId = traceId,
@@ -82,9 +128,10 @@ object BigBangCaptureDispatcher {
                     "accessibility=true",
                     "foregroundResolver=accessibility",
                     "foregroundPackage=unknown",
+                    "foregroundPackageSource=none",
                     "whitelistHit=false",
                     "route=ocr",
-                    "reason=foreground_package_missing",
+                    "reason=foreground_package_not_current",
                 ),
             )
             launchOcrAfterScreenshot(
@@ -97,7 +144,7 @@ object BigBangCaptureDispatcher {
             )
             return
         }
-        val whitelistHit = settings.ocrWhitelistPackages.contains(foregroundPackage)
+        val whitelistHit = settings.ocrWhitelistPackages.contains(currentPackage)
         if (whitelistHit) {
             logTrace(
                 enabled = traceEnabled,
@@ -107,8 +154,8 @@ object BigBangCaptureDispatcher {
                     "touch=($touchX,$touchY)",
                     "accessibility=true",
                     "foregroundResolver=accessibility",
-                    "foregroundPackage=$foregroundPackage",
-                    "foregroundPackageSource=${if (resolvedPackage == null) "cache" else "current"}",
+                    "foregroundPackage=$currentPackage",
+                    "foregroundPackageSource=current",
                     "whitelistHit=true",
                     "route=ocr",
                 ),
@@ -117,7 +164,7 @@ object BigBangCaptureDispatcher {
                 context = context,
                 touchX = touchX,
                 touchY = touchY,
-                callerPackage = foregroundPackage,
+                callerPackage = currentPackage,
                 traceId = traceId,
                 traceEnabled = traceEnabled,
             )
@@ -131,8 +178,8 @@ object BigBangCaptureDispatcher {
                 "touch=($touchX,$touchY)",
                 "accessibility=true",
                 "foregroundResolver=accessibility",
-                "foregroundPackage=$foregroundPackage",
-                "foregroundPackageSource=${if (resolvedPackage == null) "cache" else "current"}",
+                "foregroundPackage=$currentPackage",
+                "foregroundPackageSource=current",
                 "whitelistHit=false",
                 "route=accessibility",
             ),
@@ -141,9 +188,10 @@ object BigBangCaptureDispatcher {
             context = context,
             touchX = touchX,
             touchY = touchY,
-            callerPackage = foregroundPackage,
+            callerPackage = currentPackage,
             traceId = traceId,
             traceEnabled = traceEnabled,
+            allowOcrFallback = true,
         )
     }
 
@@ -176,17 +224,94 @@ object BigBangCaptureDispatcher {
         callerPackage: String,
         traceId: String,
         traceEnabled: Boolean,
+        allowOcrFallback: Boolean,
     ) {
         val sourceToken = ManualOcrSourceStore.newActiveToken()
-        BoomActivityLauncher.launchCapture(
+        thread(name = "bigbang-dispatcher-accessibility") {
+            val snapshot = TextSessionCoordinator.runAccessibilityFirst(
+                CaptureRequestContract(
+                    touchX = touchX.toDouble(),
+                    touchY = touchY.toDouble(),
+                    packageName = callerPackage,
+                    allowOcrFallback = allowOcrFallback,
+                ),
+                traceEnabled = traceEnabled,
+                traceId = traceId,
+            )
+            val text = snapshot.originalText.trim()
+            mainHandler.post {
+                if (text.isEmpty()) {
+                    if (allowOcrFallback) {
+                        launchOcrAfterScreenshot(
+                            context = context,
+                            touchX = touchX,
+                            touchY = touchY,
+                            callerPackage = callerPackage,
+                            traceId = traceId,
+                            traceEnabled = traceEnabled,
+                        )
+                    } else {
+                        FloatingBallService.clearCaptureLaunchSuppression()
+                    }
+                    return@post
+                }
+                ForegroundAppResolver.cacheForegroundPackage(context, callerPackage)
+                openTextAfterManualOcrScreenshot(
+                    context = context,
+                    text = text,
+                    touchX = touchX,
+                    touchY = touchY,
+                    callerPackage = callerPackage,
+                    sourceToken = sourceToken,
+                )
+            }
+        }
+    }
+
+    private fun openTextAfterManualOcrScreenshot(
+        context: Context,
+        text: String,
+        touchX: Int,
+        touchY: Int,
+        callerPackage: String,
+        sourceToken: String,
+    ) {
+        fun openText() {
+            BoomActivityLauncher.openText(
+                context = context,
+                text = text,
+                touchX = touchX,
+                touchY = touchY,
+                isPreview = false,
+                animateLaunch = true,
+                enableAdjacentSession = true,
+                manualOcrSourceToken = sourceToken,
+            )
+        }
+        val started = AccessibilityScreenshotCapture.captureToCache(
             context = context,
-            touchX = touchX,
-            touchY = touchY,
-            callerPackage = callerPackage,
-            manualOcrSourceToken = sourceToken,
-            traceId = traceId,
-            traceEnabled = traceEnabled,
+            onFinished = {
+                openText()
+            },
+            onCaptured = { bitmap ->
+                ManualOcrSourceStore.put(
+                    ManualOcrSourceStore.Source(
+                        token = sourceToken,
+                        cachedBitmap = bitmap,
+                        touchX = touchX,
+                        touchY = touchY,
+                        callerPackage = callerPackage,
+                        fullscreen = true,
+                        offsetX = 0,
+                        offsetY = 0,
+                        sourceTag = "accessibility_capture",
+                    ),
+                )
+            },
         )
+        if (!started) {
+            openText()
+        }
     }
 
     private fun logTrace(

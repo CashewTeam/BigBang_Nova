@@ -22,6 +22,7 @@ import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
+import com.cashewteam.novatext.android.service.ForegroundAppResolver
 import com.cashewteam.novatext.android.util.LogUtils
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlin.concurrent.thread
@@ -56,6 +57,9 @@ class OcrLaunchActivity : Activity() {
     private var replayMode: String? = null
     private var replayStarted = false
     private var floatingBallHideToken: Int? = null
+    private var accessibilityCaptureFailed = false
+    private var accessibilityOcrFallbackStarted = false
+    private var allowAccessibilityOcrFallback = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +81,7 @@ class OcrLaunchActivity : Activity() {
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
         captureRequested = intent.getBooleanExtra(EXTRA_CAPTURE_ACCESSIBILITY, false)
+        allowAccessibilityOcrFallback = intent.getBooleanExtra(EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK, false)
         pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
         ensureLaunchUi()
         if (pendingOcrSelectionLaunch) {
@@ -231,7 +236,7 @@ class OcrLaunchActivity : Activity() {
                     touchX = touchX.toDouble(),
                     touchY = touchY.toDouble(),
                     packageName = callerPackage ?: applicationContext.packageName,
-                    allowOcrFallback = false,
+                    allowOcrFallback = allowAccessibilityOcrFallback,
                 ),
                 traceEnabled = traceEnabled,
                 traceId = traceId,
@@ -243,9 +248,12 @@ class OcrLaunchActivity : Activity() {
                 }
                 if (text.isEmpty()) {
                     LogUtils.d("OcrLaunchActivity", "capture failed: no accessible text")
-                    finish()
+                    if (!startAccessibilityOcrFallbackOrWait()) {
+                        finish()
+                    }
                     return@runOnUiThread
                 }
+                ForegroundAppResolver.cacheForegroundPackage(this, callerPackage)
                 pendingText = text
                 maybeLaunchBigBang()
             }
@@ -516,7 +524,15 @@ class OcrLaunchActivity : Activity() {
         val started = AccessibilityScreenshotCapture.captureToCache(
             context = this,
             onFinished = {
-                startLaunchAnimationAfterScreenshot()
+                if (accessibilityCaptureFailed) {
+                    if (ManualOcrSourceStore.get(manualOcrSourceToken) != null) {
+                        startAccessibilityOcrFallbackOrWait()
+                    } else {
+                        finish()
+                    }
+                } else {
+                    startLaunchAnimationAfterScreenshot()
+                }
             },
             onCaptured = { bitmap ->
                 val sourceToken = manualOcrSourceToken ?: return@captureToCache
@@ -537,8 +553,28 @@ class OcrLaunchActivity : Activity() {
         )
         if (!started) {
             LogUtils.d("OcrLaunchActivity", "silent OCR cache capture skipped")
-            startLaunchAnimationAfterScreenshot()
+            if (accessibilityCaptureFailed) {
+                finish()
+            } else {
+                startLaunchAnimationAfterScreenshot()
+            }
         }
+    }
+
+    private fun startAccessibilityOcrFallbackOrWait(): Boolean {
+        if (!captureRequested || !allowAccessibilityOcrFallback || accessibilityOcrFallbackStarted) {
+            return false
+        }
+        accessibilityCaptureFailed = true
+        if (ManualOcrSourceStore.get(manualOcrSourceToken) == null) {
+            return true
+        }
+        accessibilityOcrFallbackStarted = true
+        enableAdjacentSession = true
+        positionLaunchAnimationAtTouch()
+        startLaunchAnimation()
+        startNearestParagraphOcr()
+        return true
     }
 
     private fun startLaunchAnimationAfterScreenshot() {
@@ -690,6 +726,7 @@ class OcrLaunchActivity : Activity() {
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
+        const val EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK = "extra_allow_accessibility_ocr_fallback"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
         const val EXTRA_AUTO_NEAREST_OCR = "extra_auto_nearest_ocr"
         const val EXTRA_REPLAY_OCR_MODE = "extra_replay_ocr_mode"

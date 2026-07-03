@@ -34,16 +34,21 @@ private data class AccessibilityTextWindow(
     val durationMs: Int,
 )
 
+private data class AccessibilityRootSelection(
+    val root: AccessibilityNodeInfo,
+    val allowCoveredNodes: Boolean,
+)
+
 private class AccessibilityTextSessionRunner(
     private val service: NovaTextAccessibilityService,
 ) {
     fun captureWindow(request: CaptureRequestContract): AccessibilityTextWindow {
         val startedAt = SystemClock.elapsedRealtime()
-        val root = service.rootInActiveWindow
+        val selection = findRootForPackage(request.packageName)
         val candidates = mutableListOf<AccessibilityTextCandidate>()
-        if (root != null) {
-            traverse(root, request.touchX, request.touchY, candidates)
-            root.recycle()
+        if (selection != null) {
+            traverse(selection.root, request.touchX, request.touchY, selection.allowCoveredNodes, candidates)
+            selection.root.recycle()
         }
         val prunedCandidates = pruneChildrenCoveredByRichParents(candidates)
         val sortedCandidates = prunedCandidates
@@ -70,6 +75,25 @@ private class AccessibilityTextSessionRunner(
             nearestParagraphIndex = if (nearest < 0) -1 else merged.rawToParagraphIndex[nearest],
             durationMs = (SystemClock.elapsedRealtime() - startedAt).toInt(),
         )
+    }
+
+    private fun findRootForPackage(packageName: String): AccessibilityRootSelection? {
+        val targetPackage = packageName.takeIf { it.isNotBlank() }
+        if (targetPackage != null) {
+            val roots = service.windows
+                .mapNotNull { it.root }
+            val matched = roots.firstOrNull { it.packageName?.toString() == targetPackage }
+            roots.filter { it !== matched }.forEach { it.recycle() }
+            if (matched != null) {
+                return AccessibilityRootSelection(matched, allowCoveredNodes = true)
+            }
+        }
+        val activeRoot = service.rootInActiveWindow ?: return null
+        if (targetPackage == null || activeRoot.packageName?.toString() == targetPackage) {
+            return AccessibilityRootSelection(activeRoot, allowCoveredNodes = false)
+        }
+        activeRoot.recycle()
+        return null
     }
 
     private fun mergeParagraphs(
@@ -142,14 +166,15 @@ private class AccessibilityTextSessionRunner(
         node: AccessibilityNodeInfo,
         touchX: Double,
         touchY: Double,
+        allowCoveredNodes: Boolean,
         candidates: MutableList<AccessibilityTextCandidate>,
     ) {
         val text = extractCleanText(node)
-        if (text != null && node.isVisibleToUser) {
+        if (text != null && (allowCoveredNodes || node.isVisibleToUser)) {
             val bounds = Rect()
             node.getBoundsInScreen(bounds)
             val richDescription = isRichContentDescriptionNode(node, text)
-            if (!bounds.isEmpty && shouldIncludeNode(node, text, bounds, richDescription)) {
+            if (!bounds.isEmpty && shouldIncludeNode(node, text, bounds, richDescription, allowCoveredNodes)) {
                 candidates += AccessibilityTextCandidate(
                     text = text,
                     bounds = bounds,
@@ -161,7 +186,7 @@ private class AccessibilityTextSessionRunner(
 
         for (index in 0 until node.childCount) {
             val child = node.getChild(index) ?: continue
-            traverse(child, touchX, touchY, candidates)
+            traverse(child, touchX, touchY, allowCoveredNodes, candidates)
             child.recycle()
         }
     }
@@ -171,12 +196,13 @@ private class AccessibilityTextSessionRunner(
         text: String,
         bounds: Rect,
         richDescription: Boolean,
+        allowCoveredNodes: Boolean,
     ): Boolean {
         if (richDescription) return true
         for (index in 0 until node.childCount) {
             val child = node.getChild(index) ?: continue
             try {
-                if (!child.isVisibleToUser) continue
+                if (!allowCoveredNodes && !child.isVisibleToUser) continue
                 val childText = extractCleanText(child) ?: continue
                 val childBounds = Rect()
                 child.getBoundsInScreen(childBounds)

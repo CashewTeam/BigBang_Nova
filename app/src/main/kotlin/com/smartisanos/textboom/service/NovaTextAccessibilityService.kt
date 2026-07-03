@@ -13,6 +13,12 @@ class NovaTextAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val type = event?.eventType ?: return
+        if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            type != AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        ) {
+            return
+        }
         val packageName = event?.packageName?.toString()
         if (!packageName.isNullOrBlank() && packageName != packageName()) {
             latestExternalPackage = packageName

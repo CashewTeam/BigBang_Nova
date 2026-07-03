@@ -13,14 +13,21 @@ object ForegroundAppResolver {
             ?.packageName
             ?.toString()
             ?.takeIf { it.isNotBlank() && it != selfPackage }
-        val resolved = windowPackage ?: NovaTextAccessibilityService.latestActivePackage(selfPackage)
-        if (!resolved.isNullOrBlank()) {
-            cachedPackage = resolved
+        if (!windowPackage.isNullOrBlank()) {
+            cachedPackage = windowPackage
         }
-        return resolved
+        return windowPackage
     }
 
     fun cachedForegroundPackage(context: Context): String? {
-        return cachedPackage?.takeIf { it.isNotBlank() && it != context.packageName }
+        return cachedPackage
+            ?: NovaTextAccessibilityService.latestActivePackage(context.packageName)
+                ?.also { cachedPackage = it }
+    }
+
+    fun cacheForegroundPackage(context: Context, packageName: String?) {
+        if (!packageName.isNullOrBlank() && packageName != context.packageName) {
+            cachedPackage = packageName
+        }
     }
 }
