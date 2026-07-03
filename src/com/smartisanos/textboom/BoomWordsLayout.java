@@ -142,7 +142,7 @@ public class BoomWordsLayout {
         int preserved = 0;
         for (int i = start; i < end; ++i) {
             char ch = text.charAt(i);
-            if (ch == '\n') {
+            if (Character.isWhitespace(ch) || Character.isSpaceChar(ch)) {
                 newText.append(ch);
                 ++preserved;
             }
