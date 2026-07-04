@@ -50,6 +50,7 @@
 - 无障碍文本抓取与无障碍截图都依赖 `NovaTextAccessibilityService`
 - 前台应用识别依赖无障碍活跃窗口和最近事件缓存，不再依赖使用情况访问权限
 - 前台应用识别失败时，悬浮球链路会直接进入 OCR 截图识别
+- Android 10 截图回退依赖 Shizuku user service，不走 MediaProjection
 
 ## 3. Activity Intent 契约
 
@@ -73,6 +74,7 @@
 - `boom_startx`
 - `boom_starty`
 - `OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY = false`
+- `OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP`
 - `BoomActivity.EXTRA_DEBUG_PREVIEW_TEXT`（仅预览链路）
 - `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`（有可复用图片源时）
 
@@ -94,8 +96,9 @@
 
 说明：
 
-- 手动重进 OCR 所需的 `manual_ocr_source_token` 不是这里直接传入
-- 该 token 由 `OcrLaunchActivity` 在静默截图缓存成功后生成并继续透传
+- 悬浮球无障碍文本主链路当前通常不直接使用这个入口
+- 当前主路径是 `BigBangCaptureDispatcher` 先静默截图缓存、再在 dispatcher 内完成无障碍抓文，最后走 `BoomActivityLauncher.openText(...)`
+- 这个入口保留给需要由代理页内部抓文的共享场景
 
 ### 3.3 `BoomOcrLauncher.open(...)`
 
@@ -144,11 +147,16 @@ Activity 上下文：
 - `boom_offsetx`
 - `boom_offsety`
 - `caller_pkg`
+- `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`
+- `OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID`
+- `OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ENABLED`
+- `OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP`
 
 约束：
 
 - 白名单 OCR 主路径不在 `OcrLaunchActivity` 内重复首张截图
 - `OcrLaunchActivity` 读取 `manual_ocr_source_token` 对应的缓存图后做 OCR
+- loop 动画由 `FloatingBallService.showLaunchLoopAt(...)` 在截图完成后先显示；代理页通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 跳过重复 loop
 - OCR 成功拿到最近段落后，由 `OcrLaunchActivity` 继续拉起 `OverlayActivity -> BoomActivity`
 
 ### 3.5 `BoomOcrLauncher.replayWithLanguage(...)`
@@ -175,8 +183,18 @@ Activity 上下文：
 
 - `EXTRA_CAPTURE_ACCESSIBILITY`
   - 含义：进入无障碍文本抓取链路
+- `EXTRA_CAPTURE_TRACE_ID`
+  - 含义：当前悬浮球识别链路 trace id
+- `EXTRA_CAPTURE_TRACE_ENABLED`
+  - 含义：是否输出详细识别调试日志
+- `EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK`
+  - 含义：无障碍抓文失败后允许复用当前缓存图回退到 OCR
 - `EXTRA_SKIP_LEGACY_FADE_IN`
   - 含义：BigBang 已走外层入场动画，内部 legacy fade-in 跳过
+- `EXTRA_EXTERNAL_LAUNCH_LOOP`
+  - 含义：外部服务层已经显示 loop 动画，代理页不要再播一套
+- `EXTRA_AUTO_NEAREST_OCR`
+  - 含义：直接用当前图片源做最近段落 OCR，不进入范围选择页
 - `BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT`
   - 含义：进入无障碍截图 + 全屏 OCR 链路
 - `EXTRA_REPLAY_OCR_MODE`
@@ -212,6 +230,7 @@ Activity 上下文：
 - `caller_pkg` 和 offset 用于截图后图像裁切修正
 - 范围选择页只用于手动框选 OCR，不用于悬浮球白名单 OCR 直接识别链路
 - BigBang 内左下角 OCR 按钮会重进这条范围选择链路
+- 当前活动 OCR 源优先走内存中的 `cachedBitmap`；只有图片分享 / 图片调试等显式图片输入才会回退读 `imageUri`
 
 ## 5. 悬浮球 Service 入口
 
@@ -284,11 +303,16 @@ method：
 - `debug_preset_text`
 - `debug_preview_text`
 - `debug_skip_accessibility`
+- `debug_capture_trace`
 - `ocr_recognizer_mode`
 - `ocr_whitelist_packages`
 - `floating_ball_size_percent`
 - `floating_ball_active_alpha_percent`
 - `floating_ball_idle_alpha_percent`
+- `floating_ball_height_locked`
+- `floating_ball_one_hand_mode`
+- `floating_ball_one_hand_angle_degrees`
+- `floating_ball_hidden`
 
 OCR 语言枚举：
 
@@ -328,11 +352,13 @@ OCR 白名单默认值：
 
 - 保存当前 BigBang 会话可复用的 OCR 图片源
 - 为“重新 OCR”与“临时语言切换”提供统一图片输入
+- 只保留一个活动 token；新 token 写入时会回收上一轮缓存 bitmap
 
 当前状态字段：
 
 - `token`
 - `imageUri`
+- `cachedBitmap`
 - `touchX / touchY`
 - `callerPackage`
 - `fullscreen`
@@ -347,6 +373,30 @@ OCR 白名单默认值：
 - 这是进程内临时状态，不做持久化
 - 无图像来源的纯文本 BigBang 会话不会写入这里
 - 临时语言切换只改当前 source 的 `ocrMode`，不写回默认设置
+
+### `AccessibilityScreenshotCapture`
+
+当前职责：
+
+- 收口悬浮球主链路和手动 OCR 复用图的截图能力
+- 在截图前隐藏悬浮球，截图后恢复
+
+当前 provider 选择：
+
+- Android 11+：`AccessibilityService.takeScreenshot()`
+- Android 10：`ShizukuScreenshotCapture`
+
+公开入口：
+
+- `captureToOcr(...)`
+  - 用于白名单 OCR 直达链路
+- `captureToCache(...)`
+  - 用于无障碍文本链路的静默缓存图
+
+说明：
+
+- 两个入口都会先隐藏悬浮球再截图，避免把悬浮球或启动动画截进原图
+- `captureToCache(...)` 失败时不阻塞无障碍文本抓取
 
 ### `MlKitOcrEngine`
 

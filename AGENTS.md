@@ -22,7 +22,14 @@
 - OCR 进入范围选择页：优先走 `BoomOcrLauncher`
 - 不要在新代码里直接从 service 或任意页面随手 `startActivity(BoomActivity)` / `startActivity(BoomOcrActivity)`
 - 悬浮球与后台场景需要复用现有代理页 `OcrLaunchActivity` / `OverlayActivity`
-- 悬浮球白名单 OCR 由 `BigBangCaptureDispatcher` 先截图写入内存缓存，再启动 `OcrLaunchActivity` 做动画和 OCR；不要在代理页内再重复首张截图
+- 悬浮球主链路统一时序：
+  - 先隐藏悬浮球
+  - 再截图
+  - 再显示外部 `anim_loop` overlay
+  - 最后进入无障碍抓文或 OCR
+- 悬浮球白名单 OCR 由 `BigBangCaptureDispatcher` 先截图写入内存缓存，再启动 `OcrLaunchActivity` 做 OCR；不要在代理页内再重复首张截图
+- 悬浮球无障碍文本链路优先在 `BigBangCaptureDispatcher` 内完成静默截图缓存和抓文，再走 `BoomActivityLauncher.openText(...)`
+- 如果外层服务已经显示 loop 动画，继续通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 复用，不要在 `OcrLaunchActivity` 内再播第二套 loop
 
 ### 3. 配置统一
 
@@ -36,6 +43,11 @@
 - 图片调试 / 分享入口保留范围选择页
 - 悬浮球白名单 OCR 走直接识别链路时，优先在 `MlKitOcrEngine` 内补最近文本块 / 段落逻辑
 - 悬浮球白名单 OCR 的截图由 `BigBangCaptureDispatcher` 通过 `AccessibilityScreenshotCapture` 发起；截图成功后启动 `OcrLaunchActivity` 打开 BigBang 启动门槛，避免 OCR 成功但窗口不拉起
+- 无障碍文本链路的手动重进 OCR 复用静默缓存截图，不再为这条路径单独造第二套图源
+- OCR 图片源统一走 `ManualOcrSourceStore`
+  - 只保留一个活动 token
+  - 优先复用内存 `cachedBitmap`
+  - 不再把主链路截图缓存写回磁盘
 - 不要为同一类 OCR 场景再造第二套解码、裁切、最近块选择实现
 
 ### 5. 无障碍与截图边界
@@ -43,9 +55,22 @@
 - 文本提取主入口统一走 `BigBangCaptureDispatcher`
 - 无障碍文本抓取逻辑在 `domain/capture/`
 - 无障碍截图逻辑在 `AccessibilityScreenshotCapture`
+- 前台应用识别统一依赖无障碍活跃窗口和最近事件缓存，不再改回使用情况访问权限方案
+- Android 11+ 走 `AccessibilityService.takeScreenshot()`
+- Android 10 走 Shizuku 截图回退；不要把 Android 10 再改回 MediaProjection 主路径
 - 不要把分流判断散落到 `FloatingBallService`、页面和 helper 多处复制
 
-### 6. 文档边界
+### 6. 动画与悬浮球可见性边界
+
+- 悬浮球触发后的 loop 动画统一用外部 `anim_loop` overlay，不再新增分支动画实现
+- loop 动画坐标始终跟随悬浮球实际采样点 / OCR 触点，不要在不同入口各自补坐标偏移
+- `FloatingBallService.notifyBigBangShellShown()` 是启动成功收口点：
+  - 负责关闭 loop 动画
+  - 负责解除 launch suppression
+- 搜索页打开时允许悬浮球继续显示；不要再把搜索页并入“统一隐藏悬浮球”的黑名单
+- BigBang / OCR / 代理页在前台时继续压住悬浮球，避免遮挡和误触
+
+### 7. 文档边界
 
 - `README.md`：产品总览、快速使用、文档索引
 - `docs/development-plan.md`：当前状态和路线图
@@ -59,6 +84,7 @@
 - Bug 修复优先找共享根因，不补路径特判
 - 不要加未被请求的新抽象、新层级或“以后可能用到”的开关
 - 不要新增掩盖真实问题的兜底策略
+- 不要为了修链路问题把截图、动画、图源缓存拆成每个入口各自维护的一套逻辑
 - 旧代码归档优先放 `archive/legacy-ui/`，不要混回主链路
 
 ## 验证要求

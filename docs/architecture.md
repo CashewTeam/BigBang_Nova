@@ -73,7 +73,11 @@
 
 - 这里负责“决定走哪条链路”
 - 这里不负责实现 BigBang 选词逻辑本身
-- `ForegroundAppResolver` 只使用无障碍活跃窗口和最近事件缓存；无法解析包名时由分流层直接走 OCR
+- `ForegroundAppResolver` 只使用无障碍活跃窗口和最近事件缓存
+- `AccessibilityScreenshotCapture` 统一处理截图提供方
+  - Android 11+：`AccessibilityService.takeScreenshot()`
+  - Android 10：Shizuku 截图回退
+- 无法解析前台包名时由分流层直接走 OCR
 
 ### 4. `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`
 
@@ -128,16 +132,21 @@
 
 `FloatingBallService`
 -> `BigBangCaptureDispatcher.captureAt(...)`
--> `BoomActivityLauncher.launchCapture(...)`
--> `OcrLaunchActivity`
+-> `AccessibilityScreenshotCapture.captureToCache(...)`
+-> `FloatingBallService.showLaunchLoopAt(...)`
 -> `TextSessionCoordinator.runAccessibilityFirst(...)`
+-> `BoomActivityLauncher.openText(...)`
+-> `OcrLaunchActivity`
 -> `OverlayActivity`
 -> `BoomActivity`
 
 说明：
 
 - 用于 OCR 白名单外的默认文本提取路径
-- 启动动画和 BigBang 入场动画都挂在这条统一链路上
+- 静默截图缓存成功时会写入 `ManualOcrSourceStore`，供 BigBang 内手动重进 OCR 使用
+- 静默截图失败不阻塞无障碍抓文，文本链路会继续
+- loop 动画在截图之后、无障碍文本树处理之前显示
+- `OcrLaunchActivity` 在这条链路里主要承担统一启动门槛，不再重复播放 loop 动画
 
 ### C. 悬浮球白名单 OCR 链路
 
@@ -145,6 +154,7 @@
 -> `BigBangCaptureDispatcher.captureAt(...)`
 -> `AccessibilityScreenshotCapture.captureToOcr(...)`
 -> `ManualOcrSourceStore`
+-> `FloatingBallService.showLaunchLoopAt(...)`
 -> `BoomOcrLauncher.launchCapture(...)`
 -> `OcrLaunchActivity`
 -> `MlKitOcrEngine.recognize(...)`
@@ -156,8 +166,8 @@
 说明：
 
 - 当前不会进入范围选择页
-- 这条链路先在 `BigBangCaptureDispatcher` 截图并写入内存缓存，再启动 `OcrLaunchActivity`
-- `OcrLaunchActivity` 只负责启动动画、读取缓存图做 OCR，并打开 BigBang 启动门槛
+- 这条链路先在 `BigBangCaptureDispatcher` 截图并写入内存缓存，再显示 loop 动画，再启动 `OcrLaunchActivity`
+- `OcrLaunchActivity` 只负责读取缓存图做 OCR，并打开 BigBang 启动门槛；外部 loop 动画通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 复用
 - 最近文本选择统一收口在 `MlKitOcrEngine`
 - OCR 结果先按 ML Kit `TextBlock` 取段落
 - 自带多行文本的 `TextBlock` 清洗换行后直接输出，不再参与后续合并
@@ -204,6 +214,7 @@
 
 - 手动图片 OCR 会复用上一次框选范围重跑
 - 悬浮球白名单 OCR 会复用原截图和最近段落提取规则重跑
+- 悬浮球无障碍文本链路会复用静默缓存的原图重进范围选择页
 - 语言切换只影响当前 OCR 会话，不修改设置页默认 OCR 语言
 
 ## 页面职责边界
@@ -220,12 +231,14 @@
 - Compose 外层只负责浮层外观和入场动画
 - 词块内容仍交给 `BoomChipPage`
 - 外壳底栏负责重新 OCR 与 OCR 临时语言切换入口
+- 页面关闭时由 Compose 外层负责统一缩放淡出动画；legacy 内层不再单独接一套关闭转场
 
 ### `BoomSearchOverlayActivity`
 
 - 搜索 / 词典 / 百科浮层页
 - WebView 与底部站点切换都在这里收口
 - 浏览器操作栏已补前进和刷新
+- 搜索页打开时不会额外隐藏悬浮球
 
 ### `BoomOcrActivity`
 
@@ -235,8 +248,10 @@
 ### `OcrLaunchActivity`
 
 - 通用启动代理页
-- 负责炸开动画、无障碍文本抓取、白名单 OCR 的缓存图直接识别
+- 负责统一启动门槛、OCR 重跑和范围选择页跳转
+- 无障碍抓文与白名单 OCR 如果已经在外层服务里显示 loop 动画，会通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 跳过内部重复动画
 - 白名单 OCR 模式下使用 dispatcher 已缓存的截图；识别成功后打开 BigBang 启动门槛
+- 预览文本、手动图片 OCR 和临时语言重跑也都复用这个代理页，避免再分叉新入口
 
 ## 配置边界
 
