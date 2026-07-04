@@ -117,16 +117,25 @@ class BoomActivity : ComponentActivity() {
             )
         }
 
-        val previewText = intent.getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT)
-        val inputText = previewText ?: intent.getStringExtra(Intent.EXTRA_TEXT)
-        if (inputText.isNullOrEmpty()) {
-            finish()
-            return
+        // Restore adjacent-pulled text across rotation
+        val savedText = savedInstanceState?.getString(SAVED_TEXT)
+        val savedSegment = savedInstanceState?.getIntArray(SAVED_SEGMENT)
+        if (savedText != null && savedSegment != null) {
+            currentText = savedText
+            currentSegment = savedSegment
+            handleInitialSegmentResult(savedText, savedSegment, fromSavedState = true)
+        } else {
+            val previewText = intent.getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT)
+            val inputText = previewText ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (inputText.isNullOrEmpty()) {
+                finish()
+                return
+            }
+            if (!intent.getBooleanExtra(EXTRA_ENABLE_ADJACENT_SESSION, false)) {
+                TextSessionCoordinator.clearSession()
+            }
+            segmentLocally(inputText)
         }
-        if (!intent.getBooleanExtra(EXTRA_ENABLE_ADJACENT_SESSION, false)) {
-            TextSessionCoordinator.clearSession()
-        }
-        segmentLocally(inputText)
     }
 
     override fun onStart() {
@@ -223,15 +232,15 @@ class BoomActivity : ComponentActivity() {
         }.start()
     }
 
-    private fun handleInitialSegmentResult(text: String, result: IntArray?) {
+    private fun handleInitialSegmentResult(text: String, result: IntArray?, fromSavedState: Boolean = false) {
         if (result == null || result.isEmpty()) {
             Log.e(TAG, "Segmentation fails for text=$text")
             finish()
             return
         }
-        val touchIndex = intent.getIntExtra("boom_index", -1)
-        val touchedX = intent.getIntExtra("boom_startx", -1)
-        val touchedY = intent.getIntExtra("boom_starty", -1)
+        val touchIndex = if (fromSavedState) -1 else intent.getIntExtra("boom_index", -1)
+        val touchedX = if (fromSavedState) -1 else intent.getIntExtra("boom_startx", -1)
+        val touchedY = if (fromSavedState) -1 else intent.getIntExtra("boom_starty", -1)
         if (boomChipPage?.initWords(result, text, touchIndex, touchedX, touchedY) != true) {
             val log = buildString {
                 result.forEach {
@@ -381,6 +390,10 @@ class BoomActivity : ComponentActivity() {
         boomChipPage?.captureSelectedState()?.let {
             outState.putSerializable(SELECTED_STATE, it)
         }
+        if (currentSegment != null) {
+            outState.putString(SAVED_TEXT, currentText)
+            outState.putIntArray(SAVED_SEGMENT, currentSegment)
+        }
         super.onSaveInstanceState(outState)
     }
 
@@ -392,6 +405,8 @@ class BoomActivity : ComponentActivity() {
 
         private const val TAG = "BoomActivity"
         private const val SELECTED_STATE = "selected_state"
+        private const val SAVED_TEXT = "saved_text"
+        private const val SAVED_SEGMENT = "saved_segment"
     }
 }
 
