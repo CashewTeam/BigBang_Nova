@@ -141,6 +141,15 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         return false;
     }
 
+    void clearSelectionStateForRelayout() {
+        mSelectedId.clear();
+        mSelectedTopRow = -1;
+        mSelectedBottomRow = -1;
+        if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
+            mFakeSelectBar.setVisibility(View.INVISIBLE);
+        }
+    }
+
     private boolean isChineseWord(char c) {
         Character.UnicodeBlock ub = Character.UnicodeBlock.of(c);
         if (ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
@@ -199,6 +208,13 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             }
         });
         ImageView searchView = (ImageView) mSelectBar.findViewById(R.id.all_search);
+        ImageView resegmentView = (ImageView) mSelectBar.findViewById(R.id.all_cut);
+        resegmentView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mBoomPage.splitSelectedWordsToChars();
+            }
+        });
         searchView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -230,6 +246,13 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
 
     private void initFakeViews(View contentView) {
         mFakeSelectBar = (RelativeLayout) contentView.findViewById(R.id.fake_multi_selected_bar);
+        ImageView topResegmentView = (ImageView) mFakeSelectBar.findViewById(R.id.all_cut);
+        topResegmentView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mBoomPage.splitSelectedWordsToChars();
+            }
+        });
         ImageView topSearchView = (ImageView) mFakeSelectBar.findViewById(R.id.all_search);
         topSearchView.setOnClickListener(new View.OnClickListener() {
             @Override

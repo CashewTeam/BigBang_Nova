@@ -23,6 +23,13 @@
             android:src="@drawable/boom_chips_all_dict" />
 
     <ImageView
+            android:id="@+id/all_cut"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toRightOf="@+id/all_dict"
+            android:src="@drawable/boom_chips_all_cut" />
+
+    <ImageView
             android:id="@+id/all_share"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

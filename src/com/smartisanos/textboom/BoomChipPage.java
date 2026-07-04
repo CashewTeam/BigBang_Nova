@@ -296,6 +296,31 @@ public class BoomChipPage {
         mBoomActionHandler.onSelect(0, wordCount - 1);
     }
 
+    public boolean splitSelectedWordsToChars() {
+        if (mBoomActionHandler == null || !mBoomActionHandler.hasSelection()) {
+            return false;
+        }
+        TreeSet<Integer> newSelection = mLayout.splitSelectedWordsToChars(
+                new TreeSet<Integer>(mBoomActionHandler.mSelectedId)
+        );
+        if (newSelection == null || newSelection.isEmpty()) {
+            return false;
+        }
+        mBoomActionHandler.clearSelectionStateForRelayout();
+        mSavedData = newSelection;
+        mBoomConent.removeAllViews();
+        initChips(false);
+        mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                updateScrollerInsetsForContent();
+                restoreSelectedState();
+            }
+        });
+        return true;
+    }
+
     public void setOnAdjacentRequestListener(OnAdjacentRequestListener listener) {
         mOnAdjacentRequestListener = listener;
     }

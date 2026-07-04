@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.TreeSet;
 
 public class BoomWordsLayout {
 
@@ -325,5 +326,44 @@ public class BoomWordsLayout {
 
     public int getWordCount() {
         return mWords.size();
+    }
+
+    public TreeSet<Integer> splitSelectedWordsToChars(TreeSet<Integer> selectedIds) {
+        if (selectedIds == null || selectedIds.isEmpty()) {
+            return null;
+        }
+        RangeList<Word> newWords = new RangeList<Word>();
+        ArrayList<Integer> newHardBreaks = new ArrayList<Integer>();
+        TreeSet<Integer> newSelected = new TreeSet<Integer>();
+        boolean changed = false;
+        for (int i = 0; i < mWords.size(); ++i) {
+            if (isHardBreakIndex(i)) {
+                newHardBreaks.add(newWords.size());
+            }
+            final Word word = mWords.get(i);
+            final boolean selected = selectedIds.contains(i);
+            if (!selected || word.punc || word.word.length() <= 1) {
+                newWords.add(word);
+                if (selected) {
+                    newSelected.add(newWords.size() - 1);
+                }
+                continue;
+            }
+            changed = true;
+            for (int offset = 0; offset < word.word.length();) {
+                final int codePoint = word.word.codePointAt(offset);
+                final int next = offset + Character.charCount(codePoint);
+                newWords.add(new Word(word.word.substring(offset, next), word.start + offset, false));
+                newSelected.add(newWords.size() - 1);
+                offset = next;
+            }
+        }
+        if (!changed) {
+            return null;
+        }
+        mWords = newWords;
+        mHardBreaks = newHardBreaks;
+        generateLayout();
+        return newSelected;
     }
 }
