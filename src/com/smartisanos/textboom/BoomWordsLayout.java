@@ -319,6 +319,10 @@ public class BoomWordsLayout {
         return mWords.get(index).word.length() + mWords.get(index).start;
     }
 
+    public int getWordStart(int index) {
+        return mWords.get(index).start;
+    }
+
     public String getOriText(int start, int end) {
         return mOriText.substring(start, end);
     }

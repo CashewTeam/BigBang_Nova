@@ -113,6 +113,16 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         }
 
         moveChipRows();
+
+        mSelectBar.post(new Runnable() {
+            @Override
+            public void run() {
+                if (hasSelection() && mSelectedTopRow != -1) {
+                    positionSelBar(mSelectedTopRow);
+                    positionSelectRect(mSelectedTopRow);
+                }
+            }
+        });
     }
 
     public void deSelect(int stat, int end) {

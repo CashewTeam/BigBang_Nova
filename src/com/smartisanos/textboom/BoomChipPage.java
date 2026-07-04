@@ -257,7 +257,15 @@ public class BoomChipPage {
 
     public Serializable captureSelectedState() {
         if (mBoomActionHandler != null && mBoomActionHandler.hasSelection()) {
-            return new TreeSet<Integer>(mBoomActionHandler.mSelectedId);
+            TreeSet<Integer> wordSet = mBoomActionHandler.mSelectedId;
+            int[][] ranges = new int[wordSet.size()][2];
+            int idx = 0;
+            for (Integer wordIdx : wordSet) {
+                ranges[idx][0] = mLayout.getWordStart(wordIdx);
+                ranges[idx][1] = mLayout.getWordEnd(wordIdx);
+                idx++;
+            }
+            return ranges;
         }
         return null;
     }
@@ -400,7 +408,40 @@ public class BoomChipPage {
     }
 
     private boolean restoreSelectedState() {
-        if (mSavedData instanceof TreeSet) {
+        if (mSavedData instanceof int[][]) {
+            // Char-range based selection (stable across rotation)
+            int[][] ranges = (int[][]) mSavedData;
+            TreeSet<Integer> newWordSet = new TreeSet<Integer>();
+            for (int[] range : ranges) {
+                int charStart = range[0];
+                int charEnd = range[1];
+                for (int i = 0; i < mLayout.getWordCount(); i++) {
+                    int wordStart = mLayout.getWordStart(i);
+                    int wordEnd = mLayout.getWordEnd(i);
+                    if (wordStart < charEnd && wordEnd > charStart) {
+                        newWordSet.add(i);
+                    }
+                }
+            }
+            if (!newWordSet.isEmpty()) {
+                for (int i = 0; i < mLayout.getRowCount(); ++i) {
+                    final LinearLayout row = getChipRow(i);
+                    if (row == null) continue;
+                    for (int j = 0; j < row.getChildCount(); ++j) {
+                        View child = row.getChildAt(j);
+                        if (child.getTag() instanceof BoomChip) {
+                            BoomChip chip = (BoomChip) child.getTag();
+                            if (newWordSet.contains(chip.index)) {
+                                chip.setSelected(true);
+                            }
+                        }
+                    }
+                }
+                mBoomActionHandler.onSelect(newWordSet);
+                return true;
+            }
+        } else if (mSavedData instanceof TreeSet) {
+            // Legacy: word-index based (used by splitSelectedWordsToChars)
             TreeSet<Integer> set = (TreeSet<Integer>) mSavedData;
             if (set.size() > 0) {
                 for (int i = 0; i < mLayout.getRowCount(); ++i) {
