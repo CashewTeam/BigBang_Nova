@@ -193,7 +193,7 @@ class FloatingBallService : Service(), SensorEventListener {
         layoutParams = WindowManager.LayoutParams(
             capsuleWidthPx(iconSizePx),
             iconSizePx,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            overlayWindowType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
@@ -320,7 +320,7 @@ class FloatingBallService : Service(), SensorEventListener {
                 WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    overlayWindowType(),
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -973,18 +973,29 @@ class FloatingBallService : Service(), SensorEventListener {
             if (prepared) return
             synchronized(this) {
                 if (prepared) return
-                val manager = context.getSystemService(NotificationManager::class.java)
-                if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID,
-                        context.getString(R.string.overlay_channel_name),
-                        NotificationManager.IMPORTANCE_LOW,
-                    ).apply {
-                        description = context.getString(R.string.overlay_channel_description)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val manager = context.getSystemService(NotificationManager::class.java)
+                    if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+                        val channel = NotificationChannel(
+                            CHANNEL_ID,
+                            context.getString(R.string.overlay_channel_name),
+                            NotificationManager.IMPORTANCE_LOW,
+                        ).apply {
+                            description = context.getString(R.string.overlay_channel_description)
+                        }
+                        manager.createNotificationChannel(channel)
                     }
-                    manager.createNotificationChannel(channel)
                 }
                 prepared = true
+            }
+        }
+
+        private fun overlayWindowType(): Int {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
             }
         }
     }

@@ -179,6 +179,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallOneHandModeChange = { updateFloatingBallOneHandMode(it) },
                     onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
+                    onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
@@ -301,6 +302,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
     private fun updateFloatingBallHidden(enabled: Boolean) {
         settings.setFloatingBallHidden(enabled)
         FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateAdaptiveLauncherIcon(enabled: Boolean) {
+        LauncherIconManager.setAdaptiveEnabled(this, enabled)
     }
 
     private fun resolveStartPage(intent: Intent?): SettingsPage {
@@ -541,6 +546,7 @@ private fun SettingsScreen(
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
+    onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -612,6 +618,9 @@ private fun SettingsScreen(
     }
     var floatingBallHidden by rememberSaveable {
         mutableStateOf(settings.isFloatingBallHidden)
+    }
+    var adaptiveLauncherIconEnabled by rememberSaveable {
+        mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -783,6 +792,18 @@ private fun SettingsScreen(
                             onFloatingBallHiddenChange = {
                                 floatingBallHidden = it
                                 onFloatingBallHiddenChange(it)
+                            },
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSectionCard {
+                        LauncherIconSection(
+                            adaptiveLauncherIconEnabled = adaptiveLauncherIconEnabled,
+                            onAdaptiveLauncherIconChange = {
+                                adaptiveLauncherIconEnabled = it
+                                onAdaptiveLauncherIconChange(it)
                             },
                         )
                     }
@@ -1371,6 +1392,34 @@ private fun AboutPage(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun LauncherIconSection(
+    adaptiveLauncherIconEnabled: Boolean,
+    onAdaptiveLauncherIconChange: (Boolean) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.about_adaptive_icon_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.about_adaptive_icon_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.about_adaptive_icon_title),
+            subtitle = stringResource(R.string.about_adaptive_icon_summary),
+            checked = adaptiveLauncherIconEnabled,
+            onCheckedChange = onAdaptiveLauncherIconChange,
+        )
     }
 }
 @Composable

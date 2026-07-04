@@ -22,8 +22,8 @@
     <application
         android:name="com.cashewteam.novatext.android.BoomApplication"
         android:label="@string/app_label"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@mipmap/ic_launcher_legacy"
+        android:roundIcon="@mipmap/ic_launcher_round_legacy"
         android:allowBackup="true" >
         <activity
             android:name=".BoomActivity"
@@ -74,13 +74,35 @@
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:exported="true"
-            android:theme="@style/ComposeSettingsTheme">
+            android:theme="@style/ComposeSettingsTheme" />
+        <activity-alias
+            android:name=".LauncherLegacyAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".TextBoomSettingsActivity"
+            android:icon="@mipmap/ic_launcher_legacy"
+            android:roundIcon="@mipmap/ic_launcher_round_legacy"
+            android:label="@string/app_label">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherAdaptiveAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".TextBoomSettingsActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_label">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <provider
             android:authorities="com.cashewteam.novatext.android.call_method"
             android:name="com.cashewteam.novatext.android.TextBoomCallProvider"
