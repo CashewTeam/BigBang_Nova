@@ -284,10 +284,12 @@ class BoomActivity : ComponentActivity() {
                         adjacentText = adjacentText,
                         adjacentSegment = adjacentSegment,
                     )
+                    val charOffset = if (direction == "before") adjacentText.length + 1 else 0
                     val replaced = boomChipPage?.replaceWords(
                         merged.segment,
                         merged.text,
                         merged.targetWordIndex,
+                        charOffset,
                     ) == true
                     if (!replaced) {
                         boomChipPage?.finishAdjacentPull()

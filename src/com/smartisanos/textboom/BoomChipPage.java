@@ -332,7 +332,12 @@ public class BoomChipPage {
         mOnAdjacentRequestListener = listener;
     }
 
-    public boolean replaceWords(int[] segment, String text, int targetWordIndex) {
+    public boolean replaceWords(int[] segment, String text, int targetWordIndex, int charOffset) {
+        // Save selection as char ranges before it gets cleared
+        Serializable savedSelection = null;
+        if (mBoomActionHandler != null && mBoomActionHandler.hasSelection()) {
+            savedSelection = captureSelectedState();
+        }
         if (mBoomActionHandler != null) {
             mBoomActionHandler.handleClick();
         }
@@ -343,9 +348,25 @@ public class BoomChipPage {
             return false;
         }
         initChips(false);
+        // Restore selection with adjusted char ranges
+        if (savedSelection instanceof int[][]) {
+            int[][] ranges = (int[][]) savedSelection;
+            if (charOffset != 0) {
+                for (int[] range : ranges) {
+                    range[0] += charOffset;
+                    range[1] += charOffset;
+                }
+            }
+            mSavedData = ranges;
+            mBoomConent.post(() -> restoreSelectedState());
+        }
         scrollToWord(targetWordIndex);
         finishAdjacentPull();
         return true;
+    }
+
+    public boolean replaceWords(int[] segment, String text, int targetWordIndex) {
+        return replaceWords(segment, text, targetWordIndex, 0);
     }
 
     private void scrollToWord(final int wordIndex) {
