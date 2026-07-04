@@ -606,7 +606,9 @@ class FloatingBallService : Service(), SensorEventListener {
             bubble.scaleX = BUBBLE_APPEAR_START_SCALE
             bubble.scaleY = BUBBLE_APPEAR_START_SCALE
         } else {
-            ballIdle = false
+            val startIdle = isSearchOverlayActive()
+            ballIdle = startIdle
+            val targetAlpha = if (startIdle) idleAlpha() else activeAlpha()
             val shouldAnimateIn = bubble.visibility != View.VISIBLE || bubble.alpha <= 0f
             bubble.visibility = View.VISIBLE
             updateBubbleChrome()
@@ -615,17 +617,19 @@ class FloatingBallService : Service(), SensorEventListener {
                 bubble.scaleX = BUBBLE_APPEAR_START_SCALE
                 bubble.scaleY = BUBBLE_APPEAR_START_SCALE
                 bubble.animate()
-                    .alpha(activeAlpha())
+                    .alpha(targetAlpha)
                     .scaleX(1f)
                     .scaleY(1f)
                     .setDuration(BUBBLE_APPEAR_DURATION_MS)
                     .start()
             } else {
-                bubble.alpha = activeAlpha()
+                bubble.alpha = targetAlpha
                 bubble.scaleX = 1f
                 bubble.scaleY = 1f
             }
-            scheduleBubbleFade()
+            if (!startIdle) {
+                scheduleBubbleFade()
+            }
         }
     }
 
@@ -967,6 +971,8 @@ class FloatingBallService : Service(), SensorEventListener {
 
         @Volatile
         private var searchOverlayVisible = false
+
+        private fun isSearchOverlayActive(): Boolean = searchOverlayVisible
 
         private fun prepare(context: Context) {
             if (prepared) return

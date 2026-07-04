@@ -301,6 +301,9 @@ public class BoomWordsLayout {
     }
 
     public int getRowForIndex(int index) {
+        if (index < 0 || index >= mIdToRow.length) {
+            return 0;
+        }
         return mIdToRow[index];
     }
 

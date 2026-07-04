@@ -75,8 +75,15 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
 
     public void onSelect(TreeSet<Integer> savedState) {
         mSelectedId.clear();
-        mSelectedId.addAll(savedState);
-        onSelectInternal(savedState.first(), savedState.last());
+        final int wordCount = mBoomPage.mLayout.getWordCount();
+        for (Integer id : savedState) {
+            if (id < wordCount) {
+                mSelectedId.add(id);
+            }
+        }
+        if (!mSelectedId.isEmpty()) {
+            onSelectInternal(mSelectedId.first(), mSelectedId.last());
+        }
     }
 
     public void onSelect(int start, int end) {
