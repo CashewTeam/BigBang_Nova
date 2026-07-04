@@ -632,7 +632,7 @@ class FloatingBallService : Service(), SensorEventListener {
     private fun updateBubbleChrome() {
         val iconSizePx = bubbleSizePx()
         val hiddenMode = settings.isFloatingBallHidden()
-        val isIdle = ballIdle && capsuleBackgroundVisible && !isLandscape()
+        val isIdle = ballIdle && capsuleBackgroundVisible
         val showCapsuleBg = capsuleBackgroundVisible && !isLandscape()
         bubbleView?.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
