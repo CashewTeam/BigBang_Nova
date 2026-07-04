@@ -314,6 +314,7 @@ private fun SearchOverlayScreen(
         FloatingPanel(
             width = panelMetrics.width,
             height = panelMetrics.height,
+            fillMax = panelMetrics.fullScreen,
             modifier = overlayPanelPlacement(panelMetrics),
             shape = RoundedCornerShape(panelMetrics.cornerRadius),
             backgroundColor = palette.panel,

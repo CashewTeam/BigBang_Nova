@@ -495,6 +495,7 @@ private fun BigBangOverlayContent(
         FloatingPanel(
             width = panelMetrics.width,
             height = panelMetrics.height,
+            fillMax = panelMetrics.fullScreen,
             modifier = overlayPanelPlacement(panelMetrics)
                 .onGloballyPositioned { coordinates ->
                     panelBounds = coordinates.boundsInWindow()

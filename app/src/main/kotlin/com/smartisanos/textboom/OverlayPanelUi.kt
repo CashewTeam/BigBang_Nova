@@ -87,6 +87,7 @@ internal fun OverlayScene(
 internal fun FloatingPanel(
     width: Dp,
     height: Dp,
+    fillMax: Boolean = false,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(22.dp),
     backgroundColor: Color,
@@ -95,9 +96,13 @@ internal fun FloatingPanel(
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(
-        modifier = modifier
-            .requiredWidth(width)
-            .requiredHeight(height),
+        modifier = if (fillMax) {
+            modifier.fillMaxSize()
+        } else {
+            modifier
+                .requiredWidth(width)
+                .requiredHeight(height)
+        },
         contentAlignment = Alignment.Center,
     ) {
         if (shadowColor != null) {
@@ -151,11 +156,13 @@ internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): Over
     val systemBarsInsets = ViewCompat.getRootWindowInsets(view)
         ?.getInsets(WindowInsetsCompat.Type.systemBars())
     val topSystemInset = if (fullScreen) {
-        with(density) { (systemBarsInsets?.top ?: 0).toDp() }
+        with(density) { ((systemBarsInsets?.top ?: 0) * 3 / 4).toDp() }
     } else {
         0.dp
     }
-    val bottomSystemInset = if (fullScreen) {
+    val bottomSystemInset = if (fullScreen && landscape) {
+        with(density) { (systemBarsInsets?.bottom ?: 0).toDp() / 3 }
+    } else if (fullScreen) {
         with(density) { (systemBarsInsets?.bottom ?: 0).toDp() }
     } else {
         0.dp
