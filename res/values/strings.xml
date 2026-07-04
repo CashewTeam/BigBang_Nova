@@ -83,6 +83,8 @@
     <string name="permission_floating_ball_one_hand_angle_title">单手切换角度</string>
     <string name="permission_floating_ball_hidden_title">隐藏悬浮球</string>
     <string name="permission_floating_ball_hidden_summary">静置时隐藏胶囊背景和圆球，仅保留蓝色指示条，触控区域不变</string>
+    <string name="permission_floating_ball_landscape_safe_area_title">横屏安全区</string>
+    <string name="permission_floating_ball_landscape_safe_area_summary">关闭后横屏下悬浮球可在屏幕完整宽度内自由拖动，适合平板</string>
     <string name="ocr_section_title">OCR 识别</string>
     <string name="ocr_section_summary">使用离线 ML Kit V2 识别图片文字，并直接进入大爆炸。当前提供中文、日语、韩语和英语四种识别模式。</string>
     <string name="ocr_mode_chinese">中文</string>

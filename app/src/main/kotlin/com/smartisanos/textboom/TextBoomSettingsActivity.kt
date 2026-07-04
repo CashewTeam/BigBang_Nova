@@ -179,6 +179,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallOneHandModeChange = { updateFloatingBallOneHandMode(it) },
                     onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
+                    onFloatingBallLandscapeSafeAreaChange = { updateFloatingBallLandscapeSafeArea(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -302,6 +303,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateFloatingBallHidden(enabled: Boolean) {
         settings.setFloatingBallHidden(enabled)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallLandscapeSafeArea(enabled: Boolean) {
+        settings.setFloatingBallLandscapeSafeAreaEnabled(enabled)
         FloatingBallService.refreshAppearance(this)
     }
 
@@ -551,6 +557,7 @@ private fun SettingsScreen(
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
+    onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -624,6 +631,9 @@ private fun SettingsScreen(
     }
     var floatingBallHidden by rememberSaveable {
         mutableStateOf(settings.isFloatingBallHidden)
+    }
+    var floatingBallLandscapeSafeArea by rememberSaveable {
+        mutableStateOf(settings.isFloatingBallLandscapeSafeAreaEnabled)
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
@@ -774,6 +784,7 @@ private fun SettingsScreen(
                             floatingBallOneHandMode = floatingBallOneHandMode,
                             floatingBallOneHandAngle = floatingBallOneHandAngle,
                             floatingBallHidden = floatingBallHidden,
+                            floatingBallLandscapeSafeArea = floatingBallLandscapeSafeArea,
                             onFloatingBallSizeChange = {
                                 floatingBallSizePercent = it
                                 onFloatingBallSizeChange(it)
@@ -801,6 +812,10 @@ private fun SettingsScreen(
                             onFloatingBallHiddenChange = {
                                 floatingBallHidden = it
                                 onFloatingBallHiddenChange(it)
+                            },
+                            onFloatingBallLandscapeSafeAreaChange = {
+                                floatingBallLandscapeSafeArea = it
+                                onFloatingBallLandscapeSafeAreaChange(it)
                             },
                         )
                     }
@@ -1747,6 +1762,7 @@ private fun FloatingBallSection(
     floatingBallOneHandMode: Boolean,
     floatingBallOneHandAngle: Int,
     floatingBallHidden: Boolean,
+    floatingBallLandscapeSafeArea: Boolean,
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
@@ -1754,6 +1770,7 @@ private fun FloatingBallSection(
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
+    onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1810,6 +1827,12 @@ private fun FloatingBallSection(
             subtitle = stringResource(R.string.permission_floating_ball_hidden_summary),
             checked = floatingBallHidden,
             onCheckedChange = onFloatingBallHiddenChange,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.permission_floating_ball_landscape_safe_area_title),
+            subtitle = stringResource(R.string.permission_floating_ball_landscape_safe_area_summary),
+            checked = floatingBallLandscapeSafeArea,
+            onCheckedChange = onFloatingBallLandscapeSafeAreaChange,
         )
     }
 }

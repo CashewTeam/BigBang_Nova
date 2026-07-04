@@ -28,6 +28,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_ONE_HAND_MODE = "floating_ball_one_hand_mode";
     public static final String KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = "floating_ball_one_hand_angle_degrees";
     public static final String KEY_FLOATING_BALL_HIDDEN = "floating_ball_hidden";
+    public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
 
@@ -255,6 +256,14 @@ public final class BigBangSettings {
 
     public void setFloatingBallHidden(boolean enabled) {
         preferences.edit().putBoolean(KEY_FLOATING_BALL_HIDDEN, enabled).apply();
+    }
+
+    public boolean isFloatingBallLandscapeSafeAreaEnabled() {
+        return preferences.getBoolean(KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA, true);
+    }
+
+    public void setFloatingBallLandscapeSafeAreaEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA, enabled).apply();
     }
 
     public boolean isAdaptiveLauncherIconEnabled() {

@@ -490,8 +490,11 @@ class FloatingBallService : Service(), SensorEventListener {
     private fun getHorizontalBounds(): Rect {
         val windowSize = getWindowSize()
         if (isLandscape()) {
-            val safeArea = getSafeArea()
-            return Rect(0, 0, safeArea.width(), windowSize.y)
+            if (settings.isFloatingBallLandscapeSafeAreaEnabled) {
+                val safeArea = getSafeArea()
+                return Rect(0, 0, safeArea.width(), windowSize.y)
+            }
+            return Rect(0, 0, windowSize.x, windowSize.y)
         }
         return Rect(0, 0, windowSize.x, windowSize.y)
     }
@@ -569,7 +572,15 @@ class FloatingBallService : Service(), SensorEventListener {
     }
 
     private fun rightDockedWidth(params: WindowManager.LayoutParams): Int {
-        return if (isLandscape()) params.width + params.height / 2 else params.height
+        if (isLandscape()) {
+            return if (settings.isFloatingBallLandscapeSafeAreaEnabled) {
+                params.width + params.height / 2
+                
+            } else {
+                params.width - params.height / 2
+            }
+        }
+        return params.height
     }
 
     private fun activeAlpha(): Float {
@@ -674,7 +685,7 @@ class FloatingBallService : Service(), SensorEventListener {
         blueCapsuleView?.layoutParams = FrameLayout.LayoutParams(blueWidthPx, iconSizePx).apply {
             gravity = Gravity.CENTER_VERTICAL
             marginStart = if (dockedSide == DOCK_RIGHT) {
-                iconCenterX + gapPx + blueWidthPx
+                iconCenterX + gapPx - blueWidthPx
             } else {
                 iconCenterX - gapPx - blueWidthPx
             }
