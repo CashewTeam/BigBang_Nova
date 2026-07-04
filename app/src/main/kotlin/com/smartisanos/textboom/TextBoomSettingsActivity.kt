@@ -1408,14 +1408,8 @@ private fun LauncherIconSection(
             fontSize = 24.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Text(
-            text = stringResource(R.string.about_adaptive_icon_summary),
-            color = palette.textSecondary,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-        )
         DebugSwitchRow(
-            title = stringResource(R.string.about_adaptive_icon_title),
+            title = "",
             subtitle = stringResource(R.string.about_adaptive_icon_summary),
             checked = adaptiveLauncherIconEnabled,
             onCheckedChange = onAdaptiveLauncherIconChange,
@@ -1665,12 +1659,14 @@ private fun DebugSwitchRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    text = title,
-                    color = palette.textPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+                if (title.isNotBlank()) {
+                    Text(
+                        text = title,
+                        color = palette.textPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
                 Text(
                     text = subtitle,
                     color = palette.textSecondary,
