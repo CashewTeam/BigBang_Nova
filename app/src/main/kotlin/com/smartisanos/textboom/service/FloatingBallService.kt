@@ -685,7 +685,7 @@ class FloatingBallService : Service(), SensorEventListener {
         blueCapsuleView?.layoutParams = FrameLayout.LayoutParams(blueWidthPx, iconSizePx).apply {
             gravity = Gravity.CENTER_VERTICAL
             marginStart = if (dockedSide == DOCK_RIGHT) {
-                iconCenterX + gapPx - blueWidthPx
+                iconCenterX + gapPx + (0.2 * blueWidthPx).toInt()//确保和左侧对称
             } else {
                 iconCenterX - gapPx - blueWidthPx
             }
