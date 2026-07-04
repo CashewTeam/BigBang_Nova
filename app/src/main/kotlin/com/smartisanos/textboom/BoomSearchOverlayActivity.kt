@@ -216,7 +216,7 @@ private fun SearchOverlayScreen(
             SearchProvider(BigBangSettings.TYPE_KINGSOFT, "金山词霸", R.drawable.boom_setting_kingsoft),
             SearchProvider(BigBangSettings.TYPE_BINGDICT, "必应词典", R.drawable.boom_setting_bingdict),
             SearchProvider(BigBangSettings.TYPE_HIDICT, "海词词典", R.drawable.boom_setting_hidict),
-            SearchProvider(BigBangSettings.TYPE_BAIDU_TRANSLATE, "百度翻译", R.drawable.boom_setting_baidu),
+            SearchProvider(BigBangSettings.TYPE_BAIDU_TRANSLATE, "有道翻译", R.drawable.boom_setting_youdao),
             SearchProvider(BigBangSettings.TYPE_BING_TRANSLATE, "必应翻译", R.drawable.boom_setting_bing),
             SearchProvider(BigBangSettings.TYPE_GOOGLE_TRANSLATE, "谷歌翻译", R.drawable.boom_setting_google),
         )
@@ -400,6 +400,7 @@ private fun SearchOverlayScreen(
                         }
                     },
                     update = { view ->
+                        view.configureSearchWebView(dark)
                         if (view.url != currentUrl) {
                             view.loadUrl(currentUrl)
                         }
@@ -660,6 +661,7 @@ private fun SearchProviderButton(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(top = 3.dp)
                         .background(
                             color = palette.selectedBackground,
                             shape = RoundedCornerShape(10.dp),
@@ -756,7 +758,7 @@ private fun buildSearchUrl(type: Int, text: String): String {
         BigBangSettings.TYPE_KINGSOFT -> "https://www.iciba.com/$query"
         BigBangSettings.TYPE_BINGDICT -> "https://cn.bing.com/dict/?q=$query"
         BigBangSettings.TYPE_HIDICT -> "https://m.dict.cn/$query"
-        BigBangSettings.TYPE_BAIDU_TRANSLATE -> "https://fanyi.baidu.com/mtpe-individual/transText?query=${query}"
+        BigBangSettings.TYPE_BAIDU_TRANSLATE -> "https://m.youdao.com/translate?inputtext=$query&type=EN2ZH_CN"
         BigBangSettings.TYPE_BING_TRANSLATE -> "https://www.bing.com/translator?from=auto&to=zh-Hans&text=$query"
         BigBangSettings.TYPE_GOOGLE_TRANSLATE -> "https://translate.google.com/?sl=auto&tl=zh-CN&text=$query&op=translate"
         else -> "https://www.baidu.com/s?wd=$query"

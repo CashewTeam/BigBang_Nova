@@ -25,7 +25,7 @@
     <string name="search_via_baidupedia">百度百科</string>
     <string name="search_via_wikipedia">维基百科</string>
     <string name="search_via_moegirl">萌娘百科</string>
-    <string name="search_via_baidu_translate">百度翻译</string>
+    <string name="search_via_baidu_translate">有道翻译</string>
     <string name="search_via_bing_translate">必应翻译</string>
     <string name="search_via_google_translate">谷歌翻译</string>
     <string name="thumb_trigger_area_tips">触发面积越小，越容易触发此功能。你可以通过调整触发面积来避免误触</string>

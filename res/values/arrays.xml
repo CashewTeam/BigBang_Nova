@@ -68,7 +68,7 @@
         <item>@drawable/boom_setting_kingsoft</item>
         <item>@drawable/boom_setting_hidict</item>
         <item>@drawable/boom_setting_youdao</item>
-        <item>@drawable/boom_setting_baidu</item>
+        <item>@drawable/boom_setting_youdao</item>
         <item>@drawable/boom_setting_bing</item>
         <item>@drawable/boom_setting_google</item>
     </array>
