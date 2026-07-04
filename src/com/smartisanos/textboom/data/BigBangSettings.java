@@ -29,6 +29,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = "floating_ball_one_hand_angle_degrees";
     public static final String KEY_FLOATING_BALL_HIDDEN = "floating_ball_hidden";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
+    public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -262,6 +263,14 @@ public final class BigBangSettings {
 
     public void setAdaptiveLauncherIconEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_ADAPTIVE_LAUNCHER_ICON, enabled).apply();
+    }
+
+    public boolean isClassicOverlayStyleEnabled() {
+        return preferences.getBoolean(KEY_CLASSIC_OVERLAY_STYLE, false);
+    }
+
+    public void setClassicOverlayStyleEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_CLASSIC_OVERLAY_STYLE, enabled).apply();
     }
 
     private static int clampPercent(int value) {

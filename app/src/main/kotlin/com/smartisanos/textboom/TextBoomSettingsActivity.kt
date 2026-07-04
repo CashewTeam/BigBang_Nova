@@ -180,6 +180,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
+                    onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
@@ -306,6 +307,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateAdaptiveLauncherIcon(enabled: Boolean) {
         LauncherIconManager.setAdaptiveEnabled(this, enabled)
+    }
+
+    private fun updateClassicOverlayStyle(enabled: Boolean) {
+        settings.setClassicOverlayStyleEnabled(enabled)
     }
 
     private fun resolveStartPage(intent: Intent?): SettingsPage {
@@ -547,6 +552,7 @@ private fun SettingsScreen(
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
+    onClassicOverlayStyleChange: (Boolean) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -621,6 +627,9 @@ private fun SettingsScreen(
     }
     var adaptiveLauncherIconEnabled by rememberSaveable {
         mutableStateOf(settings.isAdaptiveLauncherIconEnabled)
+    }
+    var classicOverlayStyleEnabled by rememberSaveable {
+        mutableStateOf(settings.isClassicOverlayStyleEnabled)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -804,6 +813,18 @@ private fun SettingsScreen(
                             onAdaptiveLauncherIconChange = {
                                 adaptiveLauncherIconEnabled = it
                                 onAdaptiveLauncherIconChange(it)
+                            },
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSectionCard {
+                        OverlayStyleSection(
+                            classicOverlayStyleEnabled = classicOverlayStyleEnabled,
+                            onClassicOverlayStyleChange = {
+                                classicOverlayStyleEnabled = it
+                                onClassicOverlayStyleChange(it)
                             },
                         )
                     }
@@ -1413,6 +1434,34 @@ private fun LauncherIconSection(
             subtitle = stringResource(R.string.about_adaptive_icon_summary),
             checked = adaptiveLauncherIconEnabled,
             onCheckedChange = onAdaptiveLauncherIconChange,
+        )
+    }
+}
+
+@Composable
+private fun OverlayStyleSection(
+    classicOverlayStyleEnabled: Boolean,
+    onClassicOverlayStyleChange: (Boolean) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.overlay_style_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.overlay_style_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.overlay_style_classic_title),
+            subtitle = stringResource(R.string.overlay_style_classic_summary),
+            checked = classicOverlayStyleEnabled,
+            onCheckedChange = onClassicOverlayStyleChange,
         )
     }
 }

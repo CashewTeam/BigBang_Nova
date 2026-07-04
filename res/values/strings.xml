@@ -145,4 +145,8 @@
     <string name="about_open_source_refs">开源项目引用</string>
     <string name="about_adaptive_icon_title">自适应启动图标</string>
     <string name="about_adaptive_icon_summary">开启后切换到自适应桌面图标，默认关闭。主要对 Android 8+ 桌面生效。</string>
+    <string name="overlay_style_section_title">界面样式</string>
+    <string name="overlay_style_section_summary">设置大爆炸和搜索页共享外壳的显示样式。横屏和分屏下会自动切到全屏模式。</string>
+    <string name="overlay_style_classic_title">经典样式</string>
+    <string name="overlay_style_classic_summary">开启后，共享外壳始终全屏显示，关闭悬浮窗式圆角与上下留白。</string>
 </resources>

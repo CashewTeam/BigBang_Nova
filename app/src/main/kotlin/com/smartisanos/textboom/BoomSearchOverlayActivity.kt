@@ -171,7 +171,7 @@ private fun SearchOverlayScreen(
 ) {
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
-    val panelMetrics = rememberOverlayPanelMetrics()
+    val panelMetrics = rememberOverlayPanelMetrics(forceFullscreen = settings.isClassicOverlayStyleEnabled)
     val palette = if (dark) {
         SearchPalette(
             panel = Color(0xFF171A1F),
@@ -201,6 +201,11 @@ private fun SearchOverlayScreen(
             accentSoft = Color(0x225F86F4),
         )
     }
+    ApplyOverlaySystemBars(
+        statusBarColor = if (panelMetrics.fullScreen) palette.topBar else Color.Transparent,
+        navigationBarColor = if (panelMetrics.fullScreen) palette.bottomBar else Color.Transparent,
+        darkIcons = !dark,
+    )
 
     val webProviders = remember {
         listOf(
@@ -319,6 +324,7 @@ private fun SearchOverlayScreen(
                 topBar = {
                     SearchTopBar(
                         palette = palette,
+                        topInset = panelMetrics.topSystemInset,
                         title = activeProviderFor(activeKind).title,
                         searchText = searchText,
                         canGoBack = canGoBack,
@@ -348,6 +354,7 @@ private fun SearchOverlayScreen(
                     HorizontalDivider(color = palette.divider)
                     SearchBottomBar(
                         palette = palette,
+                        bottomInset = panelMetrics.bottomSystemInset,
                         activeKind = activeKind,
                         webProvider = activeProviderFor(SearchKind.Web),
                         dictProvider = activeProviderFor(SearchKind.Dict),
@@ -415,6 +422,7 @@ private fun SearchOverlayScreen(
 @Composable
 private fun SearchTopBar(
     palette: SearchPalette,
+    topInset: androidx.compose.ui.unit.Dp,
     title: String,
     searchText: String,
     canGoBack: Boolean,
@@ -426,6 +434,7 @@ private fun SearchTopBar(
 ) {
     OverlayHeaderBar(
         backgroundColor = palette.topBar,
+        topInset = topInset,
         leading = {
             OverlayIconAction(
                 imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -478,6 +487,7 @@ private fun SearchTopBar(
 @Composable
 private fun SearchBottomBar(
     palette: SearchPalette,
+    bottomInset: androidx.compose.ui.unit.Dp,
     activeKind: SearchKind,
     webProvider: SearchProvider,
     dictProvider: SearchProvider,
@@ -493,6 +503,7 @@ private fun SearchBottomBar(
 ) {
     OverlayBottomBar(
         backgroundColor = palette.bottomBar,
+        bottomInset = bottomInset,
         leading = {
             ToolbarIconButton(
                 imageVector = Icons.Outlined.Close,

@@ -103,6 +103,7 @@ class BoomActivity : ComponentActivity() {
                 touchX = launchTouchX,
                 touchY = launchTouchY,
                 manualOcrSourceToken = manualOcrSourceToken,
+                classicOverlayStyleEnabled = settings.isClassicOverlayStyleEnabled,
                 ocrRecognizerMode = settings.ocrRecognizerMode,
                 onDismissRequesterChanged = { animatedDismissRequester = it },
                 onDismissRequest = { shouldDismissPage() },
@@ -400,6 +401,7 @@ private fun BigBangOverlayContent(
     touchX: Int,
     touchY: Int,
     manualOcrSourceToken: String?,
+    classicOverlayStyleEnabled: Boolean,
     ocrRecognizerMode: String,
     onDismissRequesterChanged: ((() -> Unit)?) -> Unit,
     onDismissRequest: () -> Boolean,
@@ -412,9 +414,11 @@ private fun BigBangOverlayContent(
     onMore: () -> Unit,
 ) {
     val dark = isSystemInDarkTheme()
-    val panelMetrics = rememberOverlayPanelMetrics()
+    val panelMetrics = rememberOverlayPanelMetrics(forceFullscreen = classicOverlayStyleEnabled)
     val panelBackground = if (dark) Color(0xFF171B20) else Color(0xFFF3F3F4)
     val panelBorder = if (dark) Color(0xFF2E353E) else Color(0xFFD7D7DA)
+    val topBarColor = if (dark) Color(0xFF1D2126) else Color.White
+    val bottomBarColor = if (dark) Color(0xFF1D2126) else Color.White
     val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.48f)
     val shadowColor = Color.Black.copy(alpha = 0.5f)
     val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(panelMetrics.cornerRadius)
@@ -482,6 +486,11 @@ private fun BigBangOverlayContent(
     }
 
     BackHandler(onBack = requestDismiss)
+    ApplyOverlaySystemBars(
+        statusBarColor = if (panelMetrics.fullScreen) topBarColor else Color.Transparent,
+        navigationBarColor = if (panelMetrics.fullScreen) bottomBarColor else Color.Transparent,
+        darkIcons = !dark,
+    )
     OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = requestDismiss) {
         FloatingPanel(
             width = panelMetrics.width,
@@ -504,7 +513,8 @@ private fun BigBangOverlayContent(
             OverlayPanelScaffold(
                 topBar = {
                     OverlayHeaderBar(
-                        backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
+                        backgroundColor = topBarColor,
+                        topInset = panelMetrics.topSystemInset,
                         leading = {
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.Edit,
@@ -545,7 +555,8 @@ private fun BigBangOverlayContent(
                 },
                 bottomBar = {
                     OverlayBottomBar(
-                        backgroundColor = if (dark) Color(0xFF1D2126) else Color.White,
+                        backgroundColor = bottomBarColor,
+                        bottomInset = panelMetrics.bottomSystemInset,
                         leading = {
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.DocumentScanner,

@@ -1,6 +1,7 @@
 package com.cashewteam.novatext.android
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -27,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +45,14 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlin.math.ceil
 
 private val OverlayBottomBarContentOffset = (-2).dp
@@ -125,24 +132,63 @@ internal data class OverlayPanelMetrics(
     val offsetY: Dp,
     val cornerRadius: Dp,
     val multiWindow: Boolean,
+    val fullScreen: Boolean,
+    val topSystemInset: Dp,
+    val bottomSystemInset: Dp,
 )
 
 @Composable
-internal fun rememberOverlayPanelMetrics(): OverlayPanelMetrics {
+internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): OverlayPanelMetrics {
     val configuration = LocalConfiguration.current
     val activity = LocalContext.current as? Activity
+    val view = LocalView.current
+    val density = LocalDensity.current
     val screenWidth = configuration.screenWidthDp.dp
     val screenHeight = configuration.screenHeightDp.dp
     val inMultiWindow = activity?.isInMultiWindowMode == true
-    val topInset = if (inMultiWindow) 0.dp else 96.dp
-    val bottomInset = if (inMultiWindow) 0.dp else 64.dp
+    val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val fullScreen = forceFullscreen || inMultiWindow || landscape
+    val systemBarsInsets = ViewCompat.getRootWindowInsets(view)
+        ?.getInsets(WindowInsetsCompat.Type.systemBars())
+    val topSystemInset = if (fullScreen) {
+        with(density) { (systemBarsInsets?.top ?: 0).toDp() }
+    } else {
+        0.dp
+    }
+    val bottomSystemInset = if (fullScreen) {
+        with(density) { (systemBarsInsets?.bottom ?: 0).toDp() }
+    } else {
+        0.dp
+    }
+    val topInset = if (fullScreen) 0.dp else 72.dp
+    val bottomInset = if (fullScreen) 0.dp else 56.dp
     return OverlayPanelMetrics(
         width = screenWidth,
         height = screenHeight - topInset - bottomInset,
-        offsetY = if (inMultiWindow) 0.dp else 18.dp,
-        cornerRadius = if (inMultiWindow) 0.dp else 30.dp,
+        offsetY = if (fullScreen) 0.dp else 10.dp,
+        cornerRadius = if (fullScreen) 0.dp else 30.dp,
         multiWindow = inMultiWindow,
+        fullScreen = fullScreen,
+        topSystemInset = topSystemInset,
+        bottomSystemInset = bottomSystemInset,
     )
+}
+
+@Composable
+internal fun ApplyOverlaySystemBars(
+    statusBarColor: Color,
+    navigationBarColor: Color,
+    darkIcons: Boolean,
+) {
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        window.statusBarColor = statusBarColor.toArgb()
+        window.navigationBarColor = navigationBarColor.toArgb()
+        val controller = WindowInsetsControllerCompat(window, view)
+        controller.isAppearanceLightStatusBars = darkIcons
+        controller.isAppearanceLightNavigationBars = darkIcons
+    }
 }
 
 internal fun BoxScope.overlayPanelPlacement(
@@ -169,6 +215,7 @@ internal fun OverlayPanelScaffold(
 @Composable
 internal fun OverlayHeaderBar(
     backgroundColor: Color,
+    topInset: Dp = 0.dp,
     leading: @Composable RowScope.() -> Unit,
     center: @Composable BoxScope.() -> Unit,
     trailing: @Composable RowScope.() -> Unit,
@@ -176,9 +223,9 @@ internal fun OverlayHeaderBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(52.dp + topInset)
             .background(backgroundColor)
-            .padding(horizontal = 14.dp),
+            .padding(start = 14.dp, end = 14.dp, top = topInset),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
