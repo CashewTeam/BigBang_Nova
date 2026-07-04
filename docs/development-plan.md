@@ -14,7 +14,7 @@
 - BigBang 内重进 OCR、临时切换 OCR 语言
 - “炸了又炸”相邻段落追加
 - 悬浮球启动 loop 动画、BigBang 入场动画和关闭动画
-- Android 10 Shizuku 截图回退
+- Android 7-10 Shizuku 截图回退
 
 当前仍明显未完成的部分：
 

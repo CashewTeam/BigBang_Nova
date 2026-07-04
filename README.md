@@ -28,7 +28,7 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 - Gradle 构建已打通，继续兼容 legacy `src/` / `res/` 目录
 - `cppjieba` JNI 已替代远程分词主路径，并在启动后后台预热
 - 设置页已重构为 Compose，支持深色模式、调试入口、悬浮球配置、OCR 白名单配置
-- 设置页已补悬浮球锁定高度、单手优化、单手角度阈值、识别调试日志和 Android 10 Shizuku 状态
+- 设置页已补悬浮球锁定高度、单手优化、单手角度阈值、识别调试日志和 Android 7-10 Shizuku 状态
 - BigBang 页面已接入 Compose 外层浮层壳，内部词块选择与多选逻辑仍复用 legacy Java
 - 搜索页已改为 Compose + WebView 浮层页
 - OCR 已切到离线 ML Kit V2，支持中文 / 日语 / 韩语 / 英语
@@ -74,7 +74,7 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 - 白名单内：先隐藏悬浮球并截图，再显示 loop 动画，随后走全屏 OCR，并按触点命中最近文本块进入 BigBang
 - 悬浮球主链路的截图缓存只保存在内存里，且只保留当前活动 token，对应旧图会自动回收
 - 前台应用识别优先取无障碍活跃窗口，其次回退到无障碍最近事件缓存；两者都拿不到时直接走 OCR
-- Android 11+ 优先用无障碍截图；Android 10 走 Shizuku 截图回退
+- Android 11+ 优先用无障碍截图；Android 7-10 走 Shizuku 截图回退
 - 悬浮球拖动松手后会自动贴到屏幕左侧或右侧，横屏下也不会停在屏幕中间
 - 悬浮球启动完成后由 `notifyBigBangShellShown()` 收口 loop 动画和隐藏状态；3 秒内未拉起外层 UI 会自动兜底恢复悬浮球
 - 进入 BigBang 后可继续上滑 / 下滑触发“炸了又炸”，并可从底栏重进 OCR 或临时切换 OCR 语言

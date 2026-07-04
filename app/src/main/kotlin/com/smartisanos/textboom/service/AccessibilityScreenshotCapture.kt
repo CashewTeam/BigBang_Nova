@@ -55,7 +55,7 @@ object AccessibilityScreenshotCapture {
     ): Boolean {
         val service = NovaTextAccessibilityService.activeInstance ?: return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 captureShizukuScreenshot(
                     context = context,
                     silent = silent,

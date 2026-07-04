@@ -76,7 +76,7 @@
 - `ForegroundAppResolver` 只使用无障碍活跃窗口和最近事件缓存
 - `AccessibilityScreenshotCapture` 统一处理截图提供方
   - Android 11+：`AccessibilityService.takeScreenshot()`
-  - Android 10：Shizuku 截图回退
+  - Android 7-10：Shizuku 截图回退
 - 无法解析前台包名时由分流层直接走 OCR
 
 ### 4. `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`

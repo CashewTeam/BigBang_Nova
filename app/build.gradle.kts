@@ -10,10 +10,10 @@ android {
 
     defaultConfig {
         applicationId = "com.cashewteam.novatext.android"
-        minSdk = 29
+        minSdk = 24
         targetSdk = 34
-        versionCode = 242
-        versionName = "1.12.26"
+        versionCode = 243
+        versionName = "1.13.0"
 
         ndk {
             abiFilters += "arm64-v8a"

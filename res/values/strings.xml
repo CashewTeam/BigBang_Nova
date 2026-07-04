@@ -97,9 +97,9 @@
     <string name="ocr_whitelist_search_hint">搜索应用名称或包名</string>
     <string name="ocr_capture_failed">截图失败，请重试</string>
     <string name="ocr_capture_in_progress">正在截图，请稍候</string>
-    <string name="ocr_capture_unsupported">当前系统版本不支持无障碍截图</string>
-    <string name="shizuku_status_title">Android 10 截图</string>
-    <string name="shizuku_status_not_required">当前系统无需 Shizuku</string>
+    <string name="ocr_capture_unsupported">当前系统版本不支持截屏链路</string>
+    <string name="shizuku_status_title">Android 7-10 截图</string>
+    <string name="shizuku_status_not_required">Android 11 及以上无需 Shizuku</string>
     <string name="shizuku_status_service_unavailable">Shizuku 未安装或未运行</string>
     <string name="shizuku_status_permission_required">Shizuku 未授权</string>
     <string name="shizuku_status_ready">Shizuku 已就绪</string>

@@ -2,9 +2,11 @@ package com.cashewteam.novatext.android
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.util.DisplayMetrics
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.google.android.gms.tasks.Task
@@ -55,16 +57,37 @@ object MlKitOcrEngine {
 
     @JvmStatic
     fun decodeBitmap(context: Context, uri: Uri): Bitmap {
-        val source = ImageDecoder.createSource(context.contentResolver, uri)
-        return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            val longestEdge = max(info.size.width, info.size.height)
-            if (longestEdge > MAX_BITMAP_EDGE) {
-                decoder.setTargetSampleSize(
-                    ceil(longestEdge / MAX_BITMAP_EDGE.toDouble()).toInt().coerceAtLeast(1)
-                )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val longestEdge = max(info.size.width, info.size.height)
+                if (longestEdge > MAX_BITMAP_EDGE) {
+                    decoder.setTargetSampleSize(
+                        ceil(longestEdge / MAX_BITMAP_EDGE.toDouble()).toInt().coerceAtLeast(1)
+                    )
+                }
             }
         }
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, options)
+        }
+        val longestEdge = max(options.outWidth, options.outHeight)
+        val sampleSize = if (longestEdge > MAX_BITMAP_EDGE) {
+            ceil(longestEdge / MAX_BITMAP_EDGE.toDouble()).toInt().coerceAtLeast(1)
+        } else {
+            1
+        }
+        val decodeOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inSampleSize = sampleSize
+        }
+        return context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, decodeOptions)
+        } ?: error("Unable to open image uri: $uri")
     }
 
     @JvmStatic

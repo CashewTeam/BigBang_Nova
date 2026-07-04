@@ -655,11 +655,11 @@ private fun SettingsScreen(
         val listener = Shizuku.OnRequestPermissionResultListener { _, _ ->
             shizukuStatus = ShizukuScreenshotCapture.getStatus()
         }
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
             Shizuku.addRequestPermissionResultListener(listener)
         }
         onDispose {
-            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
                 Shizuku.removeRequestPermissionResultListener(listener)
             }
         }
@@ -927,7 +927,7 @@ private fun OcrSection(
     onRequestShizukuPermission: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
-    val showShizukuStatus = Build.VERSION.SDK_INT == Build.VERSION_CODES.Q
+    val showShizukuStatus = Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
             text = stringResource(R.string.ocr_section_title),
@@ -986,7 +986,7 @@ private fun OcrSection(
                 ShizukuScreenshotCapture.Status.READY -> R.string.shizuku_status_ready
                 ShizukuScreenshotCapture.Status.PERMISSION_REQUIRED -> R.string.shizuku_status_permission_required
                 ShizukuScreenshotCapture.Status.SERVICE_UNAVAILABLE -> R.string.shizuku_status_service_unavailable
-                ShizukuScreenshotCapture.Status.NOT_ANDROID_10 -> R.string.shizuku_status_not_required
+                ShizukuScreenshotCapture.Status.NOT_REQUIRED -> R.string.shizuku_status_not_required
             }
             PermissionStatusRow(
                 title = stringResource(R.string.shizuku_status_title),

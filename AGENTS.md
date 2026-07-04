@@ -57,7 +57,7 @@
 - 无障碍截图逻辑在 `AccessibilityScreenshotCapture`
 - 前台应用识别统一依赖无障碍活跃窗口和最近事件缓存，不再改回使用情况访问权限方案
 - Android 11+ 走 `AccessibilityService.takeScreenshot()`
-- Android 10 走 Shizuku 截图回退；不要把 Android 10 再改回 MediaProjection 主路径
+- Android 7-10 走 Shizuku 截图回退；不要把这段再改回 MediaProjection 主路径
 - 不要把分流判断散落到 `FloatingBallService`、页面和 helper 多处复制
 
 ### 6. 动画与悬浮球可见性边界

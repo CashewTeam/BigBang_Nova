@@ -27,15 +27,15 @@ object ShizukuScreenshotCapture {
     private val bindLock = Any()
 
     enum class Status {
-        NOT_ANDROID_10,
+        NOT_REQUIRED,
         SERVICE_UNAVAILABLE,
         PERMISSION_REQUIRED,
         READY,
     }
 
     fun getStatus(): Status {
-        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.Q) {
-            return Status.NOT_ANDROID_10
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+            return Status.NOT_REQUIRED
         }
         return try {
             if (!Shizuku.pingBinder()) {
@@ -51,7 +51,7 @@ object ShizukuScreenshotCapture {
     }
 
     fun requestPermission(): Boolean {
-        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.Q) return false
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) return false
         return try {
             if (!Shizuku.pingBinder()) {
                 false
