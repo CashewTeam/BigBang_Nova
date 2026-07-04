@@ -208,9 +208,7 @@ class FloatingBallService : Service(), SensorEventListener {
             dockToSide(dockedSide, anchorY)
         }
 
-        bubble.setOnClickListener {
-            showActiveBubble()
-        }
+        bubble.setOnClickListener { /* handled by handleTouch */ }
         bubble.setOnTouchListener { _, event -> handleTouch(event) }
         windowManager.addView(bubble, layoutParams)
         applyVisibilitySuppressionState()
@@ -608,7 +606,7 @@ class FloatingBallService : Service(), SensorEventListener {
             bubble.scaleX = BUBBLE_APPEAR_START_SCALE
             bubble.scaleY = BUBBLE_APPEAR_START_SCALE
         } else {
-            ballIdle = true
+            ballIdle = false
             val shouldAnimateIn = bubble.visibility != View.VISIBLE || bubble.alpha <= 0f
             bubble.visibility = View.VISIBLE
             updateBubbleChrome()
@@ -617,16 +615,17 @@ class FloatingBallService : Service(), SensorEventListener {
                 bubble.scaleX = BUBBLE_APPEAR_START_SCALE
                 bubble.scaleY = BUBBLE_APPEAR_START_SCALE
                 bubble.animate()
-                    .alpha(idleAlpha())
+                    .alpha(activeAlpha())
                     .scaleX(1f)
                     .scaleY(1f)
                     .setDuration(BUBBLE_APPEAR_DURATION_MS)
                     .start()
             } else {
-                bubble.alpha = idleAlpha()
+                bubble.alpha = activeAlpha()
                 bubble.scaleX = 1f
                 bubble.scaleY = 1f
             }
+            scheduleBubbleFade()
         }
     }
 
