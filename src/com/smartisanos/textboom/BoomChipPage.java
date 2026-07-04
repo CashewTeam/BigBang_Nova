@@ -279,7 +279,6 @@ public class BoomChipPage {
             handleClick();
             return;
         }
-        handleClick();
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final LinearLayout row = getChipRow(i);
             if (row == null) {
