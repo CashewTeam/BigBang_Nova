@@ -533,6 +533,8 @@ private fun BigBangOverlayContent(
                     OverlayHeaderBar(
                         backgroundColor = topBarColor,
                         topInset = panelMetrics.topSystemInset,
+                        leftInset = panelMetrics.leftSystemInset,
+                        rightInset = panelMetrics.rightSystemInset,
                         leading = {
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.Edit,
@@ -575,6 +577,8 @@ private fun BigBangOverlayContent(
                     OverlayBottomBar(
                         backgroundColor = bottomBarColor,
                         bottomInset = panelMetrics.bottomSystemInset,
+                        leftInset = panelMetrics.leftSystemInset,
+                        rightInset = panelMetrics.rightSystemInset,
                         leading = {
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.DocumentScanner,

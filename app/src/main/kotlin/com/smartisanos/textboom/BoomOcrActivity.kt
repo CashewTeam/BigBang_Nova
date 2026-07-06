@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -62,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -101,7 +103,7 @@ class BoomOcrActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instance = this
-        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE || sBoomCancel) {
+        if (sBoomCancel) {
             finish()
             return
         }
@@ -460,6 +462,7 @@ private fun OcrOverlayScreen(
     }
     val currentLanguage = options.firstOrNull { it.value == settings.ocrRecognizerMode } ?: options.first()
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues()
+    val layoutDirection = LocalLayoutDirection.current
 
     BackHandler(onBack = onBack)
 
@@ -479,7 +482,10 @@ private fun OcrOverlayScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                        .padding(horizontal = 10.dp),
+                        .absolutePadding(
+                            left = 10.dp + navigationPadding.calculateLeftPadding(layoutDirection),
+                            right = 10.dp + navigationPadding.calculateRightPadding(layoutDirection),
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -596,10 +602,10 @@ private fun OcrOverlayScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(palette.bar)
-                    .padding(
-                        start = 18.dp,
-                        end = 18.dp,
+                    .absolutePadding(
+                        left = 18.dp + navigationPadding.calculateLeftPadding(layoutDirection),
                         top = 12.dp,
+                        right = 18.dp + navigationPadding.calculateRightPadding(layoutDirection),
                         bottom = 12.dp + navigationPadding.calculateBottomPadding(),
                     ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

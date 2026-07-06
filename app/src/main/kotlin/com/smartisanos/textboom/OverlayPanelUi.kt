@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -140,6 +141,8 @@ internal data class OverlayPanelMetrics(
     val fullScreen: Boolean,
     val topSystemInset: Dp,
     val bottomSystemInset: Dp,
+    val leftSystemInset: Dp,
+    val rightSystemInset: Dp,
 )
 
 @Composable
@@ -154,7 +157,7 @@ internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): Over
     val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val fullScreen = forceFullscreen || inMultiWindow || landscape
     val systemBarsInsets = ViewCompat.getRootWindowInsets(view)
-        ?.getInsets(WindowInsetsCompat.Type.systemBars())
+        ?.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
     val topSystemInset = if (fullScreen) {
         with(density) { ((systemBarsInsets?.top ?: 0) * 3 / 4).toDp() }
     } else {
@@ -164,6 +167,16 @@ internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): Over
         with(density) { (systemBarsInsets?.bottom ?: 0).toDp() / 3 }
     } else if (fullScreen) {
         with(density) { (systemBarsInsets?.bottom ?: 0).toDp() }
+    } else {
+        0.dp
+    }
+    val leftSystemInset = if (fullScreen) {
+        with(density) { (systemBarsInsets?.left ?: 0).toDp() }
+    } else {
+        0.dp
+    }
+    val rightSystemInset = if (fullScreen) {
+        with(density) { (systemBarsInsets?.right ?: 0).toDp() }
     } else {
         0.dp
     }
@@ -178,6 +191,8 @@ internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): Over
         fullScreen = fullScreen,
         topSystemInset = topSystemInset,
         bottomSystemInset = bottomSystemInset,
+        leftSystemInset = leftSystemInset,
+        rightSystemInset = rightSystemInset,
     )
 }
 
@@ -223,6 +238,8 @@ internal fun OverlayPanelScaffold(
 internal fun OverlayHeaderBar(
     backgroundColor: Color,
     topInset: Dp = 0.dp,
+    leftInset: Dp = 0.dp,
+    rightInset: Dp = 0.dp,
     leading: @Composable RowScope.() -> Unit,
     center: @Composable BoxScope.() -> Unit,
     trailing: @Composable RowScope.() -> Unit,
@@ -232,7 +249,11 @@ internal fun OverlayHeaderBar(
             .fillMaxWidth()
             .height(52.dp + topInset)
             .background(backgroundColor)
-            .padding(start = 14.dp, end = 14.dp, top = topInset),
+            .absolutePadding(
+                left = 14.dp + leftInset,
+                top = topInset,
+                right = 14.dp + rightInset,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
@@ -259,6 +280,8 @@ internal fun OverlayHeaderBar(
 internal fun OverlayBottomBar(
     backgroundColor: Color,
     bottomInset: Dp = 0.dp,
+    leftInset: Dp = 0.dp,
+    rightInset: Dp = 0.dp,
     leading: @Composable BoxScope.() -> Unit = {},
     center: @Composable BoxScope.() -> Unit = {},
     trailing: @Composable BoxScope.() -> Unit = {},
@@ -268,7 +291,11 @@ internal fun OverlayBottomBar(
             .fillMaxWidth()
             .height(52.dp + bottomInset)
             .background(backgroundColor)
-            .padding(start = 14.dp, end = 14.dp, bottom = bottomInset),
+            .absolutePadding(
+                left = 14.dp + leftInset,
+                right = 14.dp + rightInset,
+                bottom = bottomInset,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

@@ -326,6 +326,8 @@ private fun SearchOverlayScreen(
                     SearchTopBar(
                         palette = palette,
                         topInset = panelMetrics.topSystemInset,
+                        leftInset = panelMetrics.leftSystemInset,
+                        rightInset = panelMetrics.rightSystemInset,
                         title = activeProviderFor(activeKind).title,
                         searchText = searchText,
                         canGoBack = canGoBack,
@@ -356,6 +358,8 @@ private fun SearchOverlayScreen(
                     SearchBottomBar(
                         palette = palette,
                         bottomInset = panelMetrics.bottomSystemInset,
+                        leftInset = panelMetrics.leftSystemInset,
+                        rightInset = panelMetrics.rightSystemInset,
                         activeKind = activeKind,
                         webProvider = activeProviderFor(SearchKind.Web),
                         dictProvider = activeProviderFor(SearchKind.Dict),
@@ -424,6 +428,8 @@ private fun SearchOverlayScreen(
 private fun SearchTopBar(
     palette: SearchPalette,
     topInset: androidx.compose.ui.unit.Dp,
+    leftInset: androidx.compose.ui.unit.Dp,
+    rightInset: androidx.compose.ui.unit.Dp,
     title: String,
     searchText: String,
     canGoBack: Boolean,
@@ -436,6 +442,8 @@ private fun SearchTopBar(
     OverlayHeaderBar(
         backgroundColor = palette.topBar,
         topInset = topInset,
+        leftInset = leftInset,
+        rightInset = rightInset,
         leading = {
             OverlayIconAction(
                 imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -489,6 +497,8 @@ private fun SearchTopBar(
 private fun SearchBottomBar(
     palette: SearchPalette,
     bottomInset: androidx.compose.ui.unit.Dp,
+    leftInset: androidx.compose.ui.unit.Dp,
+    rightInset: androidx.compose.ui.unit.Dp,
     activeKind: SearchKind,
     webProvider: SearchProvider,
     dictProvider: SearchProvider,
@@ -505,6 +515,8 @@ private fun SearchBottomBar(
     OverlayBottomBar(
         backgroundColor = palette.bottomBar,
         bottomInset = bottomInset,
+        leftInset = leftInset,
+        rightInset = rightInset,
         leading = {
             ToolbarIconButton(
                 imageVector = Icons.Outlined.Close,
