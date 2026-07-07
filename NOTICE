@@ -1,0 +1,30 @@
+Nova Text
+Copyright (c) 2026 CashewTeam and contributors.
+
+本项目是基于 SmartisanTech 开源的 BigBang / BigBoom 应用继续开发的社区分支与现代化改造版本。
+
+原始项目：
+SmartisanTech / packages_apps_BigBang
+https://github.com/SmartisanTech/packages_apps_BigBang
+
+原始项目许可：
+Apache License 2.0
+
+本项目整体许可：
+GNU General Public License v3.0
+
+本项目保留原始 SmartisanTech BigBang / BigBoom 项目中适用于本项目的版权声明、许可声明、商标声明和归属信息。来自原始项目的代码和资源仍受 Apache License 2.0 中相关条款约束；本项目新增和修改的部分作为 Nova Text 分支的一部分，按 GPLv3 分发。
+
+主要派生与修改说明：
+
+* 将原始 Smartisan BigBang / BigBoom 应用迁移为 Nova Text 社区分支。
+* 对项目构建系统、Android 版本兼容策略和代码结构进行了现代化调整。
+* 引入或重构了 Android 原生页面、Compose 设置页、悬浮球链路、无障碍文本提取、OCR 识别、搜索浮层、调试入口等功能。
+* 保留并改造了部分 legacy BigBang 词块布局、多选逻辑和相关交互逻辑。
+* 对原始项目中的部分源码、资源、包结构和功能流程进行了修改，以适配 Nova Text 的新功能和维护目标。
+
+本 NOTICE 文件仅用于归属说明、来源说明和许可证说明，不会修改 GPLv3、Apache License 2.0 或任何第三方许可证本身的法律条款。
+
+本项目与 Smartisan / SmartisanTech 没有官方隶属关系，也未获得 Smartisan / SmartisanTech 的官方背书、授权宣传或赞助。
+
+Smartisan、BigBang、BigBoom、锤子科技、Smartisan OS 等名称可能是其各自权利人的商标或产品名称。本项目中对这些名称的使用仅用于说明项目来源、历史背景和兼容关系。
