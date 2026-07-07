@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.cashewteam.novatext.android"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 269
         versionName = "1.13.26"
 
@@ -50,6 +50,7 @@ android {
             path = file("src/main/cpp/CMakeLists.txt")
         }
     }
+    ndkVersion = "26.1.10909125"
 
     buildFeatures {
         buildConfig = true

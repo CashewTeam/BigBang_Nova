@@ -215,6 +215,18 @@ public class BoomChipPage {
         return false;
     }
 
+    /**
+     * Clear all chip views and selection state so that a subsequent
+     * {@link #initWords} call can fully reinitialise the page (e.g. when
+     * the Activity receives a new Intent via {@code onNewIntent}).
+     */
+    public void prepareForReinit() {
+        if (mBoomActionHandler != null) {
+            mBoomActionHandler.clearSelectionStateForRelayout();
+        }
+        mBoomConent.removeAllViews();
+    }
+
     public void resetChips() {
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final LinearLayout row = getChipRow(i);
@@ -301,6 +313,50 @@ public class BoomChipPage {
             }
         }
         mBoomActionHandler.onSelect(0, wordCount - 1);
+    }
+
+    /**
+     * Auto-select the word that was touched / identified by the initial layout.
+     * This is used when a third-party caller provides a character index via
+     * {@code EXTRA_SELECTED_CHAR_INDEX} — after layout the touched word index
+     * is known, and this method selects it.
+     */
+    public void selectTouchedWord() {
+        final int touchedIndex = mLayout.getTouchedIndex();
+        if (touchedIndex < 0 || touchedIndex >= mLayout.getWordCount()) {
+            return;
+        }
+        for (int i = 0; i < mLayout.getRowCount(); ++i) {
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
+            for (int j = 0; j < row.getChildCount(); ++j) {
+                View child = row.getChildAt(j);
+                if (child.getTag() instanceof BoomChip) {
+                    BoomChip chip = (BoomChip) child.getTag();
+                    if (chip.index == touchedIndex) {
+                        chip.setSelected(true);
+                    }
+                }
+            }
+        }
+        mBoomActionHandler.onSelect(touchedIndex, touchedIndex);
+        // Scroll the touched word to the centre of the viewport
+        mScroller.post(new Runnable() {
+            @Override
+            public void run() {
+                final int row = mLayout.getRowForIndex(touchedIndex);
+                final View rowView = mBoomConent.getChildAt(row);
+                if (rowView == null) {
+                    return;
+                }
+                final int rowCentre = rowView.getTop() + rowView.getHeight() / 2;
+                final int viewportCentre = mScroller.getHeight() / 2;
+                final int targetScrollY = rowCentre - viewportCentre;
+                mScroller.scrollTo(0, Math.max(0, targetScrollY));
+            }
+        });
     }
 
     public boolean splitSelectedWordsToChars() {

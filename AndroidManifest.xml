@@ -28,9 +28,21 @@
         <activity
             android:name=".BoomActivity"
             android:theme="@style/OverlayActivityTheme"
+            android:launchMode="singleTop"
+            android:taskAffinity="com.cashewteam.novatext.android.overlay"
+            android:excludeFromRecents="true"
             android:exported="true" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.cashewteam.novatext.android.action.BIGBANG_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
         <activity

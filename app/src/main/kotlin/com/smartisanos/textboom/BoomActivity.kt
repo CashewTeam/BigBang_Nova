@@ -51,6 +51,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.CppJiebaTokenizer
+import com.cashewteam.novatext.android.domain.capture.CaptureTextBlockContract
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
@@ -125,17 +126,50 @@ class BoomActivity : ComponentActivity() {
             currentSegment = savedSegment
             handleInitialSegmentResult(savedText, savedSegment, fromSavedState = true)
         } else {
-            val previewText = intent.getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT)
-            val inputText = previewText ?: intent.getStringExtra(Intent.EXTRA_TEXT)
-            if (inputText.isNullOrEmpty()) {
-                finish()
-                return
-            }
-            if (!intent.getBooleanExtra(EXTRA_ENABLE_ADJACENT_SESSION, false)) {
-                TextSessionCoordinator.clearSession()
-            }
-            segmentLocally(inputText)
+            reinitializeFromIntent()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        reinitializeFromIntent()
+    }
+
+    /**
+     * Read the current intent extras and reinitialise the entire page.
+     * Called from [onCreate] (fresh launch) and [onNewIntent] (new intent
+     * delivered to an existing instance when launchMode is singleTop).
+     */
+    private fun reinitializeFromIntent() {
+        val previewText = intent.getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT)
+        val inputText = previewText ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+        if (inputText.isNullOrEmpty()) {
+            finish()
+            return
+        }
+
+        // Reset state from the new intent
+        launchTouchX = intent.getIntExtra("boom_startx", -1)
+        launchTouchY = intent.getIntExtra("boom_starty", -1)
+        manualOcrSourceToken = intent.getStringExtra(EXTRA_MANUAL_OCR_SOURCE_TOKEN)
+        currentText = ""
+        currentSegment = null
+
+        // Clear existing chip content so initWords can rebuild from scratch
+        boomChipPage?.prepareForReinit()
+
+        // Set up adjacent session
+        val hasAdjacentSession = intent.getBooleanExtra(EXTRA_ENABLE_ADJACENT_SESSION, false)
+        val adjacentBefore = intent.getStringExtra(EXTRA_ADJACENT_TEXT_BEFORE)
+        val adjacentAfter = intent.getStringExtra(EXTRA_ADJACENT_TEXT_AFTER)
+        if (!hasAdjacentSession && adjacentBefore.isNullOrEmpty() && adjacentAfter.isNullOrEmpty()) {
+            TextSessionCoordinator.clearSession()
+        } else {
+            populateExternalAdjacentSession(inputText, adjacentBefore, adjacentAfter)
+        }
+
+        segmentLocally(inputText)
     }
 
     override fun onStart() {
@@ -232,13 +266,78 @@ class BoomActivity : ComponentActivity() {
         }.start()
     }
 
+    /**
+     * Build a [TextSessionCoordinator] session from externally supplied text so that
+     * the "炸了又炸" (adjacent pull) feature works when a third-party app provides
+     * before/after paragraphs via intent extras.
+     *
+     * Each line (split by `\n`) in the adjacent text becomes a separate paragraph
+     * so that sliding up/down loads one line at a time, mimicking the original
+     * accessibility-based behaviour where each on-screen paragraph is a distinct
+     * [CaptureTextBlockContract].
+     */
+    private fun populateExternalAdjacentSession(
+        mainText: String,
+        adjacentBefore: String?,
+        adjacentAfter: String?,
+    ) {
+        val hasBefore = !adjacentBefore.isNullOrEmpty()
+        val hasAfter = !adjacentAfter.isNullOrEmpty()
+        if (!hasBefore && !hasAfter) return
+
+        val paragraphs = mutableListOf<CaptureTextBlockContract>()
+        var lineIndex = 0
+
+        // Split before text by newlines; each non-blank line becomes a paragraph.
+        // Incrementing top values ensure ParagraphWindow.mergeAdjacent sorts
+        // lines in the correct reading order when short lines are batched.
+        if (hasBefore) {
+            adjacentBefore!!.lines().filter { it.isNotBlank() }.forEach { line ->
+                paragraphs += CaptureTextBlockContract(
+                    text = line.trimEnd(),
+                    left = 0.0, top = lineIndex.toDouble(), right = 0.0, bottom = lineIndex.toDouble(),
+                    confidence = 1.0,
+                )
+                lineIndex++
+            }
+        }
+
+        val mainIndex = paragraphs.size
+        paragraphs += CaptureTextBlockContract(
+            text = mainText,
+            left = 0.0, top = lineIndex.toDouble(), right = 0.0, bottom = lineIndex.toDouble(),
+            confidence = 1.0,
+        )
+        lineIndex++
+
+        if (hasAfter) {
+            adjacentAfter!!.lines().filter { it.isNotBlank() }.forEach { line ->
+                paragraphs += CaptureTextBlockContract(
+                    text = line.trimEnd(),
+                    left = 0.0, top = lineIndex.toDouble(), right = 0.0, bottom = lineIndex.toDouble(),
+                    confidence = 1.0,
+                )
+                lineIndex++
+            }
+        }
+
+        TextSessionCoordinator.replaceSession(
+            paragraphs = paragraphs,
+            initialIndex = mainIndex,
+            source = "external",
+            debugMessage = "channel=external; paragraphs=${paragraphs.size}; adjacent=before=$hasBefore,after=$hasAfter",
+        )
+    }
+
     private fun handleInitialSegmentResult(text: String, result: IntArray?, fromSavedState: Boolean = false) {
         if (result == null || result.isEmpty()) {
             Log.e(TAG, "Segmentation fails for text=$text")
             finish()
             return
         }
-        val touchIndex = if (fromSavedState) -1 else intent.getIntExtra("boom_index", -1)
+        val selectedCharIndex = if (fromSavedState) -1 else intent.getIntExtra(EXTRA_SELECTED_CHAR_INDEX, -1)
+        val touchIndex = if (selectedCharIndex >= 0) selectedCharIndex
+            else if (fromSavedState) -1 else intent.getIntExtra("boom_index", -1)
         val touchedX = if (fromSavedState) -1 else intent.getIntExtra("boom_startx", -1)
         val touchedY = if (fromSavedState) -1 else intent.getIntExtra("boom_starty", -1)
         if (boomChipPage?.initWords(result, text, touchIndex, touchedX, touchedY) != true) {
@@ -257,6 +356,9 @@ class BoomActivity : ComponentActivity() {
         }
         currentText = text
         currentSegment = result
+        if (selectedCharIndex >= 0) {
+            boomChipPage?.selectTouchedWord()
+        }
     }
 
     private fun loadAdjacent(direction: String) {
@@ -404,6 +506,10 @@ class BoomActivity : ComponentActivity() {
         const val EXTRA_DEBUG_PREVIEW_TEXT = "extra_debug_preview_text"
         const val EXTRA_ENABLE_ADJACENT_SESSION = "extra_enable_adjacent_session"
         const val EXTRA_MANUAL_OCR_SOURCE_TOKEN = "extra_manual_ocr_source_token"
+        const val EXTRA_ADJACENT_TEXT_BEFORE = "extra_adjacent_text_before"
+        const val EXTRA_ADJACENT_TEXT_AFTER = "extra_adjacent_text_after"
+        const val EXTRA_SELECTED_CHAR_INDEX = "extra_selected_char_index"
+        const val ACTION_BIGBANG_TEXT = "com.cashewteam.novatext.android.action.BIGBANG_TEXT"
 
         private const val TAG = "BoomActivity"
         private const val SELECTED_STATE = "selected_state"
