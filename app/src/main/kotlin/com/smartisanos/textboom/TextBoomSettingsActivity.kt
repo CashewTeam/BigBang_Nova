@@ -61,8 +61,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import com.cashewteam.novatext.android.components.SmartisanSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -1738,16 +1737,10 @@ private fun DebugSwitchRow(
                     lineHeight = 18.sp,
                 )
             }
-            Switch(
+            SmartisanSwitch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = palette.accent,
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = palette.cardBorder,
-                    uncheckedBorderColor = palette.cardBorder,
-                ),
+                darkTheme = androidx.compose.foundation.isSystemInDarkTheme(),
             )
         }
     }
