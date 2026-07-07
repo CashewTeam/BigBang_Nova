@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,6 +41,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
@@ -704,6 +706,7 @@ private fun SettingsScreen(
             .fillMaxSize()
             .background(palette.background)
             .background(stripeBrush),
+        contentAlignment = Alignment.TopCenter,
     ) {
         AnimatedContent(
             targetState = currentPage,
@@ -714,7 +717,7 @@ private fun SettingsScreen(
                     slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxHeight().widthIn(max = 600.dp).fillMaxWidth(),
             label = "settingsPage",
         ) { page ->
             when (page) {
@@ -1062,12 +1065,12 @@ private fun OcrSection(
     }
 }
 
-private fun canDrawOverlays(context: android.content.Context): Boolean {
+fun canDrawOverlays(context: android.content.Context): Boolean {
     return Settings.canDrawOverlays(context)
 }
 
 @Composable
-private fun SettingsTopBar(
+fun SettingsTopBar(
     title: String,
     showBack: Boolean,
     onBack: () -> Unit,
@@ -1996,7 +1999,7 @@ private fun SecondaryActionButton(
 ) {
     val palette = LocalSettingsPalette.current
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = palette.cardInset,
         border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
