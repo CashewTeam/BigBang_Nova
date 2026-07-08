@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,7 +7,7 @@ plugins {
 }
 
 val keyPropsFile = rootProject.file("key.properties")
-val keyProps = java.util.Properties()
+val keyProps = Properties()
 if (keyPropsFile.exists()) {
     keyProps.load(keyPropsFile.inputStream())
 }
