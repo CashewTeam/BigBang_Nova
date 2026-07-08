@@ -81,6 +81,16 @@ jobs:
                   cache-read-only: false
                   validate-wrappers: false
 
+            - name: 配置 Gradle 代理
+              run: |
+                  mkdir -p ~/.gradle
+                  cat >> ~/.gradle/gradle.properties << 'EOF'
+                  systemProp.http.proxyHost=192.168.66.6
+                  systemProp.http.proxyPort=7890
+                  systemProp.https.proxyHost=192.168.66.6
+                  systemProp.https.proxyPort=7890
+                  EOF
+
             - name: 写入签名密钥
               if: github.event_name == 'workflow_dispatch'
               run: |
