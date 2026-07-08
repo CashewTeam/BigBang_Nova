@@ -40,7 +40,6 @@ jobs:
               with:
                   distribution: "zulu"
                   java-version: "17"
-                  cache: "gradle"
 
             - name: 安装 Android SDK 组件
               run: |
@@ -65,17 +64,21 @@ jobs:
                       /usr/local/lib/android/sdk/build-tools
                       /usr/local/lib/android/sdk/cmake
                       /usr/local/lib/android/sdk/ndk
-                      ~/.gradle/caches
-                      ~/.gradle/wrapper
-                  key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+                  key: ${{ runner.os }}-android-sdk-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
                   restore-keys: |
-                      ${{ runner.os }}-android-
+                      ${{ runner.os }}-android-sdk-
 
             - name: 验证环境
               run: |
                   echo "ANDROID_HOME=$ANDROID_HOME"
                   echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
                   $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed 2>/dev/null | grep -E "platforms|build-tools|cmake|ndk" || true
+
+            - name: 配置 Gradle
+              uses: gradle/actions/setup-gradle@v4
+              with:
+                  gradle-version: "8.7"
+                  cache-read-only: false
 
             - name: 写入签名密钥
               if: github.event_name == 'workflow_dispatch'
@@ -90,13 +93,11 @@ jobs:
 
             - name: 构建 Debug APK
               if: github.event_name == 'pull_request'
-              run: |
-                  ./gradlew assembleDebug --stacktrace
+              run: gradle assembleDebug --stacktrace
 
             - name: 构建 Release APK
               if: github.event_name == 'workflow_dispatch'
-              run: |
-                  ./gradlew assembleRelease --stacktrace
+              run: gradle assembleRelease --stacktrace
 
             - name: 重命名 APK
               id: rename
