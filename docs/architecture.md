@@ -78,6 +78,9 @@
   - Android 11+：`AccessibilityService.takeScreenshot()`
   - Android 7-10：Shizuku 截图回退
 - 无法解析前台包名时由分流层直接走 OCR
+- 截图缓存只保存在内存里，只保留当前活动 token，对应旧图自动回收
+- 悬浮球拖动松手后会自动贴边，横屏下也不会停在屏幕中间
+- `notifyBigBangShellShown()` 负责收口 loop 动画和隐藏状态；3 秒内未拉起外层 UI 自动兜底恢复悬浮球
 
 ### 4. `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`
 
@@ -112,6 +115,15 @@
 
 - 只提供分词能力
 - 不承担 UI 状态、页面逻辑或启动编排
+
+## 前置条件
+
+悬浮球主链路需要以下前置条件：
+
+1. 授予悬浮窗权限
+2. 启用 `NovaTextAccessibilityService`
+3. 在设置页启动悬浮球
+4. 将悬浮球拖到目标区域后松手
 
 ## 当前主启动流程
 
@@ -222,7 +234,14 @@
 ### `TextBoomSettingsActivity`
 
 - 应用唯一设置入口
-- 负责权限状态展示、悬浮球控制、搜索源配置、OCR 语言和白名单配置
+- 负责权限状态展示：悬浮窗权限状态、无障碍服务启用状态
+- 悬浮球控制：启动 / 停止、大小调节、透明度调节
+- 悬浮球交互配置：锁定高度、单手优化模式、单手触发角度阈值
+- 搜索源配置（DuckDuckGo / 萌娘百科等）、词典源配置
+- OCR 语言配置（中文 / 日语 / 韩语 / 英语）和 OCR 白名单配置
+- 预制调试文本切换与 BigBang 预览
+- 识别调试日志开关
+- 图片选择进入 OCR 调试入口
 - 承担开发调试入口
 
 ### `BoomActivity`
