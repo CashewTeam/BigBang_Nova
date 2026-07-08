@@ -79,6 +79,7 @@ jobs:
               with:
                   gradle-version: "8.7"
                   cache-read-only: false
+                  validate-wrappers: false
 
             - name: 写入签名密钥
               if: github.event_name == 'workflow_dispatch'
