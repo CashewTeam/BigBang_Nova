@@ -1,1 +1,60 @@
+# ===== AndroidX & Compose =====
+-dontwarn androidx.**
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# ===== ML Kit =====
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+-keep class com.google.android.gms.internal.** { *; }
+-dontwarn com.google.android.gms.internal.**
+
+# ===== Shizuku =====
+-keep class rikka.shizuku.** { *; }
+-dontwarn rikka.shizuku.**
+
+# ===== Application & Components =====
+-keep class com.cashewteam.novatext.android.** { *; }
+-keep class com.smartisanos.textboom.** { *; }
+-keepclassmembers class com.smartisanos.textboom.** { *; }
+
+# ===== Sohu InputMethod =====
 -keepclassmembers class com.sohu.inputmethod.engine.DictInterface { *; }
+
+# ===== Native Methods =====
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# ===== Serialization =====
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    !static !transient <fields>;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
+
+# ===== Parcelable =====
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}
+
+# ===== R & BuildConfig =====
+-keepclassmembers class **.R$* {
+    public static <fields>;
+}
+-keepclassmembers class **.BuildConfig { *; }
+
+# ===== WebView =====
+-keepclassmembers class * extends android.webkit.WebViewClient {
+    public void onReceivedSslError(android.webkit.WebView, android.webkit.SslErrorHandler, android.net.http.SslCertificate);
+}
+
+# ===== General optimizations =====
+-optimizationpasses 5
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-verbose
