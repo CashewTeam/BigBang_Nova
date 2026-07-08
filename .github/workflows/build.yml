@@ -107,9 +107,25 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
                   if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-                    mv app/build/outputs/apk/release/app-release.apk "BigBang_NovaText_${VERSION}_arm64-v8a.apk" 2>/dev/null || true
+                    APK=$(ls app/build/outputs/apk/release/*.apk 2>/dev/null | head -1)
+                    if [ -n "$APK" ]; then
+                      mv "$APK" "BigBang_NovaText_${VERSION}_arm64-v8a.apk"
+                      echo "Renamed $APK -> BigBang_NovaText_${VERSION}_arm64-v8a.apk"
+                    else
+                      echo "ERROR: No APK found in app/build/outputs/apk/release/"
+                      ls -la app/build/outputs/apk/release/ 2>/dev/null || true
+                      exit 1
+                    fi
                   else
-                    mv app/build/outputs/apk/debug/app-debug.apk "BigBang_NovaText_${VERSION}_debug.apk" 2>/dev/null || true
+                    APK=$(ls app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)
+                    if [ -n "$APK" ]; then
+                      mv "$APK" "BigBang_NovaText_${VERSION}_debug.apk"
+                      echo "Renamed $APK -> BigBang_NovaText_${VERSION}_debug.apk"
+                    else
+                      echo "ERROR: No APK found in app/build/outputs/apk/debug/"
+                      ls -la app/build/outputs/apk/debug/ 2>/dev/null || true
+                      exit 1
+                    fi
                   fi
 
             - name: 发布 Release
