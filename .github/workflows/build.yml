@@ -92,6 +92,17 @@ jobs:
                     echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> key.properties
                   fi
 
+            - name: 设置版本号
+              if: github.event_name == 'workflow_dispatch'
+              run: |
+                  TAG="${{ github.event.inputs.tag }}"
+                  if [ -n "$TAG" ]; then
+                    VERSION_CODE=$(git rev-list --count HEAD)
+                    echo "Setting versionName=$TAG, versionCode=$VERSION_CODE"
+                    sed -i "s/versionCode = [0-9]*/versionCode = $VERSION_CODE/" app/build.gradle.kts
+                    sed -i "s/versionName = \"[^\"]*\"/versionName = \"$TAG\"/" app/build.gradle.kts
+                  fi
+
             - name: 构建 Debug APK
               if: github.event_name == 'pull_request'
               run: gradle assembleDebug --stacktrace
