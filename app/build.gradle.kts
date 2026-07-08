@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val keyPropsFile = rootProject.file("key.properties")
+val keyProps = java.util.Properties()
+if (keyPropsFile.exists()) {
+    keyProps.load(keyPropsFile.inputStream())
+}
+
 android {
     namespace = "com.cashewteam.novatext.android"
     compileSdk = 36
@@ -26,6 +32,17 @@ android {
         res.setSrcDirs(listOf("../res"))
     }
 
+    signingConfigs {
+        create("release") {
+            if (keyPropsFile.exists()) {
+                storeFile = file(keyProps["storeFile"] as String)
+                storePassword = keyProps["storePassword"] as String
+                keyAlias = keyProps["keyAlias"] as String
+                keyPassword = keyProps["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -33,6 +50,7 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "../proguard.flags")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
