@@ -6,13 +6,13 @@
   <a href="screenshots/5.jpg"><img src="screenshots/5.jpg" alt="Screenshot 5" width="18%" /></a>
 </p>
 
-# Nova Text
-
-Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与现代化项目。
-
 ## 🔨更多 Smartisan 相关开源项目
 
 - [awesome-smartisanOS](https://github.com/CashewTeam/awesome-smartisanOS) — 收集与 SmartisanOS（锤子科技操作系统）相关的优质 GitHub 项目、工具、资源和文章汇总。包括本项目 Nova Text、TNT Anywhere、锤子音乐、锤子桌面移植、HandShaker 维护版、足迹壁纸收藏等数十个项目，面向 SmartisanOS 生态的开发者、爱好者和用户。
+
+# Nova Text
+
+Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与现代化项目。
 
 ### 🎨 UI 与系统特性
 基于 **Jetpack Compose** 重构大部分 UI，适配高版本 Android 特性：**深色模式**、**自适应图标**、**多窗口支持**。
