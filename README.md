@@ -21,6 +21,10 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 - OCR 白名单分流
 - 统一的悬浮球启动 loop 动画和 BigBang 入场动画
 
+## 更多 Smartisan 相关开源项目🔨
+
+- [awesome-smartisanOS](https://github.com/CashewTeam/awesome-smartisanOS) — 收集与 SmartisanOS（锤子科技操作系统）相关的优质 GitHub 项目、工具、资源和文章汇总。包括本项目 Nova Text、TNT Anywhere、锤子音乐、锤子桌面移植、HandShaker 维护版、足迹壁纸收藏等数十个项目，面向 SmartisanOS 生态的开发者、爱好者和用户。
+
 ## Android 版本支持策略
 
 - Android 11+：当前主维护目标，优先保证完整功能适配与稳定性
