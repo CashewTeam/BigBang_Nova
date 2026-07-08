@@ -204,19 +204,20 @@ startActivity(Intent.createChooser(intent, "分享到 BigBang"))
 - 用户在 BigBang 界面上滑/下滑时，BoomChipPage 的拖拽手势触发 `peekAdjacentText()` → `loadAdjacent()`，与内部无障碍抓取的"炸了又炸"行为一致
 - 如果不传相邻文本 extras，"炸了又炸"功能不可用（与之前行为一致）
 
-## 构建
-
-```bash
-bash ./gradlew assembleDebug
-```
-
-当前主要源码目录：
+## 源码目录参考
 
 - `src/com/smartisanos/textboom/`：legacy Java BigBang 内核、词块布局、多选逻辑
 - `app/src/main/kotlin/com/smartisanos/textboom/`：Compose 页面、Activity、Service、OCR、启动编排
 - `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`：无障碍文本提取会话与最近段落窗口
 - `app/src/main/cpp/`：`cppjieba` JNI
 - `archive/legacy-ui/`：已归档的旧设置页 / 旧搜索页代码，不再主链路编译
+- 通过源码构建：
+
+```bash
+bash ./gradlew assembleDebug
+```
+
+APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 
 ## 文档
 
