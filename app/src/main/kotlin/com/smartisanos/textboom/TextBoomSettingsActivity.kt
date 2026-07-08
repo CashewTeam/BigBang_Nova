@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
@@ -748,7 +749,14 @@ private fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item {
-                    Column {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                    Column(
+                        modifier = Modifier.widthIn(max = 600.dp),
+                    ) {
                         Text(
                             text = "Alpha ${BuildConfig.VERSION_NAME}",
                             modifier = Modifier
@@ -768,8 +776,9 @@ private fun SettingsScreen(
                                 onStartFloatingBall = onStartFloatingBall,
                                 onStopFloatingBall = onStopFloatingBall,
                                 onResetFloatingBall = onResetFloatingBall,
-                            )
-                        }
+                        )
+                    }
+                    }
                     }
                 }
 
@@ -1061,12 +1070,12 @@ private fun OcrSection(
     }
 }
 
-private fun canDrawOverlays(context: android.content.Context): Boolean {
+fun canDrawOverlays(context: android.content.Context): Boolean {
     return Settings.canDrawOverlays(context)
 }
 
 @Composable
-private fun SettingsTopBar(
+fun SettingsTopBar(
     title: String,
     showBack: Boolean,
     onBack: () -> Unit,
@@ -1483,9 +1492,14 @@ private fun OverlayStyleSection(
 private fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalSettingsPalette.current
     val shape = RoundedCornerShape(18.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
+            .widthIn(max = 600.dp)
             .padding(horizontal = 4.dp, vertical = 14.dp),
         shape = shape,
         color = palette.card,
@@ -1494,9 +1508,10 @@ private fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
         shadowElevation = 8.dp,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
             content = content,
         )
+    }
     }
 }
 
@@ -1989,7 +2004,7 @@ private fun SecondaryActionButton(
 ) {
     val palette = LocalSettingsPalette.current
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = palette.cardInset,
         border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
@@ -2082,7 +2097,6 @@ private fun OptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
