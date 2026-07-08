@@ -56,17 +56,17 @@ jobs:
                   echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
                   echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
-            - name: 缓存 Android SDK
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      /usr/local/lib/android/sdk/platforms
-                      /usr/local/lib/android/sdk/build-tools
-                      /usr/local/lib/android/sdk/cmake
-                      /usr/local/lib/android/sdk/ndk
-                  key: ${{ runner.os }}-android-sdk-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-                  restore-keys: |
-                      ${{ runner.os }}-android-sdk-
+            # - name: 缓存 Android SDK
+            #   uses: actions/cache@v4
+            #   with:
+            #       path: |
+            #           /usr/local/lib/android/sdk/platforms
+            #           /usr/local/lib/android/sdk/build-tools
+            #           /usr/local/lib/android/sdk/cmake
+            #           /usr/local/lib/android/sdk/ndk
+            #       key: ${{ runner.os }}-android-sdk-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            #       restore-keys: |
+            #           ${{ runner.os }}-android-sdk-
 
             - name: 验证环境
               run: |
