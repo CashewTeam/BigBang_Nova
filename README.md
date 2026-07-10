@@ -6,20 +6,76 @@
   <a href="screenshots/5.jpg"><img src="screenshots/5.jpg" alt="Screenshot 5" width="18%" /></a>
 </p>
 
+## 🔨更多 Smartisan 相关开源项目
+
+- [awesome-smartisanOS](https://github.com/CashewTeam/awesome-smartisanOS) — 收集与 SmartisanOS（锤子科技操作系统）相关的优质 GitHub 项目、工具、资源和文章汇总。包括本项目 Nova Text、TNT Anywhere、锤子音乐、锤子桌面移植、HandShaker 维护版、足迹壁纸收藏等数十个项目，面向 SmartisanOS 生态的开发者、爱好者和用户。
+
 # Nova Text
 
 Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与现代化项目。
 
-当前仓库不是概念验证阶段，已经具备完整的本地化主链路：
+### UI 与系统特性
+基于 **Jetpack Compose** 重构大部分 UI，适配高版本 Android 特性：**深色模式**、**自适应图标**、**多窗口支持**。
 
-- 本地 `cppjieba` 分词
-- Compose 设置页
-- BigBang 浮层壳 + legacy 词块内核
-- Compose 搜索浮层 + WebView
-- 悬浮球 + 无障碍文本提取
-- ML Kit OCR V2 离线识别
-- OCR 白名单分流
-- 统一的悬浮球启动 loop 动画和 BigBang 入场动画
+### 文本获取与处理
+支持**无障碍权限直接提取文本**，继承经典「**炸了又炸**」交互（上下拖拽追加相邻段落），支持百度、谷歌、有道等**搜索/词典/百科**引擎，额外接入了 DuckDuckGo 与萌娘百科。
+
+### 离线 OCR 识别
+基于**无障碍截图 / Shizuku 截屏** + **Google ML Kit** 实现纯离线 OCR，支持中文、日语、韩语、英语。自动命中触点附近的文本块，支持**自定义 OCR 白名单**，可在识别后**重新选择识别范围或切换识别语言**。
+
+### 悬浮球交互
+**拖拽触发**，松手自动贴边；**锁定状态下双击移动位置**；支持自定义**大小/透明度/自动隐藏**；特有**单手优化**模式，可调节锁定高度与触发角度阈值。
+
+## 快速使用
+
+### 📲 下载与安装
+
+- **GitHub Releases**：<https://github.com/CashewTeam/BigBang_NovaText/releases/latest>
+- **夸克网盘**：<https://pan.quark.cn/s/b272e9416cab>
+
+### 🔐 授权
+
+首次使用需要授予两项权限：
+
+1. **悬浮窗权限** — 打开设置页后点击"悬浮窗权限"检查状态，按提示跳转系统设置授予
+2. **无障碍服务** — 在系统设置 → 无障碍 → 已安装应用中找到 `NovaTextAccessibilityService` 并开启
+   > 无障碍权限是获取前台文本内容的核心通道，不开启则无法提取文字
+
+授予后返回设置页，两项状态均应显示为已开启。
+
+**澎湃 OS** 或其他定制系统需要打开"允许后台弹出页面"权限
+
+**应用锁、隐私模式、安全模式**等定制系统功能可能会影响文字和图片截取
+
+### 🎈 使用悬浮球
+
+1. 在设置页点击**启动悬浮球**
+2. 屏幕上出现一个半透明的小圆球，将其**拖拽到目标文字区域**上方
+3. 松手后悬浮球隐藏，短暂加载动画后弹出 BigBang 浮层，文字已被「炸开」
+4. 在 BigBang 中：
+   - **点选**单个词块复制
+   - **左右滑动**批量词块选择
+   - **上滑/下滑**触发「炸了又炸」，拉取相邻段落
+   - 支持**搜索 / 词典 / 百科**查询选中文字以及分享和复制
+> **双击悬浮球**可以在不开启大爆炸的情况下移动悬浮球位置
+
+> **隐藏悬浮球**功能只是**视觉上**将悬浮球隐藏为了小蓝条，不改变实际交互行为，请从小蓝条外的空白区域开始拖拽，防止和安卓系统返回手势冲突
+
+> **进阶提示**：若目标区域是 OCR 白名单中的应用（如 QQ），会自动走全屏 OCR 识别而非无障碍文本提取，适合图片类或受限应用场景。
+
+*当前版本还未支持大爆炸编辑模式
+
+### ⚙️ 自定义设置项
+
+在设置页中可调整：
+
+- **悬浮球外观** — 大小与透明度，适应不同屏幕和使用习惯
+- **悬浮球交互** — 锁定高度、单手优化模式、单手触发角度阈值
+- **OCR 设置** — 识别语言（中文/日语/韩语/英语）、白名单应用列表
+- **搜索源** — 默认搜索引擎（DuckDuckGo / 萌娘百科等）和词典源
+- **调试工具** — 切换预制文本预览 BigBang、开启识别调试日志、选择图片进入 OCR 调试
+
+各选项均有即时效果，无需重启应用。
 
 ## Android 版本支持策略
 
@@ -53,156 +109,6 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 - 横屏与平板适配尚未系统收口
 - 多机型、多 Android 版本下的实机兼容性验证和 Debug 仍需持续推进
 - OCR 最近段落命中、段落合并和复杂页面提取规则仍会继续打磨，但不再是“链路未打通”状态
-
-## 快速使用
-
-### 设置页
-
-启动 `TextBoomSettingsActivity` 后可直接：
-
-- 检查悬浮窗 / 无障碍状态
-- 启动和停止悬浮球
-- 调整悬浮球大小与透明度
-- 调整悬浮球锁定高度、单手优化与角度阈值
-- 切换预制调试文本并预览 BigBang
-- 配置搜索源、词典源、OCR 语言和 OCR 白名单
-- 开启识别调试日志
-- 选择图片进入 OCR 调试
-
-### 悬浮球主链路
-
-1. 授予悬浮窗权限
-2. 启用 `NovaTextAccessibilityService`
-3. 在设置页启动悬浮球
-4. 将悬浮球拖到目标区域后松手
-
-当前分两条路径：
-
-- 白名单外：先隐藏悬浮球并静默截图缓存，再显示 loop 动画，随后走无障碍文本提取；若无障碍抓不到文本，再复用同一张缓存图回退到 OCR
-- 白名单内：先隐藏悬浮球并截图，再显示 loop 动画，随后走全屏 OCR，并按触点命中最近文本块进入 BigBang
-- 悬浮球主链路的截图缓存只保存在内存里，且只保留当前活动 token，对应旧图会自动回收
-- 前台应用识别优先取无障碍活跃窗口，其次回退到无障碍最近事件缓存；两者都拿不到时直接走 OCR
-- Android 11+ 优先用无障碍截图；Android 7-10 走 Shizuku 截图回退
-- 悬浮球拖动松手后会自动贴到屏幕左侧或右侧，横屏下也不会停在屏幕中间
-- 悬浮球启动完成后由 `notifyBigBangShellShown()` 收口 loop 动画和隐藏状态；3 秒内未拉起外层 UI 会自动兜底恢复悬浮球
-- 进入 BigBang 后可继续上滑 / 下滑触发“炸了又炸”，并可从底栏重进 OCR 或临时切换 OCR 语言
-
-### OCR 调试 / 分享链路
-
-这两条入口保留手动范围选择页：
-
-1. 图片输入
-2. 范围选择
-3. 离线 OCR
-4. BigBang
-
-说明：
-
-- OCR 结果进入 BigBang 后，左下角可重进 OCR 范围选择
-- OCR 来源的 BigBang 右下角可临时切换识别语言，并立即重跑 OCR
-- 这类临时切换不会修改设置页里的默认 OCR 语言
-- 图片输入、分享和悬浮球缓存图复用的 OCR 源都统一走 `ManualOcrSourceStore`，不再落盘缓存
-
-## 第三方应用调用
-
-### 调用方式总览
-
-| 方式 | 是否弹选择器 | 推荐度 | 说明 |
-|---|---|---|---|
-| 自定义 Action | 否 | 推荐 | 直接打开 BigBang，不依赖类名 |
-| 显式 Intent（setClassName） | 否 | 可用 | 最直接，但耦合具体类名 |
-| ACTION_SEND | 是 | 通用分享 | 走系统分享选择器，用户自选 |
-
-### 自定义 Action 调用（推荐）
-
-BigBang 注册了自定义 Action `com.cashewteam.novatext.android.action.BIGBANG_TEXT`，第三方应用可通过隐式 Intent + `setPackage()` 直接打开 BigBang，无需弹选择器：
-
-```kotlin
-val intent = Intent("com.cashewteam.novatext.android.action.BIGBANG_TEXT").apply {
-    setPackage("com.cashewteam.novatext.android")
-    putExtra(Intent.EXTRA_TEXT, "要分解的文本内容")
-    // 可选：动画锚点
-    putExtra("boom_startx", 540)
-    putExtra("boom_starty", 1200)
-    // 可选：自动选中第 3 个字符所在的分词
-    putExtra("extra_selected_char_index", 2)
-    // 可选：炸了又炸 — 前一段落
-    putExtra("extra_adjacent_text_before", "前一段落内容...")
-    // 可选：炸了又炸 — 后一段落
-    putExtra("extra_adjacent_text_after", "后一段落内容...")
-}
-// 先检查是否安装了 BigBang
-if (intent.resolveActivity(packageManager) != null) {
-    startActivity(intent)
-}
-```
-
-#### 检查 BigBang 是否可用
-
-```kotlin
-fun isBigBangAvailable(context: Context): Boolean {
-    val intent = Intent("com.cashewteam.novatext.android.action.BIGBANG_TEXT")
-    intent.setPackage("com.cashewteam.novatext.android")
-    return intent.resolveActivity(context.packageManager) != null
-}
-```
-
-### 显式 Intent 调用
-
-直接指定包名和类名，最直接但耦合度高（类名可能变化）：
-
-```kotlin
-val intent = Intent().apply {
-    setClassName(
-        "com.cashewteam.novatext.android",
-        "com.cashewteam.novatext.android.BoomActivity"
-    )
-    putExtra(Intent.EXTRA_TEXT, "要分解的文本内容")
-    putExtra("boom_startx", 540)
-    putExtra("boom_starty", 1200)
-    putExtra("extra_adjacent_text_before", "前一段落...")
-    putExtra("extra_adjacent_text_after", "后一段落...")
-}
-startActivity(intent)
-```
-
-### 标准分享 Intent
-
-通过 `ACTION_SEND` 走系统分享选择器，用户自行选择 BigBang：
-
-```kotlin
-val intent = Intent(Intent.ACTION_SEND).apply {
-    type = "text/plain"
-    putExtra(Intent.EXTRA_TEXT, "要分解的文本内容")
-    putExtra("boom_startx", 540)
-    putExtra("boom_starty", 1200)
-    putExtra("extra_adjacent_text_before", "前一段落...")
-    putExtra("extra_adjacent_text_after", "后一段落...")
-}
-startActivity(Intent.createChooser(intent, "分享到 BigBang"))
-```
-
-### Extra 键值说明
-
-| Extra Key | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `Intent.EXTRA_TEXT` | String | 是 | 要分解的主文本 |
-| `extra_selected_char_index` | int | 否 | 用户选中的字符在主文本中的索引（0-based），传入后自动选中该字符所在的分词 |
-| `extra_adjacent_text_before` | String | 否 | 前一段落文本，支持多行（`\n` 分隔），每行一次"炸了又炸"上滑加载 |
-| `extra_adjacent_text_after` | String | 否 | 后一段落文本，支持多行（`\n` 分隔），每行一次"炸了又炸"下滑加载 |
-| `boom_startx` | int | 否 | BigBang 面板展开动画的 X 锚点 |
-| `boom_starty` | int | 否 | BigBang 面板展开动画的 Y 锚点 |
-| `extra_enable_adjacent_session` | boolean | 否 | 保留内部会话状态（内部使用，第三方无需设置） |
-
-### 行为说明
-
-- 当 `extra_adjacent_text_before` 或 `extra_adjacent_text_after` 至少有一个非空时，BigBang 自动启用"炸了又炸"功能
-- 当 `extra_selected_char_index` ≥ 0 时，BigBang 在分词完成后自动选中该字符所在的分词，同时滚动到该分词所在行
-- `extra_selected_char_index` 为 0-based 字符索引，基于 `Intent.EXTRA_TEXT` 的原始文本计算
-- 相邻文本按 `\n` 换行符逐行拆分为独立段落，每次上滑/下滑加载一行（短行可能合并为一次加载，与内部无障碍抓取行为一致）
-- 相邻文本通过 `TextSessionCoordinator.replaceSession()` 注入，source 标记为 `"external"`
-- 用户在 BigBang 界面上滑/下滑时，BoomChipPage 的拖拽手势触发 `peekAdjacentText()` → `loadAdjacent()`，与内部无障碍抓取的"炸了又炸"行为一致
-- 如果不传相邻文本 extras，"炸了又炸"功能不可用（与之前行为一致）
 
 ## 源码目录参考
 
