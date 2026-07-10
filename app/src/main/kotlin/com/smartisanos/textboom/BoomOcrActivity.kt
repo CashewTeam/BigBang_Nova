@@ -393,6 +393,7 @@ class BoomOcrActivity : ComponentActivity() {
     }
 
     companion object {
+        const val ACTION_BIGBANG_OCR = "com.cashewteam.novatext.android.action.BIGBANG_OCR"
         const val EXTRA_OCR_IMAGE_URI = "ocr_image_uri"
 
         @JvmField

@@ -82,7 +82,10 @@ class OcrLaunchActivity : Activity() {
             ?: traceId
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
-        captureRequested = intent.getBooleanExtra(EXTRA_CAPTURE_ACCESSIBILITY, false)
+        captureRequested = intent.getBooleanExtra(
+            EXTRA_CAPTURE_ACCESSIBILITY,
+            intent.action == ACTION_BIGBANG_ACCESSIBILITY,
+        )
         allowAccessibilityOcrFallback = intent.getBooleanExtra(EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK, false)
         pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
         ensureLaunchUi()
@@ -761,6 +764,8 @@ class OcrLaunchActivity : Activity() {
     }
 
     companion object {
+        const val ACTION_BIGBANG_ACCESSIBILITY =
+            "com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY"
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"

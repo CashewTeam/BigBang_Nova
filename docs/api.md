@@ -10,7 +10,8 @@
   - `exported=true`
   - Launcher Activity
 - `com.cashewteam.novatext.android.OcrLaunchActivity`
-  - 内部启动代理页
+  - 启动代理页
+  - `exported=true`，支持第三方 Action `com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY`
 - `com.cashewteam.novatext.android.OverlayActivity`
   - 内部透明转发页
 - `com.cashewteam.novatext.android.BoomActivity`
@@ -21,6 +22,7 @@
 - `com.cashewteam.novatext.android.BoomOcrActivity`
   - OCR 范围选择页
   - 也支持 `ACTION_SEND image/*`
+  - 支持第三方 Action `com.cashewteam.novatext.android.action.BIGBANG_OCR`
 
 ### Services
 
@@ -434,6 +436,8 @@ OCR 白名单默认值：
 - 设置页只读 `JiebaWarmUpTracker`，不要为了读状态直接初始化 tokenizer
 
 ## 9. 第三方应用调用接口
+
+完整的外部调用示例、Uri 授权要求和失败行为见 [third-party-integration.md](third-party-integration.md)。
 
 ### 9.1 调用方式总览
 

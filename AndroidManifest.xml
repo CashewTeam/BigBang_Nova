@@ -61,10 +61,15 @@
         <activity
             android:name=".OcrLaunchActivity"
             android:theme="@style/OverlayActivityTheme"
-            android:exported="false"
+            android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode" />
+            android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode">
+            <intent-filter>
+                <action android:name="com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".BoomOcrActivity"
@@ -78,6 +83,10 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.cashewteam.novatext.android.action.BIGBANG_OCR" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
