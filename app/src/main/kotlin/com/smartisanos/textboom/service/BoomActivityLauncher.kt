@@ -19,6 +19,9 @@ object BoomActivityLauncher {
         enableAdjacentSession: Boolean = false,
         manualOcrSourceToken: String? = null,
         externalLaunchLoop: Boolean = false,
+        adjacentTextBefore: String? = null,
+        adjacentTextAfter: String? = null,
+        selectedCharIndex: Int = -1,
     ) {
         val targetActivity =
             if (!animateLaunch && context is Activity) OverlayActivity::class.java
@@ -36,6 +39,15 @@ object BoomActivityLauncher {
             putExtra(OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP, externalLaunchLoop)
             if (targetActivity == OverlayActivity::class.java) {
                 putExtra(OcrLaunchActivity.EXTRA_SKIP_LEGACY_FADE_IN, true)
+            }
+            if (!adjacentTextBefore.isNullOrEmpty()) {
+                putExtra(BoomActivity.EXTRA_ADJACENT_TEXT_BEFORE, adjacentTextBefore)
+            }
+            if (!adjacentTextAfter.isNullOrEmpty()) {
+                putExtra(BoomActivity.EXTRA_ADJACENT_TEXT_AFTER, adjacentTextAfter)
+            }
+            if (selectedCharIndex >= 0) {
+                putExtra(BoomActivity.EXTRA_SELECTED_CHAR_INDEX, selectedCharIndex)
             }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)

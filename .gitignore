@@ -9,3 +9,4 @@
 *.ap_
 .DS_Store
 .alma-snapshots
+# gradle.properties - tracked in git for CI

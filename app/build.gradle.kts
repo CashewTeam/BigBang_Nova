@@ -1,17 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val keyPropsFile = rootProject.file("key.properties")
+val keyProps = Properties()
+if (keyPropsFile.exists()) {
+    keyProps.load(keyPropsFile.inputStream())
+}
+
 android {
     namespace = "com.cashewteam.novatext.android"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 269
         versionName = "1.13.26"
 
@@ -26,13 +34,26 @@ android {
         res.setSrcDirs(listOf("../res"))
     }
 
+    signingConfigs {
+        create("release") {
+            if (keyPropsFile.exists()) {
+                storeFile = file(keyProps["storeFile"] as String)
+                storePassword = keyProps["storePassword"] as String
+                keyAlias = keyProps["keyAlias"] as String
+                keyPassword = keyProps["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "../proguard.flags")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "../proguard.flags")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -50,6 +71,7 @@ android {
             path = file("src/main/cpp/CMakeLists.txt")
         }
     }
+    ndkVersion = "26.1.10909125"
 
     buildFeatures {
         buildConfig = true

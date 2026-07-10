@@ -335,6 +335,10 @@ public class BoomWordsLayout {
         return mWords.size();
     }
 
+    public int getTouchedIndex() {
+        return mTouchedIndex;
+    }
+
     public TreeSet<Integer> splitSelectedWordsToChars(TreeSet<Integer> selectedIds) {
         if (selectedIds == null || selectedIds.isEmpty()) {
             return null;
