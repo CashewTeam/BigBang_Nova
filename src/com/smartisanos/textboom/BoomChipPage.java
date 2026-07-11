@@ -17,6 +17,7 @@ import com.cashewteam.novatext.android.BoomWordsLayout;
 import com.cashewteam.novatext.android.BoomAnimator;
 import com.cashewteam.novatext.android.SwipeSelectView;
 import com.cashewteam.novatext.android.BoomActionHandler;
+import com.cashewteam.novatext.android.data.BigBangSettings;
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator;
 import com.cashewteam.novatext.android.util.LogUtils;
 
@@ -452,10 +453,14 @@ public class BoomChipPage {
             final int start = mLayout.getRowStart(i);
             final int count = mLayout.getColumnCount(i);
             if (mLayout.isGapRow(i)) {
+                final int rowHeight = mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_height);
+                final int gapHeight = Math.round(
+                        rowHeight * BigBangSettings.get(mActivity).getGapRowHeightPercent() / 100f
+                );
                 View spacer = new View(mActivity);
                 spacer.setLayoutParams(new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_height) / 2));
+                        gapHeight));
                 mBoomConent.addView(spacer);
                 continue;
             }

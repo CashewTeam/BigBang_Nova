@@ -36,6 +36,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
+    public static final String KEY_GAP_ROW_HEIGHT_PERCENT = "gap_row_height_percent";
     public static final String KEY_CUSTOM_SEARCH_PROVIDERS = "custom_search_providers";
     public static final String KEY_NEXT_CUSTOM_SEARCH_TYPE = "next_custom_search_type";
 
@@ -79,6 +80,7 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
     private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
+    private static final int DEFAULT_GAP_ROW_HEIGHT_PERCENT = 15;
 
     private final SharedPreferences preferences;
 
@@ -342,6 +344,17 @@ public final class BigBangSettings {
 
     public void setClassicOverlayStyleEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_CLASSIC_OVERLAY_STYLE, enabled).apply();
+    }
+
+    public int getGapRowHeightPercent() {
+        return clampPercent(preferences.getInt(
+                KEY_GAP_ROW_HEIGHT_PERCENT,
+                DEFAULT_GAP_ROW_HEIGHT_PERCENT
+        ));
+    }
+
+    public void setGapRowHeightPercent(int value) {
+        preferences.edit().putInt(KEY_GAP_ROW_HEIGHT_PERCENT, clampPercent(value)).apply();
     }
 
     public String getCustomSearchProvidersJson() {

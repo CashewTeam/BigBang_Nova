@@ -232,6 +232,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallLandscapeSafeAreaChange = { updateFloatingBallLandscapeSafeArea(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
+                    onGapRowHeightPercentChange = { settings.setGapRowHeightPercent(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
             }
@@ -703,6 +704,7 @@ private fun SettingsScreen(
     onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
+    onGapRowHeightPercentChange: (Int) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -809,6 +811,9 @@ private fun SettingsScreen(
     }
     var classicOverlayStyleEnabled by rememberSaveable {
         mutableStateOf(settings.isClassicOverlayStyleEnabled)
+    }
+    var gapRowHeightPercent by rememberSaveable {
+        mutableIntStateOf(settings.gapRowHeightPercent)
     }
     val customSearchOptions = remember(searchOptions, customSearchProviders) {
         searchOptions + customSearchProviders
@@ -1039,6 +1044,15 @@ private fun SettingsScreen(
                             OverlayStyleSection(
                                 classicOverlayStyleEnabled = classicOverlayStyleEnabled,
                                 onClassicOverlayStyleChange = { classicOverlayStyleEnabled = it; onClassicOverlayStyleChange(it) },
+                            )
+                        }
+                        SettingsSectionCard {
+                            GapRowSpacingSection(
+                                gapRowHeightPercent = gapRowHeightPercent,
+                                onGapRowHeightPercentChange = {
+                                    gapRowHeightPercent = it
+                                    onGapRowHeightPercentChange(it)
+                                },
                             )
                         }
                     }
@@ -1982,6 +1996,35 @@ private fun OverlayStyleSection(
             subtitle = stringResource(R.string.overlay_style_classic_summary),
             checked = classicOverlayStyleEnabled,
             onCheckedChange = onClassicOverlayStyleChange,
+        )
+    }
+}
+
+@Composable
+private fun GapRowSpacingSection(
+    gapRowHeightPercent: Int,
+    onGapRowHeightPercentChange: (Int) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.gap_row_spacing_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.gap_row_spacing_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        FloatingBallSlider(
+            title = stringResource(R.string.gap_row_spacing_title),
+            value = gapRowHeightPercent,
+            valueRange = 0f..100f,
+            steps = 99,
+            onValueChange = onGapRowHeightPercentChange,
         )
     }
 }

@@ -177,6 +177,9 @@
     <string name="floating_ball_settings_summary">调整悬浮球大小、透明度、停靠和单手模式。</string>
     <string name="ui_settings_title">UI 设置</string>
     <string name="ui_settings_summary">设置启动图标和大爆炸界面样式。</string>
+    <string name="gap_row_spacing_section_title">词块布局</string>
+    <string name="gap_row_spacing_section_summary">调整原始文本换行在大爆炸词块中的空行高度。</string>
+    <string name="gap_row_spacing_title">行距设置</string>
     <string name="search_settings_title">搜索设置</string>
     <string name="search_settings_summary">设置网页搜索、百科和词典的默认服务。</string>
     <string name="custom_search_title">自定义搜索</string>
