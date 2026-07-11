@@ -305,13 +305,13 @@ class FloatingBallService : Service(), SensorEventListener {
     }
 
     private fun buildNotification(): Notification {
-        val captureIntent = BoomOcrLauncher.selectionCaptureIntent(this)
+        val captureIntent = Intent(this, OcrSelectionActionReceiver::class.java)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.overlay_notification_title))
             .setContentText(getString(R.string.overlay_notification_text))
             .setSmallIcon(android.R.drawable.ic_menu_search)
             .setContentIntent(
-                PendingIntent.getActivity(
+                PendingIntent.getBroadcast(
                     this,
                     0,
                     captureIntent,

@@ -1,6 +1,7 @@
 package com.cashewteam.novatext.android.service
 
 import android.app.Activity
+import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -24,6 +25,14 @@ object BoomOcrLauncher {
             addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
         }
+    }
+
+    @JvmStatic
+    fun launchSelectionCapture(context: Context) {
+        NovaTextAccessibilityService.activeInstance?.performGlobalAction(
+            AccessibilityService.GLOBAL_ACTION_BACK,
+        )
+        context.startActivity(selectionCaptureIntent(context))
     }
 
     @JvmStatic

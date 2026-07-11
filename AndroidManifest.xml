@@ -179,6 +179,9 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <receiver
+            android:name=".service.OcrSelectionActionReceiver"
+            android:exported="false" />
         <service
             android:name=".service.NovaTextAccessibilityService"
             android:enabled="true"
