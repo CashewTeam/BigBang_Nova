@@ -29,8 +29,8 @@ public class SwipeSelectView extends LinearLayout {
     private boolean mDragStarted;
     private boolean mDeferInitialSelectionVisual;
     private boolean mVisualSelectionApplied;
-    private int mAutoScrollTop;
-    private int mAutoScrollBottom;
+    private int mAutoScrollTopInset;
+    private int mAutoScrollBottomInset;
     private int mAutoScrollVelocity;
 
     private String mDragText;
@@ -66,8 +66,8 @@ public class SwipeSelectView extends LinearLayout {
         mBoomPage = boomPage;
         mAutoScrollVelocity = 0;
         final Resources res = getResources();
-        mAutoScrollTop = res.getDimensionPixelSize(R.dimen.auto_scroll_top);
-        mAutoScrollBottom = res.getDisplayMetrics().heightPixels - res.getDimensionPixelSize(R.dimen.auto_scroll_bottom);
+        mAutoScrollTopInset = res.getDimensionPixelSize(R.dimen.auto_scroll_top);
+        mAutoScrollBottomInset = res.getDimensionPixelSize(R.dimen.auto_scroll_bottom);
     }
 
     @Override
@@ -92,7 +92,7 @@ public class SwipeSelectView extends LinearLayout {
                 break;
             case MotionEvent.ACTION_MOVE:
                 if (mLastTouchIndex != -1) {
-                    scrollIfNeeded((int) y - mBoomPage.mScroller.getScrollY());
+                    scrollIfNeeded((int) ev.getRawY());
                     touchedChip = findChip(x, y, mSelEnd > mSelStart);
                     if (touchedChip != null && touchedChip.index != mLastTouchIndex) {
                         mVisualSelectionApplied = true;
@@ -157,19 +157,31 @@ public class SwipeSelectView extends LinearLayout {
         return mSelStart != -1 ? true : super.onTouchEvent(ev);
     }
 
-    private void scrollIfNeeded(int y) {
-        if (y < mAutoScrollTop) {
+    private void scrollIfNeeded(int screenY) {
+        final int[] scrollerLocation = new int[2];
+        mBoomPage.mScroller.getLocationOnScreen(scrollerLocation);
+        final int scrollerTop = scrollerLocation[1];
+        final int scrollerBottom = scrollerTop + mBoomPage.mScroller.getHeight();
+        final int autoScrollTop = Math.min(
+                scrollerTop + mAutoScrollTopInset,
+                scrollerTop + mBoomPage.mScroller.getHeight() / 2
+        );
+        final int autoScrollBottom = Math.max(
+                scrollerBottom - mAutoScrollBottomInset,
+                scrollerTop + mBoomPage.mScroller.getHeight() / 2
+        );
+        if (screenY < autoScrollTop) {
             if (mAutoScrollVelocity >= 0) {
                 removeCallbacks(mAutoScroll);
                 postDelayed(mAutoScroll, AUTO_SCROLL_DELAY);
             }
-            mAutoScrollVelocity = (y - mAutoScrollTop) / 2;
-        } else if (y > mAutoScrollBottom) {
+            mAutoScrollVelocity = (screenY - autoScrollTop) / 2;
+        } else if (screenY > autoScrollBottom) {
             if (mAutoScrollVelocity <= 0) {
                 removeCallbacks(mAutoScroll);
                 postDelayed(mAutoScroll, AUTO_SCROLL_DELAY);
             }
-            mAutoScrollVelocity = (y - mAutoScrollBottom) / 2;
+            mAutoScrollVelocity = (screenY - autoScrollBottom) / 2;
         } else {
             mAutoScrollVelocity = 0;
         }
