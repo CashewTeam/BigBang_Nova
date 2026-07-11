@@ -70,6 +70,9 @@
     <string name="permission_disabled">未启动</string>
     <string name="permission_overlay_action">打开悬浮窗权限</string>
     <string name="permission_accessibility_action">打开无障碍设置</string>
+    <string name="permission_notification_title">通知权限</string>
+    <string name="permission_notification_denied">未授权（服务仍可启动）</string>
+    <string name="permission_notification_action">允许悬浮球通知</string>
     <string name="permission_start_floating_ball">启动悬浮球</string>
     <string name="permission_stop_floating_ball">关闭悬浮球</string>
     <string name="permission_reset_floating_ball">重置悬浮球位置</string>

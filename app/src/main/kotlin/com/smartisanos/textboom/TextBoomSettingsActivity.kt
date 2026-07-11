@@ -1,5 +1,6 @@
 package com.cashewteam.novatext.android
 
+import android.Manifest
 import android.content.Context
 import android.content.ComponentName
 import android.app.Activity
@@ -18,6 +19,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import android.os.Build
 import android.os.Bundle
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.media.projection.MediaProjectionManager
 import androidx.activity.ComponentActivity
@@ -149,12 +151,23 @@ class TextBoomSettingsActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
     private var initialPage by mutableStateOf(resolveStartPage(null))
     private var projectionAuthorizationVersion by mutableIntStateOf(0)
+    private var notificationPermissionVersion by mutableIntStateOf(0)
+    private var startFloatingBallAfterNotificationPermission = false
     private val projectionPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val data = result.data
             if (result.resultCode == Activity.RESULT_OK && data != null) {
                 MediaProjectionScreenshotCapture.setAuthorization(result.resultCode, data)
                 projectionAuthorizationVersion++
+            }
+        }
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            notificationPermissionVersion++
+            if (startFloatingBallAfterNotificationPermission) {
+                startFloatingBallAfterNotificationPermission = false
+                FloatingBallService.resetStateMachine()
+                FloatingBallService.start(this)
             }
         }
     private val pickOcrImageLauncher =
@@ -194,6 +207,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     settings = settings,
                     initialPage = initialPage,
                     projectionAuthorizationVersion = projectionAuthorizationVersion,
+                    notificationPermissionVersion = notificationPermissionVersion,
                     searchOptions = searchOptions,
                     wikiOptions = wikiOptions,
                     dictionaryOptions = dictionaryOptions,
@@ -202,6 +216,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onOpenOverlayPermission = { openOverlayPermission() },
                     onOpenAccessibilitySettings = { openAccessibilitySettings() },
                     onRequestProjectionPermission = { requestProjectionPermission() },
+                    onRequestNotificationPermission = { requestNotificationPermission() },
                     onOpenBackgroundPopupSettings = { openBackgroundPopupSettings() },
                     onStartFloatingBall = { startFloatingBall() },
                     onStopFloatingBall = { stopFloatingBall() },
@@ -322,8 +337,23 @@ class TextBoomSettingsActivity : ComponentActivity() {
     }
 
     private fun startFloatingBall() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            startFloatingBallAfterNotificationPermission = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
         FloatingBallService.resetStateMachine()
         FloatingBallService.start(this)
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     private fun stopFloatingBall() {
@@ -426,6 +456,7 @@ private data class PermissionState(
     val useShizukuScreenshot: Boolean,
     val projectionAuthorized: Boolean,
     val shizukuStatus: ShizukuScreenshotCapture.Status,
+    val notificationGranted: Boolean,
 ) {
     val backgroundPopupRequired: Boolean
         get() = backgroundPopupSystem != BackgroundPopupSystem.NONE
@@ -647,6 +678,7 @@ private fun SettingsScreen(
     settings: BigBangSettings,
     initialPage: SettingsPage,
     projectionAuthorizationVersion: Int,
+    notificationPermissionVersion: Int,
     searchOptions: List<OptionItem>,
     wikiOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
@@ -655,6 +687,7 @@ private fun SettingsScreen(
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onRequestProjectionPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onOpenBackgroundPopupSettings: () -> Unit,
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
@@ -730,6 +763,8 @@ private fun SettingsScreen(
                 useShizukuScreenshot = settings.isUseShizukuScreenshotEnabled,
                 projectionAuthorized = MediaProjectionScreenshotCapture.hasAuthorization(),
                 shizukuStatus = shizukuStatus,
+                notificationGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                    context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
             )
     }
     var permissionState by remember {
@@ -875,7 +910,12 @@ private fun SettingsScreen(
         onDispose { }
     }
 
-    LaunchedEffect(projectionAuthorizationVersion, projectionStoppedVersion, shizukuStatus) {
+    LaunchedEffect(
+        projectionAuthorizationVersion,
+        projectionStoppedVersion,
+        notificationPermissionVersion,
+        shizukuStatus,
+    ) {
         permissionState = currentPermissionState()
         if (showStartupWizard && isPermissionSetupComplete(permissionState)) {
             showStartupWizard = false
@@ -1259,6 +1299,7 @@ private fun SettingsScreen(
                 onOpenOverlayPermission = onOpenOverlayPermission,
                 onOpenAccessibilitySettings = onOpenAccessibilitySettings,
                 onRequestProjectionPermission = onRequestProjectionPermission,
+                onRequestNotificationPermission = onRequestNotificationPermission,
                 onRequestShizukuPermission = {
                     ShizukuScreenshotCapture.requestPermission()
                     shizukuStatus = ShizukuScreenshotCapture.getStatus()
@@ -1312,6 +1353,7 @@ private fun StartupWizardDialog(
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onRequestProjectionPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onRequestShizukuPermission: () -> Unit,
     onOpenBackgroundPopupSettings: () -> Unit,
     onBackgroundPopupConfirmed: () -> Unit,
@@ -1349,6 +1391,20 @@ private fun StartupWizardDialog(
                         text = stringResource(R.string.permission_accessibility_action),
                         onClick = onOpenAccessibilitySettings,
                     )
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    PermissionStatusRow(
+                        title = stringResource(R.string.permission_notification_title),
+                        granted = state.notificationGranted,
+                        deniedText = stringResource(R.string.permission_notification_denied),
+                    )
+                    if (!state.notificationGranted) {
+                        SecondaryActionButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = stringResource(R.string.permission_notification_action),
+                            onClick = onRequestNotificationPermission,
+                        )
+                    }
                 }
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
                     if (state.useShizukuScreenshot) {
