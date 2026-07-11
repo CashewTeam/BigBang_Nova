@@ -2,6 +2,7 @@ package com.cashewteam.novatext.android
 
 import android.content.Context
 import android.content.ComponentName
+import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.content.Intent
@@ -16,6 +17,7 @@ import androidx.compose.animation.togetherWith
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.media.projection.MediaProjectionManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -122,6 +124,7 @@ import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
+import com.cashewteam.novatext.android.service.MediaProjectionScreenshotCapture
 import com.cashewteam.novatext.android.service.ShizukuScreenshotCapture
 import com.hjq.device.compat.DeviceOs
 import rikka.shizuku.Shizuku
@@ -131,6 +134,15 @@ import kotlin.math.roundToInt
 class TextBoomSettingsActivity : ComponentActivity() {
     private lateinit var settings: BigBangSettings
     private var initialPage by mutableStateOf(resolveStartPage(null))
+    private var projectionAuthorizationVersion by mutableIntStateOf(0)
+    private val projectionPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val data = result.data
+            if (result.resultCode == Activity.RESULT_OK && data != null) {
+                MediaProjectionScreenshotCapture.setAuthorization(result.resultCode, data)
+                projectionAuthorizationVersion++
+            }
+        }
     private val pickOcrImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             uri?.let(::openOcrDebug)
@@ -167,12 +179,14 @@ class TextBoomSettingsActivity : ComponentActivity() {
                 SettingsScreen(
                     settings = settings,
                     initialPage = initialPage,
+                    projectionAuthorizationVersion = projectionAuthorizationVersion,
                     searchOptions = searchOptions,
                     wikiOptions = wikiOptions,
                     dictionaryOptions = dictionaryOptions,
                     onOpenPreview = { openBigBangPreview(it) },
                     onOpenOverlayPermission = { openOverlayPermission() },
                     onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                    onRequestProjectionPermission = { requestProjectionPermission() },
                     onOpenBackgroundPopupSettings = { openBackgroundPopupSettings() },
                     onStartFloatingBall = { startFloatingBall() },
                     onStopFloatingBall = { stopFloatingBall() },
@@ -262,6 +276,12 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun openAccessibilitySettings() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    private fun requestProjectionPermission() {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) return
+        val manager = getSystemService(MediaProjectionManager::class.java)
+        projectionPermissionLauncher.launch(manager.createScreenCaptureIntent())
     }
 
     private fun openBackgroundPopupSettings() {
@@ -387,9 +407,19 @@ private data class PermissionState(
     val floatingBallRunning: Boolean,
     val backgroundPopupSystem: BackgroundPopupSystem,
     val backgroundPopupConfirmed: Boolean,
+    val useShizukuScreenshot: Boolean,
+    val projectionAuthorized: Boolean,
+    val shizukuStatus: ShizukuScreenshotCapture.Status,
 ) {
     val backgroundPopupRequired: Boolean
         get() = backgroundPopupSystem != BackgroundPopupSystem.NONE
+    val screenshotReady: Boolean
+        get() = Build.VERSION.SDK_INT > Build.VERSION_CODES.Q ||
+            if (useShizukuScreenshot) {
+                shizukuStatus == ShizukuScreenshotCapture.Status.READY
+            } else {
+                projectionAuthorized
+            }
 }
 
 private enum class BackgroundPopupSystem(val preferenceValue: String) {
@@ -600,12 +630,14 @@ private fun ApplySystemBars() {
 private fun SettingsScreen(
     settings: BigBangSettings,
     initialPage: SettingsPage,
+    projectionAuthorizationVersion: Int,
     searchOptions: List<OptionItem>,
     wikiOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
     onOpenPreview: (String) -> Unit,
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
+    onRequestProjectionPermission: () -> Unit,
     onOpenBackgroundPopupSettings: () -> Unit,
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
@@ -674,6 +706,9 @@ private fun SettingsScreen(
                 backgroundPopupSystem = backgroundPopupSystem,
                 backgroundPopupConfirmed = backgroundPopupSystem == BackgroundPopupSystem.NONE ||
                     settings.backgroundPopupGuideOs == backgroundPopupSystem.preferenceValue,
+                useShizukuScreenshot = settings.isUseShizukuScreenshotEnabled,
+                projectionAuthorized = MediaProjectionScreenshotCapture.hasAuthorization(),
+                shizukuStatus = shizukuStatus,
             )
     }
     var permissionState by remember {
@@ -682,6 +717,7 @@ private fun SettingsScreen(
     var showStartupWizard by rememberSaveable {
         mutableStateOf(!isPermissionSetupComplete(permissionState))
     }
+    var projectionStoppedVersion by remember { mutableIntStateOf(0) }
     var floatingBallSizePercent by rememberSaveable {
         mutableIntStateOf(settings.floatingBallSizePercent)
     }
@@ -736,6 +772,13 @@ private fun SettingsScreen(
         onDispose { }
     }
 
+    LaunchedEffect(projectionAuthorizationVersion, projectionStoppedVersion, shizukuStatus) {
+        permissionState = currentPermissionState()
+        if (showStartupWizard && isPermissionSetupComplete(permissionState)) {
+            showStartupWizard = false
+        }
+    }
+
     LaunchedEffect(initialPage) {
         currentPage = initialPage.name
     }
@@ -753,6 +796,16 @@ private fun SettingsScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        MediaProjectionScreenshotCapture.setProjectionStoppedListener {
+            projectionStoppedVersion++
+            showStartupWizard = true
+        }
+        onDispose {
+            MediaProjectionScreenshotCapture.setProjectionStoppedListener(null)
         }
     }
 
@@ -952,16 +1005,19 @@ private fun SettingsScreen(
                             selectedMode = selectedOcrMode,
                             modes = ocrModes,
                             whitelistCount = selectedCount,
-                            shizukuStatus = shizukuStatus,
+                            useShizukuScreenshot = permissionState.useShizukuScreenshot,
                             onModeSelected = {
                                 selectedOcrMode = it
                                 settings.setOcrRecognizerMode(it)
                             },
                             onPickImage = onOpenOcrDebugPicker,
                             onManageWhitelist = { currentPage = SettingsPage.OcrWhitelist.name },
-                            onRequestShizukuPermission = {
-                                ShizukuScreenshotCapture.requestPermission()
-                                shizukuStatus = ShizukuScreenshotCapture.getStatus()
+                            onUseShizukuScreenshotChange = {
+                                settings.setUseShizukuScreenshotEnabled(it)
+                                permissionState = currentPermissionState()
+                                if (!isPermissionSetupComplete(permissionState)) {
+                                    showStartupWizard = true
+                                }
                             },
                         )
                     }
@@ -1048,6 +1104,11 @@ private fun SettingsScreen(
                 state = permissionState,
                 onOpenOverlayPermission = onOpenOverlayPermission,
                 onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                onRequestProjectionPermission = onRequestProjectionPermission,
+                onRequestShizukuPermission = {
+                    ShizukuScreenshotCapture.requestPermission()
+                    shizukuStatus = ShizukuScreenshotCapture.getStatus()
+                },
                 onOpenBackgroundPopupSettings = onOpenBackgroundPopupSettings,
                 onBackgroundPopupConfirmed = {
                     settings.setBackgroundPopupGuideOs(permissionState.backgroundPopupSystem.preferenceValue)
@@ -1063,7 +1124,7 @@ private fun SettingsScreen(
 }
 
 private fun isPermissionSetupComplete(state: PermissionState): Boolean {
-    return state.overlayGranted && state.accessibilityEnabled &&
+    return state.overlayGranted && state.accessibilityEnabled && state.screenshotReady &&
         (!state.backgroundPopupRequired || state.backgroundPopupConfirmed)
 }
 
@@ -1096,6 +1157,8 @@ private fun StartupWizardDialog(
     state: PermissionState,
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
+    onRequestProjectionPermission: () -> Unit,
+    onRequestShizukuPermission: () -> Unit,
     onOpenBackgroundPopupSettings: () -> Unit,
     onBackgroundPopupConfirmed: () -> Unit,
     onDismiss: () -> Unit,
@@ -1133,6 +1196,43 @@ private fun StartupWizardDialog(
                         onClick = onOpenAccessibilitySettings,
                     )
                 }
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                    if (state.useShizukuScreenshot) {
+                        val statusText = when (state.shizukuStatus) {
+                            ShizukuScreenshotCapture.Status.READY -> R.string.shizuku_status_ready
+                            ShizukuScreenshotCapture.Status.PERMISSION_REQUIRED -> R.string.shizuku_status_permission_required
+                            ShizukuScreenshotCapture.Status.SERVICE_UNAVAILABLE -> R.string.shizuku_status_service_unavailable
+                            ShizukuScreenshotCapture.Status.NOT_REQUIRED -> R.string.shizuku_status_not_required
+                        }
+                        PermissionStatusRow(
+                            title = stringResource(R.string.shizuku_status_title),
+                            granted = state.screenshotReady,
+                            grantedText = stringResource(R.string.shizuku_status_ready),
+                            deniedText = stringResource(statusText),
+                        )
+                        if (!state.screenshotReady) {
+                            SecondaryActionButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = stringResource(R.string.shizuku_request_permission),
+                                onClick = onRequestShizukuPermission,
+                            )
+                        }
+                    } else {
+                        PermissionStatusRow(
+                            title = stringResource(R.string.projection_permission_title),
+                            granted = state.projectionAuthorized,
+                            grantedText = stringResource(R.string.permission_granted),
+                            deniedText = stringResource(R.string.permission_missing),
+                        )
+                        if (!state.projectionAuthorized) {
+                            SecondaryActionButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = stringResource(R.string.projection_permission_action),
+                                onClick = onRequestProjectionPermission,
+                            )
+                        }
+                    }
+                }
                 if (state.backgroundPopupRequired) {
                     PermissionStatusRow(
                         title = stringResource(R.string.permission_background_popup_title),
@@ -1167,11 +1267,11 @@ private fun OcrSection(
     selectedMode: String,
     modes: List<OcrModeItem>,
     whitelistCount: Int,
-    shizukuStatus: ShizukuScreenshotCapture.Status,
+    useShizukuScreenshot: Boolean,
     onModeSelected: (String) -> Unit,
     onPickImage: () -> Unit,
     onManageWhitelist: () -> Unit,
-    onRequestShizukuPermission: () -> Unit,
+    onUseShizukuScreenshotChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
     val showShizukuStatus = Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q
@@ -1229,25 +1329,12 @@ private fun OcrSection(
             onClick = onPickImage,
         )
         if (showShizukuStatus) {
-            val statusText = when (shizukuStatus) {
-                ShizukuScreenshotCapture.Status.READY -> R.string.shizuku_status_ready
-                ShizukuScreenshotCapture.Status.PERMISSION_REQUIRED -> R.string.shizuku_status_permission_required
-                ShizukuScreenshotCapture.Status.SERVICE_UNAVAILABLE -> R.string.shizuku_status_service_unavailable
-                ShizukuScreenshotCapture.Status.NOT_REQUIRED -> R.string.shizuku_status_not_required
-            }
-            PermissionStatusRow(
-                title = stringResource(R.string.shizuku_status_title),
-                granted = shizukuStatus == ShizukuScreenshotCapture.Status.READY,
-                grantedText = stringResource(R.string.shizuku_status_ready),
-                deniedText = stringResource(statusText),
+            DebugSwitchRow(
+                title = stringResource(R.string.screenshot_use_shizuku_title),
+                subtitle = stringResource(R.string.screenshot_use_shizuku_summary),
+                checked = useShizukuScreenshot,
+                onCheckedChange = onUseShizukuScreenshotChange,
             )
-            if (shizukuStatus == ShizukuScreenshotCapture.Status.PERMISSION_REQUIRED) {
-                SecondaryActionButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(R.string.shizuku_request_permission),
-                    onClick = onRequestShizukuPermission,
-                )
-            }
         }
     }
 }

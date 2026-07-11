@@ -102,10 +102,13 @@ class FloatingBallService : Service(), SensorEventListener {
             this,
             NOTIFICATION_ID,
             buildNotification(),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            } else {
-                0
+            when {
+                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q &&
+                    !settings.isUseShizukuScreenshotEnabled ->
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                else -> 0
             },
         )
         attachBubble()

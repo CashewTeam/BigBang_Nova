@@ -19,6 +19,7 @@ public final class BigBangSettings {
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
     public static final String KEY_DEBUG_SKIP_ACCESSIBILITY = "debug_skip_accessibility";
     public static final String KEY_DEBUG_CAPTURE_TRACE = "debug_capture_trace";
+    public static final String KEY_USE_SHIZUKU_SCREENSHOT = "use_shizuku_screenshot";
     public static final String KEY_DEBUG_MODE = "debug_mode";
     public static final String KEY_BACKGROUND_POPUP_GUIDE_OS = "background_popup_guide_os";
     public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
@@ -167,6 +168,14 @@ public final class BigBangSettings {
 
     public void setDebugCaptureTraceEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_DEBUG_CAPTURE_TRACE, enabled).apply();
+    }
+
+    public boolean isUseShizukuScreenshotEnabled() {
+        return preferences.getBoolean(KEY_USE_SHIZUKU_SCREENSHOT, false);
+    }
+
+    public void setUseShizukuScreenshotEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_USE_SHIZUKU_SCREENSHOT, enabled).apply();
     }
 
     public boolean getDebugCaptureTraceSetting() {

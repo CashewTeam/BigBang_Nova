@@ -171,4 +171,10 @@
     <string name="search_settings_summary">设置网页搜索、百科和词典的默认服务。</string>
     <string name="debug_mode_title">调试模式</string>
     <string name="debug_mode_summary">开启调试预览面板和详细运行日志。</string>
+    <string name="screenshot_use_shizuku_title">使用 Shizuku 截图</string>
+    <string name="screenshot_use_shizuku_summary">关闭时默认使用系统 Projection 截图；开启后改用 Shizuku。</string>
+    <string name="projection_permission_title">屏幕截图权限</string>
+    <string name="projection_permission_action">申请屏幕截图权限</string>
+    <string name="projection_permission_required">请先在启动向导中授权屏幕截图。</string>
+    <string name="projection_capture_failed">Projection 截图失败，请重新授权后重试。</string>
 </resources>

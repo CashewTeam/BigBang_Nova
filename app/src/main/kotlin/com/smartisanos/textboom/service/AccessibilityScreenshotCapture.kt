@@ -3,6 +3,7 @@ package com.cashewteam.novatext.android.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.DisplayMetrics
 import android.graphics.Point
 import android.os.Build
 import android.os.Handler
@@ -56,12 +57,11 @@ object AccessibilityScreenshotCapture {
         val service = NovaTextAccessibilityService.activeInstance ?: return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                captureShizukuScreenshot(
-                    context = context,
-                    silent = silent,
-                    onFinished = onFinished,
-                    onCaptured = onCaptured,
-                )
+                if (BigBangSettings.get(context).isUseShizukuScreenshotEnabled) {
+                    captureShizukuScreenshot(context, silent, onFinished, onCaptured)
+                } else {
+                    captureProjectionScreenshot(context, silent, onFinished, onCaptured)
+                }
             } else {
                 if (!silent) {
                     Toast.makeText(service, R.string.ocr_capture_unsupported, Toast.LENGTH_SHORT).show()
@@ -169,6 +169,61 @@ object AccessibilityScreenshotCapture {
                     onCaptured(bitmap)
                     onFinished?.invoke(bitmap)
                 }
+            }
+        }
+    }
+
+    private fun captureProjectionScreenshot(
+        context: Context,
+        silent: Boolean,
+        onFinished: ((Bitmap?) -> Unit)?,
+        onCaptured: (Bitmap) -> Unit,
+    ) {
+        if (!MediaProjectionScreenshotCapture.hasAuthorization()) {
+            if (!silent) {
+                Toast.makeText(context, R.string.projection_permission_required, Toast.LENGTH_SHORT).show()
+            }
+            onFinished?.invoke(null)
+            return
+        }
+        if (!captureInFlight.compareAndSet(false, true)) {
+            NovaTextLogger.d("projection screenshot skipped: capture in flight")
+            if (!silent) {
+                Toast.makeText(context, R.string.ocr_capture_in_progress, Toast.LENGTH_SHORT).show()
+            }
+            onFinished?.invoke(null)
+            return
+        }
+        FloatingBallService.hideForScreenshot {
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager)
+                .defaultDisplay
+                .getRealMetrics(metrics)
+            val started = MediaProjectionScreenshotCapture.capture(
+                context = context,
+                width = metrics.widthPixels,
+                height = metrics.heightPixels,
+                densityDpi = metrics.densityDpi,
+                onFinished = { bitmap ->
+                    mainHandler.post {
+                        captureInFlight.set(false)
+                        FloatingBallService.restoreAfterScreenshot()
+                        if (bitmap == null && !silent) {
+                            Toast.makeText(context, R.string.projection_capture_failed, Toast.LENGTH_SHORT).show()
+                        }
+                        onFinished?.invoke(bitmap)
+                    }
+                },
+                onCaptured = onCaptured,
+            )
+            if (!started) {
+                captureInFlight.set(false)
+                FloatingBallService.restoreAfterScreenshot()
+                if (!silent) {
+                    Toast.makeText(context, R.string.projection_permission_required, Toast.LENGTH_SHORT).show()
+                }
+                onFinished?.invoke(null)
             }
         }
     }
