@@ -179,7 +179,7 @@ object MediaProjectionScreenshotCapture {
             pendingFinished = null
             captureTimeout?.let(mainHandler::removeCallbacks)
             captureTimeout = null
-            releaseDisplayLocked()
+            releaseProjectionLocked()
             result
         }
         mainHandler.post {
