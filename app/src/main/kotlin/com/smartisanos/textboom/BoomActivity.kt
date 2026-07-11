@@ -143,7 +143,9 @@ class BoomActivity : ComponentActivity() {
      */
     private fun reinitializeFromIntent() {
         val previewText = intent.getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT)
-        val inputText = previewText ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+        val inputText = previewText
+            ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+            ?: intent.getStringExtra(Intent.EXTRA_TEXT)
         if (inputText.isNullOrEmpty()) {
             finish()
             return

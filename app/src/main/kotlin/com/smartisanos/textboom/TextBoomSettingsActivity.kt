@@ -64,6 +64,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -80,6 +81,7 @@ import com.cashewteam.novatext.android.components.SmartisanSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -560,7 +562,34 @@ private fun BigBangSettingsTheme(content: @Composable () -> Unit) {
         )
     }
 
-    MaterialTheme(content = {
+    val materialColors = if (dark) {
+        darkColorScheme(
+            primary = palette.accent,
+            onPrimary = Color.White,
+            background = palette.background,
+            onBackground = palette.textPrimary,
+            surface = palette.card,
+            onSurface = palette.textPrimary,
+            surfaceVariant = palette.cardInset,
+            onSurfaceVariant = palette.textSecondary,
+            outline = palette.cardBorder,
+            error = Color(0xFFFF8A80),
+        )
+    } else {
+        lightColorScheme(
+            primary = palette.accent,
+            onPrimary = Color.White,
+            background = palette.background,
+            onBackground = palette.textPrimary,
+            surface = palette.card,
+            onSurface = palette.textPrimary,
+            surfaceVariant = palette.cardInset,
+            onSurfaceVariant = palette.textSecondary,
+            outline = palette.cardBorder,
+            error = Color(0xFFBA1A1A),
+        )
+    }
+    MaterialTheme(colorScheme = materialColors, content = {
         CompositionPalette(palette = palette, content = content)
     })
 }

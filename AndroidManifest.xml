@@ -42,6 +42,11 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
             <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="com.cashewteam.novatext.android.action.BIGBANG_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
