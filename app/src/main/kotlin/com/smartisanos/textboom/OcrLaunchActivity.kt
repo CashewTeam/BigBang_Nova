@@ -6,6 +6,8 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.content.Intent
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -63,6 +65,8 @@ class OcrLaunchActivity : Activity() {
     private var accessibilityOcrFallbackStarted = false
     private var allowAccessibilityOcrFallback = false
     private var externalLaunchLoop = false
+    private var clipboardTextRequested = false
+    private var clipboardTextProcessed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +74,7 @@ class OcrLaunchActivity : Activity() {
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
+        clipboardTextRequested = intent.getBooleanExtra(EXTRA_PROCESS_CLIPBOARD_TEXT, false)
         captureSelectionScreenshotRequested = intent.getBooleanExtra(
             EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT,
             false,
@@ -119,6 +124,27 @@ class OcrLaunchActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (clipboardTextRequested && !clipboardTextProcessed && !cancelled) {
+            clipboardTextProcessed = true
+            window.decorView.post {
+                val text = (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                    .primaryClip
+                    ?.takeIf { it.itemCount > 0 }
+                    ?.getItemAt(0)
+                    ?.coerceToText(this)
+                    ?.toString()
+                    ?.trim()
+                if (text.isNullOrEmpty()) {
+                    Toast.makeText(this, R.string.clipboard_empty, Toast.LENGTH_SHORT).show()
+                    finish()
+                } else {
+                    pendingText = text
+                    openLaunchGate()
+                    maybeLaunchBigBang()
+                }
+            }
+            return
+        }
         if (captureSelectionScreenshotRequested && !captureSelectionScreenshotStarted && !cancelled) {
             captureSelectionScreenshotStarted = true
             window.decorView.postDelayed({
@@ -818,6 +844,7 @@ class OcrLaunchActivity : Activity() {
             "com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY"
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
         const val EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT = "extra_capture_ocr_selection_screenshot"
+        const val EXTRA_PROCESS_CLIPBOARD_TEXT = "extra_process_clipboard_text"
         const val EXTRA_SELECTION_CAPTURE_DELAY_MS = "extra_selection_capture_delay_ms"
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"

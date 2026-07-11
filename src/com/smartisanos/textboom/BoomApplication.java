@@ -9,6 +9,7 @@ import com.cashewteam.novatext.android.util.ConfigUtils;
 import com.cashewteam.novatext.android.util.LogUtils;
 import com.cashewteam.novatext.android.util.NovaTextLogger;
 import com.cashewteam.novatext.android.LauncherIconManager;
+import com.cashewteam.novatext.android.service.AppShortcutManager;
 
 public class BoomApplication extends Application {
     private static final String TAG = "BoomApplication";
@@ -20,6 +21,7 @@ public class BoomApplication extends Application {
         LogUtils.init(this);
         NovaTextLogger.INSTANCE.initialize(this);
         LauncherIconManager.sync(this);
+        AppShortcutManager.sync(this);
         warmUpTokenizer();
     }
 

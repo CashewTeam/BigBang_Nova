@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.content.pm.PackageManager
 import android.provider.Settings
 import android.media.projection.MediaProjectionManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -132,6 +133,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.cashewteam.novatext.android.data.BigBangSettings
@@ -144,6 +148,7 @@ import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.service.MediaProjectionScreenshotCapture
 import com.cashewteam.novatext.android.service.ShizukuScreenshotCapture
+import com.cashewteam.novatext.android.util.DesktopShortcutPermission
 import com.hjq.device.compat.DeviceOs
 import rikka.shizuku.Shizuku
 import kotlin.math.ceil
@@ -233,6 +238,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
                     onFloatingBallLandscapeSafeAreaChange = { updateFloatingBallLandscapeSafeArea(it) },
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
+                    onRequestDesktopOcrShortcut = { requestDesktopOcrShortcut() },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
                     onGapRowHeightPercentChange = { settings.setGapRowHeightPercent(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
@@ -416,6 +422,40 @@ class TextBoomSettingsActivity : ComponentActivity() {
         LauncherIconManager.setAdaptiveEnabled(this, enabled)
     }
 
+    private fun requestDesktopOcrShortcut() {
+        if (DesktopShortcutPermission.check(this) == DesktopShortcutPermission.DENIED) {
+            DesktopShortcutPermission.openSettings(this)
+            Toast.makeText(this, R.string.desktop_ocr_entry_permission_required, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val shortcut = ShortcutInfoCompat.Builder(this, DESKTOP_OCR_SHORTCUT_ID)
+            .setShortLabel(getString(R.string.desktop_ocr_entry))
+            .setLongLabel(getString(R.string.desktop_ocr_entry_title))
+            .setIcon(IconCompat.createWithResource(this, R.mipmap.ic_launcher_ocr))
+            .setIntent(BoomOcrLauncher.selectionCaptureIntent(this, 0).setAction(ACTION_DESKTOP_OCR_SHORTCUT))
+            .build()
+        if (!ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)) {
+            val targetIntent = BoomOcrLauncher.selectionCaptureIntent(this, 0)
+                .setAction(ACTION_DESKTOP_OCR_SHORTCUT)
+            val launcherPackage = Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_HOME)
+                .resolveActivity(packageManager)
+                ?.packageName
+            sendBroadcast(
+                Intent(ACTION_INSTALL_SHORTCUT).apply {
+                    launcherPackage?.let(::setPackage)
+                    putExtra(Intent.EXTRA_SHORTCUT_INTENT, targetIntent)
+                    putExtra(Intent.EXTRA_SHORTCUT_NAME, getString(R.string.desktop_ocr_entry))
+                    putExtra(
+                        Intent.EXTRA_SHORTCUT_ICON_RESOURCE,
+                        Intent.ShortcutIconResource.fromContext(this@TextBoomSettingsActivity, R.mipmap.ic_launcher_ocr),
+                    )
+                },
+            )
+            Toast.makeText(this, R.string.desktop_ocr_entry_legacy_requested, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun updateClassicOverlayStyle(enabled: Boolean) {
         settings.setClassicOverlayStyleEnabled(enabled)
     }
@@ -431,6 +471,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_START_PAGE = "extra_start_page"
         private const val START_PAGE_OCR_WHITELIST = "ocr_whitelist"
+        private const val DESKTOP_OCR_SHORTCUT_ID = "desktop_ocr"
+        private const val ACTION_DESKTOP_OCR_SHORTCUT =
+            "com.cashewteam.novatext.android.action.DESKTOP_OCR_SHORTCUT"
+        private const val ACTION_INSTALL_SHORTCUT = "com.android.launcher.action.INSTALL_SHORTCUT"
 
         fun createOcrWhitelistIntent(context: Context): Intent {
             return Intent(context, TextBoomSettingsActivity::class.java).apply {
@@ -732,6 +776,7 @@ private fun SettingsScreen(
     onFloatingBallHiddenChange: (Boolean) -> Unit,
     onFloatingBallLandscapeSafeAreaChange: (Boolean) -> Unit,
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
+    onRequestDesktopOcrShortcut: () -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
     onGapRowHeightPercentChange: (Int) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
@@ -1220,6 +1265,7 @@ private fun SettingsScreen(
                                 ocrSelectionCaptureDelayMs = it
                                 settings.setOcrSelectionCaptureDelayMs(it)
                             },
+                            onRequestDesktopOcrShortcut = onRequestDesktopOcrShortcut,
                             onUseShizukuScreenshotChange = {
                                 settings.setUseShizukuScreenshotEnabled(it)
                                 permissionState = currentPermissionState()
@@ -1534,6 +1580,7 @@ private fun OcrSection(
     onPickImage: () -> Unit,
     onManageWhitelist: () -> Unit,
     onSelectionCaptureDelayChange: (Int) -> Unit,
+    onRequestDesktopOcrShortcut: () -> Unit,
     onUseShizukuScreenshotChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -1598,6 +1645,17 @@ private fun OcrSection(
             valueSuffix = "ms",
             steps = 19,
             onValueChange = onSelectionCaptureDelayChange,
+        )
+        Text(
+            text = stringResource(R.string.desktop_ocr_entry_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        SecondaryActionButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = stringResource(R.string.desktop_ocr_entry_action),
+            onClick = onRequestDesktopOcrShortcut,
         )
         if (showShizukuStatus) {
             DebugSwitchRow(
