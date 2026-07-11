@@ -2286,17 +2286,17 @@ private fun PermissionSection(
             lineHeight = 20.sp,
         )
         ShadowedPrimaryButton(
-            text = stringResource(R.string.startup_wizard_button),
-            onClick = onOpenStartupWizard,
-        )
-        SecondaryActionButton(
-            modifier = Modifier.fillMaxWidth(),
             text = if (state.floatingBallRunning) {
                 stringResource(R.string.permission_stop_floating_ball)
             } else {
                 stringResource(R.string.permission_start_floating_ball)
             },
             onClick = if (state.floatingBallRunning) onStopFloatingBall else onStartFloatingBall,
+        )
+        SecondaryActionButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = stringResource(R.string.startup_wizard_button),
+            onClick = onOpenStartupWizard,
         )
         SettingsNavigationRow(
             title = stringResource(R.string.floating_ball_settings_title),
