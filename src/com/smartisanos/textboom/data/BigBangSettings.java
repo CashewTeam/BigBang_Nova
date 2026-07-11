@@ -35,6 +35,8 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
+    public static final String KEY_CUSTOM_SEARCH_PROVIDERS = "custom_search_providers";
+    public static final String KEY_NEXT_CUSTOM_SEARCH_TYPE = "next_custom_search_type";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -51,6 +53,7 @@ public final class BigBangSettings {
     public static final int TYPE_BAIDU_TRANSLATE = 0x104;
     public static final int TYPE_BING_TRANSLATE = 0x105;
     public static final int TYPE_GOOGLE_TRANSLATE = 0x106;
+    public static final int FIRST_CUSTOM_SEARCH_TYPE = 0x1000;
 
     public static final int TRIGGER_AREA_SMALLEST = 0;
     public static final int TRIGGER_AREA_SMALL = 1;
@@ -324,6 +327,20 @@ public final class BigBangSettings {
 
     public void setClassicOverlayStyleEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_CLASSIC_OVERLAY_STYLE, enabled).apply();
+    }
+
+    public String getCustomSearchProvidersJson() {
+        return preferences.getString(KEY_CUSTOM_SEARCH_PROVIDERS, "[]");
+    }
+
+    public void setCustomSearchProvidersJson(String value) {
+        preferences.edit().putString(KEY_CUSTOM_SEARCH_PROVIDERS, value).apply();
+    }
+
+    public int allocateCustomSearchType() {
+        int value = preferences.getInt(KEY_NEXT_CUSTOM_SEARCH_TYPE, FIRST_CUSTOM_SEARCH_TYPE);
+        preferences.edit().putInt(KEY_NEXT_CUSTOM_SEARCH_TYPE, value + 1).apply();
+        return value;
     }
 
     private static int clampPercent(int value) {

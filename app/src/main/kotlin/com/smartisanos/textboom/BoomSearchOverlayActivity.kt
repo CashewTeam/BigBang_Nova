@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +56,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,9 +69,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -82,7 +86,13 @@ import androidx.core.view.WindowCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.cashewteam.novatext.android.data.BigBangSettings
+import com.cashewteam.novatext.android.data.CustomSearchKind
+import com.cashewteam.novatext.android.data.CustomSearchProvider
+import com.cashewteam.novatext.android.data.CustomSearchProviderStore
 import com.cashewteam.novatext.android.service.FloatingBallService
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import java.io.File
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -159,6 +169,8 @@ private data class SearchProvider(
     val type: Int,
     val title: String,
     @DrawableRes val iconRes: Int,
+    val iconPath: String? = null,
+    val urlTemplate: String? = null,
 )
 
 @Composable
@@ -170,6 +182,19 @@ private fun SearchOverlayScreen(
     onOpenSettings: () -> Unit,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var customSearchProviders by remember {
+        mutableStateOf(CustomSearchProviderStore.load(settings))
+    }
+    DisposableEffect(lifecycleOwner, settings) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                customSearchProviders = CustomSearchProviderStore.load(settings)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val dark = isSystemInDarkTheme()
     val panelMetrics = rememberOverlayPanelMetrics(forceFullscreen = settings.isClassicOverlayStyleEnabled)
     val palette = if (dark) {
@@ -207,7 +232,7 @@ private fun SearchOverlayScreen(
         darkIcons = !dark,
     )
 
-    val webProviders = remember {
+    val builtInWebProviders = remember {
         listOf(
             SearchProvider(BigBangSettings.TYPE_BAIDU, "百度", R.drawable.boom_setting_baidu),
             SearchProvider(BigBangSettings.TYPE_GOOGLE, "Google", R.drawable.boom_setting_google),
@@ -215,7 +240,7 @@ private fun SearchOverlayScreen(
             SearchProvider(BigBangSettings.TYPE_SHENMA, "DuckDuckGo", R.drawable.boom_setting_shenma),
         )
     }
-    val dictProviders = remember {
+    val builtInDictProviders = remember {
         listOf(
             SearchProvider(BigBangSettings.TYPE_YOUDAO, "有道词典", R.drawable.boom_setting_youdao),
             SearchProvider(BigBangSettings.TYPE_KINGSOFT, "金山词霸", R.drawable.boom_setting_kingsoft),
@@ -226,7 +251,7 @@ private fun SearchOverlayScreen(
             SearchProvider(BigBangSettings.TYPE_GOOGLE_TRANSLATE, "谷歌翻译", R.drawable.boom_setting_google),
         )
     }
-    val wikiProviders = remember {
+    val builtInWikiProviders = remember {
         listOf(
             SearchProvider(BigBangSettings.TYPE_WIKI, "互动百科", R.drawable.boom_setting_hudongdict),
             SearchProvider(BigBangSettings.TYPE_BAIKE, "百度百科", R.drawable.boom_setting_baike),
@@ -234,35 +259,86 @@ private fun SearchOverlayScreen(
             SearchProvider(BigBangSettings.TYPE_MOEGIRL, "萌娘百科", R.drawable.boom_setting_moegirl),
         )
     }
+    val webProviders = remember(customSearchProviders) {
+        builtInWebProviders + customSearchProviders
+            .filter { it.kind == CustomSearchKind.WEB }
+            .map { it.toSearchProvider(context) }
+    }
+    val dictProviders = remember(customSearchProviders) {
+        builtInDictProviders + customSearchProviders
+            .filter { it.kind == CustomSearchKind.DICT }
+            .map { it.toSearchProvider(context) }
+    }
+    val wikiProviders = remember(customSearchProviders) {
+        builtInWikiProviders + customSearchProviders
+            .filter { it.kind == CustomSearchKind.WIKI }
+            .map { it.toSearchProvider(context) }
+    }
 
     var webType by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var dictType by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
     var wikiType by rememberSaveable { mutableIntStateOf(settings.wikiSearchType) }
-    var activeKind by rememberSaveable { mutableStateOf(kindForType(initialType)) }
-    var currentType by rememberSaveable { mutableIntStateOf(initialType) }
+    val initialKind = kindForType(initialType, customSearchProviders)
+    val normalizedInitialType = when (initialKind) {
+        SearchKind.Web -> webProviders.firstOrNull { it.type == initialType }?.type ?: webProviders.first().type
+        SearchKind.Dict -> dictProviders.firstOrNull { it.type == initialType }?.type ?: dictProviders.first().type
+        SearchKind.Wiki -> wikiProviders.firstOrNull { it.type == initialType }?.type ?: wikiProviders.first().type
+    }
+    var activeKind by rememberSaveable { mutableStateOf(initialKind) }
+    var currentType by rememberSaveable { mutableIntStateOf(normalizedInitialType) }
     var progress by remember { mutableFloatStateOf(0f) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
-    var currentUrl by remember(searchText, currentType) { mutableStateOf(buildSearchUrl(currentType, searchText)) }
+    var currentUrl by remember(searchText, currentType, customSearchProviders) {
+        mutableStateOf(buildSearchUrl(currentType, searchText, customSearchProviders))
+    }
     var expandedKind by remember { mutableStateOf<SearchKind?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
-    fun activeProviderFor(kind: SearchKind): SearchProvider {
-        return when (kind) {
-            SearchKind.Web -> webProviders.first { it.type == webType }
-            SearchKind.Dict -> dictProviders.first { it.type == dictType }
-            SearchKind.Wiki -> wikiProviders.first { it.type == wikiType }
-        }
+    fun providersForKind(kind: SearchKind): List<SearchProvider> = when (kind) {
+        SearchKind.Web -> webProviders
+        SearchKind.Dict -> dictProviders
+        SearchKind.Wiki -> wikiProviders
     }
 
-    fun updateCurrentTypeFor(kind: SearchKind) {
-        activeKind = kind
-        currentType = when (kind) {
+    fun activeProviderFor(kind: SearchKind): SearchProvider {
+        val selectedType = when (kind) {
             SearchKind.Web -> webType
             SearchKind.Dict -> dictType
             SearchKind.Wiki -> wikiType
         }
-        currentUrl = buildSearchUrl(currentType, searchText)
+        return providersForKind(kind).firstOrNull { it.type == selectedType }
+            ?: providersForKind(kind).first()
+    }
+
+    fun updateCurrentTypeFor(kind: SearchKind) {
+        activeKind = kind
+        currentType = activeProviderFor(kind).type
+        currentUrl = buildSearchUrl(currentType, searchText, customSearchProviders)
+    }
+
+    LaunchedEffect(customSearchProviders) {
+        fun normalizeSelectedType(
+            kind: SearchKind,
+            selectedType: Int,
+            update: (Int) -> Unit,
+            persist: (Int) -> Unit,
+        ) {
+            val providers = providersForKind(kind)
+            if (providers.none { it.type == selectedType }) {
+                val fallback = providers.first().type
+                update(fallback)
+                persist(fallback)
+            }
+        }
+        normalizeSelectedType(SearchKind.Web, webType, { webType = it }, settings::setWebSearchType)
+        normalizeSelectedType(SearchKind.Dict, dictType, { dictType = it }, settings::setDictSearchType)
+        normalizeSelectedType(SearchKind.Wiki, wikiType, { wikiType = it }, settings::setWikiSearchType)
+        val currentProviders = providersForKind(activeKind)
+        if (currentProviders.none { it.type == currentType }) {
+            currentType = currentProviders.first().type
+            currentUrl = buildSearchUrl(currentType, searchText, customSearchProviders)
+        }
     }
 
     fun applyProvider(provider: SearchProvider, kind: SearchKind) {
@@ -394,7 +470,20 @@ private fun SearchOverlayScreen(
                                 }
                             }
                             webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(
+                                    view: WebView?,
+                                    url: String?,
+                                    favicon: android.graphics.Bitmap?,
+                                ) {
+                                    if (!isHttpUrl(url)) {
+                                        view?.stopLoading()
+                                        return
+                                    }
+                                    super.onPageStarted(view, url, favicon)
+                                }
+
                                 override fun onPageFinished(view: WebView?, url: String?) {
+                                    if (!isHttpUrl(url)) return
                                     currentUrl = url ?: currentUrl
                                     progress = 1f
                                     syncNavigationState()
@@ -404,7 +493,18 @@ private fun SearchOverlayScreen(
                                     view: WebView?,
                                     request: WebResourceRequest?,
                                 ): Boolean {
-                                    currentUrl = request?.url?.toString() ?: currentUrl
+                                    val url = request?.url?.toString() ?: return true
+                                    if (!isHttpUrl(url)) return true
+                                    currentUrl = url
+                                    return false
+                                }
+
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    url: String?,
+                                ): Boolean {
+                                    if (!isHttpUrl(url)) return true
+                                    currentUrl = url ?: currentUrl
                                     return false
                                 }
                             }
@@ -704,9 +804,9 @@ private fun SearchProviderButton(
                     .clip(CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Image(
+                ProviderIcon(
+                    provider = provider,
                     modifier = Modifier.size(iconSize),
-                    painter = painterResource(provider.iconRes),
                     contentDescription = contentDescription,
                     alpha = if (selected) 1f else 0.82f,
                 )
@@ -722,8 +822,8 @@ private fun SearchProviderButton(
                         Text(text = item.title, fontSize = 13.sp)
                     },
                     leadingIcon = {
-                        Image(
-                            painter = painterResource(item.iconRes),
+                        ProviderIcon(
+                            provider = item,
                             contentDescription = item.title,
                             modifier = Modifier.size(27.dp),
                         )
@@ -732,6 +832,45 @@ private fun SearchProviderButton(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ProviderIcon(
+    provider: SearchProvider,
+    modifier: Modifier,
+    contentDescription: String?,
+    alpha: Float = 1f,
+) {
+    val iconVersion = provider.iconPath?.let { File(it).let { file -> file.lastModified() to file.length() } }
+    val bitmap = remember(provider.iconPath, iconVersion) {
+        provider.iconPath?.let(BitmapFactory::decodeFile)
+    }
+    if (bitmap != null) {
+        Box(
+            modifier = modifier
+                .background(Color.White, CircleShape)
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = contentDescription,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                alpha = alpha,
+            )
+        }
+    } else {
+        Image(
+            painter = painterResource(provider.iconRes),
+            contentDescription = contentDescription,
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            modifier = modifier,
+            alpha = alpha,
+        )
     }
 }
 
@@ -760,8 +899,29 @@ private fun WebView.configureSearchWebView(dark: Boolean) {
     }
 }
 
-private fun kindForType(type: Int): SearchKind {
+private fun CustomSearchProvider.toSearchProvider(context: Context): SearchProvider {
+    return SearchProvider(
+        type = id,
+        title = name,
+        iconRes = R.drawable.bigbang_search,
+        iconPath = CustomSearchProviderStore.iconFile(context, iconFileName).absolutePath,
+        urlTemplate = urlTemplate,
+    )
+}
+
+private fun kindForType(
+    type: Int,
+    customSearchProviders: List<CustomSearchProvider> = emptyList(),
+): SearchKind {
+    customSearchProviders.firstOrNull { it.id == type }?.let {
+        return when (it.kind) {
+            CustomSearchKind.WEB -> SearchKind.Web
+            CustomSearchKind.DICT -> SearchKind.Dict
+            CustomSearchKind.WIKI -> SearchKind.Wiki
+        }
+    }
     return when {
+        type >= BigBangSettings.FIRST_CUSTOM_SEARCH_TYPE -> SearchKind.Web
         type >= BigBangSettings.TYPE_YOUDAO -> SearchKind.Dict
         type >= BigBangSettings.TYPE_WIKI -> SearchKind.Wiki
         else -> SearchKind.Web
@@ -787,6 +947,24 @@ private fun buildSearchUrl(type: Int, text: String): String {
         BigBangSettings.TYPE_GOOGLE_TRANSLATE -> "https://translate.google.com/?sl=auto&tl=zh-CN&text=$query&op=translate"
         else -> "https://www.baidu.com/s?wd=$query"
     }
+}
+
+private fun buildSearchUrl(
+    type: Int,
+    text: String,
+    customSearchProviders: List<CustomSearchProvider>,
+): String {
+    val customProvider = customSearchProviders.firstOrNull { it.id == type }
+    if (customProvider != null) {
+        val query = URLEncoder.encode(text, StandardCharsets.UTF_8.name())
+        return customProvider.urlTemplate.replace("{query}", query)
+    }
+    return buildSearchUrl(type, text)
+}
+
+private fun isHttpUrl(url: String?): Boolean {
+    val scheme = url?.let { Uri.parse(it).scheme?.lowercase() } ?: return false
+    return scheme == "http" || scheme == "https"
 }
 
 private fun openInBrowser(context: Context, url: String) {

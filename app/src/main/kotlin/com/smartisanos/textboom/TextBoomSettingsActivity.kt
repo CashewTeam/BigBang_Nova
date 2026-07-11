@@ -4,12 +4,14 @@ import android.content.Context
 import android.content.ComponentName
 import android.app.Activity
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.net.Uri
+import java.io.File
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -22,6 +24,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.annotation.ArrayRes
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
@@ -51,6 +54,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Image as ImageIcon
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
@@ -58,6 +65,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -93,6 +101,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -106,6 +115,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -120,6 +131,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.cashewteam.novatext.android.data.BigBangSettings
+import com.cashewteam.novatext.android.data.CustomSearchKind
+import com.cashewteam.novatext.android.data.CustomSearchProvider
+import com.cashewteam.novatext.android.data.CustomSearchProviderStore
 import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
@@ -183,6 +197,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     searchOptions = searchOptions,
                     wikiOptions = wikiOptions,
                     dictionaryOptions = dictionaryOptions,
+                    initialCustomSearchProviders = CustomSearchProviderStore.load(settings),
                     onOpenPreview = { openBigBangPreview(it) },
                     onOpenOverlayPermission = { openOverlayPermission() },
                     onOpenAccessibilitySettings = { openAccessibilitySettings() },
@@ -399,6 +414,7 @@ private data class OptionItem(
     val title: String,
     val value: Int,
     @DrawableRes val iconRes: Int,
+    val iconPath: String? = null,
 )
 
 private data class PermissionState(
@@ -634,6 +650,7 @@ private fun SettingsScreen(
     searchOptions: List<OptionItem>,
     wikiOptions: List<OptionItem>,
     dictionaryOptions: List<OptionItem>,
+    initialCustomSearchProviders: List<CustomSearchProvider>,
     onOpenPreview: (String) -> Unit,
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
@@ -674,6 +691,10 @@ private fun SettingsScreen(
     var selectedSearch by rememberSaveable { mutableIntStateOf(settings.webSearchType) }
     var selectedWiki by rememberSaveable { mutableIntStateOf(settings.wikiSearchType) }
     var selectedDictionary by rememberSaveable { mutableIntStateOf(settings.dictSearchType) }
+    var customSearchProviders by remember { mutableStateOf(initialCustomSearchProviders) }
+    var customSearchEditorProvider by remember { mutableStateOf<CustomSearchProvider?>(null) }
+    var customSearchEditorVisible by rememberSaveable { mutableStateOf(false) }
+    var customSearchDeleteProvider by remember { mutableStateOf<CustomSearchProvider?>(null) }
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
     var currentPage by rememberSaveable { mutableStateOf(initialPage.name) }
     var debugSkipAccessibility by rememberSaveable {
@@ -750,6 +771,88 @@ private fun SettingsScreen(
     }
     var classicOverlayStyleEnabled by rememberSaveable {
         mutableStateOf(settings.isClassicOverlayStyleEnabled)
+    }
+    val customSearchOptions = remember(searchOptions, customSearchProviders) {
+        searchOptions + customSearchProviders
+            .filter { it.kind == CustomSearchKind.WEB }
+            .map { it.toOptionItem(context) }
+    }
+    val customWikiOptions = remember(wikiOptions, customSearchProviders) {
+        wikiOptions + customSearchProviders
+            .filter { it.kind == CustomSearchKind.WIKI }
+            .map { it.toOptionItem(context) }
+    }
+    val customDictionaryOptions = remember(dictionaryOptions, customSearchProviders) {
+        dictionaryOptions + customSearchProviders
+            .filter { it.kind == CustomSearchKind.DICT }
+            .map { it.toOptionItem(context) }
+    }
+    fun fallbackType(kind: CustomSearchKind): Int = when (kind) {
+        CustomSearchKind.WEB -> BigBangSettings.TYPE_BING
+        CustomSearchKind.DICT -> BigBangSettings.TYPE_BINGDICT
+        CustomSearchKind.WIKI -> BigBangSettings.TYPE_WIKI
+    }
+
+    fun resetSelectionIfNeeded(providerId: Int, kind: CustomSearchKind) {
+        when (kind) {
+            CustomSearchKind.WEB -> if (selectedSearch == providerId) {
+                selectedSearch = fallbackType(kind)
+                settings.setWebSearchType(selectedSearch)
+            }
+            CustomSearchKind.DICT -> if (selectedDictionary == providerId) {
+                selectedDictionary = fallbackType(kind)
+                settings.setDictSearchType(selectedDictionary)
+            }
+            CustomSearchKind.WIKI -> if (selectedWiki == providerId) {
+                selectedWiki = fallbackType(kind)
+                settings.setWikiSearchType(selectedWiki)
+            }
+        }
+    }
+
+    fun saveCustomSearch(
+        existing: CustomSearchProvider?,
+        name: String,
+        urlTemplate: String,
+        kind: CustomSearchKind,
+        icon: Bitmap?,
+    ): String? {
+        val id = existing?.id ?: settings.allocateCustomSearchType()
+        val iconFileName = existing?.iconFileName ?: "custom_search_$id.png"
+        val iconFile = CustomSearchProviderStore.iconFile(context, iconFileName)
+        if (icon != null && !saveCustomSearchIcon(icon, iconFile)) {
+            return context.getString(R.string.custom_search_invalid_icon)
+        }
+        if (!iconFile.isFile) {
+            return context.getString(R.string.custom_search_no_icon)
+        }
+        val next = customSearchProviders
+            .filterNot { it.id == id }
+            .toMutableList()
+            .apply {
+                add(
+                    CustomSearchProvider(
+                        id = id,
+                        name = name,
+                        urlTemplate = urlTemplate,
+                        kind = kind,
+                        iconFileName = iconFileName,
+                    ),
+                )
+            }
+        CustomSearchProviderStore.save(settings, next)
+        customSearchProviders = next
+        if (existing != null && existing.kind != kind) {
+            resetSelectionIfNeeded(existing.id, existing.kind)
+        }
+        return null
+    }
+
+    fun deleteCustomSearch(provider: CustomSearchProvider) {
+        customSearchProviders = customSearchProviders.filterNot { it.id == provider.id }
+        CustomSearchProviderStore.save(settings, customSearchProviders)
+        CustomSearchProviderStore.iconFile(context, provider.iconFileName).delete()
+        resetSelectionIfNeeded(provider.id, provider.kind)
     }
     var topBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -903,7 +1006,7 @@ private fun SettingsScreen(
                             OptionSection(
                                 title = stringResource(R.string.default_search_way),
                                 subtitle = stringResource(R.string.settings_search_summary),
-                                options = searchOptions,
+                                options = customSearchOptions,
                                 selectedValue = selectedSearch,
                                 onSelect = { selectedSearch = it; settings.setWebSearchType(it) },
                             )
@@ -912,7 +1015,7 @@ private fun SettingsScreen(
                             OptionSection(
                                 title = stringResource(R.string.default_wiki_way),
                                 subtitle = stringResource(R.string.settings_wiki_summary),
-                                options = wikiOptions,
+                                options = customWikiOptions,
                                 selectedValue = selectedWiki,
                                 onSelect = { selectedWiki = it; settings.setWikiSearchType(it) },
                             )
@@ -921,9 +1024,23 @@ private fun SettingsScreen(
                             OptionSection(
                                 title = stringResource(R.string.default_dict),
                                 subtitle = stringResource(R.string.settings_dict_summary),
-                                options = dictionaryOptions,
+                                options = customDictionaryOptions,
                                 selectedValue = selectedDictionary,
                                 onSelect = { selectedDictionary = it; settings.setDictSearchType(it) },
+                            )
+                        }
+                        SettingsSectionCard {
+                            CustomSearchSection(
+                                providers = customSearchProviders,
+                                onAdd = {
+                                    customSearchEditorProvider = null
+                                    customSearchEditorVisible = true
+                                },
+                                onEdit = {
+                                    customSearchEditorProvider = it
+                                    customSearchEditorVisible = true
+                                },
+                                onDelete = { customSearchDeleteProvider = it },
                             )
                         }
                     }
@@ -1099,6 +1216,43 @@ private fun SettingsScreen(
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
         )
+        if (customSearchEditorVisible) {
+            CustomSearchEditorDialog(
+                existing = customSearchEditorProvider,
+                onDismiss = { customSearchEditorVisible = false },
+                onSave = { name, urlTemplate, kind, icon ->
+                    saveCustomSearch(
+                        existing = customSearchEditorProvider,
+                        name = name,
+                        urlTemplate = urlTemplate,
+                        kind = kind,
+                        icon = icon,
+                    )
+                },
+            )
+        }
+        customSearchDeleteProvider?.let { provider ->
+            AlertDialog(
+                onDismissRequest = { customSearchDeleteProvider = null },
+                title = { Text(stringResource(R.string.custom_search_delete_title)) },
+                text = { Text(stringResource(R.string.custom_search_delete_message)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            deleteCustomSearch(provider)
+                            customSearchDeleteProvider = null
+                        },
+                    ) {
+                        Text(stringResource(R.string.custom_search_delete))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { customSearchDeleteProvider = null }) {
+                        Text(stringResource(R.string.custom_search_cancel))
+                    }
+                },
+            )
+        }
         if (showStartupWizard) {
             StartupWizardDialog(
                 state = permissionState,
@@ -2316,6 +2470,359 @@ private fun loadLauncherApps(context: Context): List<WhitelistAppItem> {
         .toList()
 }
 
+private fun CustomSearchProvider.toOptionItem(context: Context): OptionItem {
+    return OptionItem(
+        title = name,
+        value = id,
+        iconRes = R.drawable.bigbang_search,
+        iconPath = CustomSearchProviderStore.iconFile(context, iconFileName).absolutePath,
+    )
+}
+
+@Composable
+private fun CustomSearchSection(
+    providers: List<CustomSearchProvider>,
+    onAdd: () -> Unit,
+    onEdit: (CustomSearchProvider) -> Unit,
+    onDelete: (CustomSearchProvider) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column {
+        Text(
+            text = stringResource(R.string.custom_search_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.custom_search_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        if (providers.isNotEmpty()) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = palette.cardInset,
+                border = androidx.compose.foundation.BorderStroke(1.dp, palette.cardBorder),
+            ) {
+                Column {
+                    providers.forEachIndexed { index, provider ->
+                        CustomSearchRow(
+                            provider = provider,
+                            onEdit = { onEdit(provider) },
+                            onDelete = { onDelete(provider) },
+                        )
+                        if (index != providers.lastIndex) {
+                            HorizontalDivider(
+                                color = palette.divider,
+                                modifier = Modifier.padding(start = 64.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+        Button(
+            onClick = onAdd,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = palette.accent,
+                contentColor = Color.White,
+            ),
+        ) {
+            Icon(Icons.Outlined.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(R.string.custom_search_add))
+        }
+    }
+}
+
+@Composable
+private fun CustomSearchRow(
+    provider: CustomSearchProvider,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = palette.card,
+            modifier = Modifier.size(40.dp),
+        ) {
+            SettingsIconImage(
+                iconPath = CustomSearchProviderStore.iconFile(
+                    LocalContext.current,
+                    provider.iconFileName,
+                ).absolutePath,
+                iconRes = R.drawable.bigbang_search,
+                modifier = Modifier.padding(8.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = provider.name,
+                color = palette.textPrimary,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${customSearchKindLabel(provider.kind)} · ${provider.urlTemplate}",
+                color = palette.textSecondary,
+                fontSize = 12.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Outlined.Edit, contentDescription = stringResource(R.string.custom_search_edit))
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.custom_search_delete))
+        }
+    }
+}
+
+@Composable
+private fun SettingsIconImage(
+    iconPath: String,
+    @DrawableRes iconRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    val iconVersion = File(iconPath).let { it.lastModified() to it.length() }
+    val bitmap = remember(iconPath, iconVersion) { BitmapFactory.decodeFile(iconPath) }
+    if (bitmap != null) {
+        Box(
+            modifier = modifier
+                .background(Color.White, CircleShape)
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+            )
+        }
+    } else {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun CustomSearchEditorDialog(
+    existing: CustomSearchProvider?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, CustomSearchKind, Bitmap?) -> String?,
+) {
+    val context = LocalContext.current
+    val palette = LocalSettingsPalette.current
+    var name by remember(existing?.id) { mutableStateOf(existing?.name.orEmpty()) }
+    var urlTemplate by remember(existing?.id) {
+        mutableStateOf(TextFieldValue(existing?.urlTemplate.orEmpty()))
+    }
+    var kind by remember(existing?.id) { mutableStateOf(existing?.kind ?: CustomSearchKind.WEB) }
+    var pickedIcon by remember(existing?.id) { mutableStateOf<Bitmap?>(null) }
+    var errorMessage by remember(existing?.id) { mutableStateOf<String?>(null) }
+    val iconPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        pickedIcon = cropCustomSearchIcon(context, uri)
+        errorMessage = if (pickedIcon == null) {
+            context.getString(R.string.custom_search_invalid_icon)
+        } else {
+            null
+        }
+    }
+    val existingIconFile = existing?.let {
+        CustomSearchProviderStore.iconFile(context, it.iconFileName)
+    }
+    val hasIcon = pickedIcon != null || existingIconFile?.isFile == true
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(
+                    if (existing == null) R.string.custom_search_add else R.string.custom_search_edit,
+                ),
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; errorMessage = null },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.custom_search_name)) },
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = urlTemplate,
+                        onValueChange = { urlTemplate = it; errorMessage = null },
+                        modifier = Modifier.weight(1f),
+                        label = { Text(stringResource(R.string.custom_search_url)) },
+                        minLines = 2,
+                        maxLines = 3,
+                    )
+                    TextButton(
+                        onClick = {
+                            val start = urlTemplate.selection.min.coerceIn(0, urlTemplate.text.length)
+                            val end = urlTemplate.selection.max.coerceIn(start, urlTemplate.text.length)
+                            val nextText = urlTemplate.text.replaceRange(start, end, "{query}")
+                            urlTemplate = TextFieldValue(
+                                text = nextText,
+                                selection = TextRange(start + "{query}".length),
+                            )
+                            errorMessage = null
+                        },
+                    ) {
+                        Text("{query}")
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.custom_search_type),
+                    color = palette.textSecondary,
+                    fontSize = 13.sp,
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    CustomSearchKind.values().forEachIndexed { index, item ->
+                        SegmentedButton(
+                            selected = kind == item,
+                            onClick = { kind = item },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = CustomSearchKind.values().size,
+                            ),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(customSearchKindLabel(item), maxLines = 1)
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = palette.cardInset,
+                        modifier = Modifier.size(44.dp),
+                    ) {
+                        if (pickedIcon != null) {
+                            Image(
+                                bitmap = pickedIcon!!.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.padding(6.dp),
+                            )
+                        } else if (existingIconFile?.isFile == true) {
+                            SettingsIconImage(
+                                iconPath = existingIconFile.absolutePath,
+                                iconRes = R.drawable.bigbang_search,
+                                modifier = Modifier.padding(6.dp),
+                            )
+                        } else {
+                            Icon(
+                                Icons.Outlined.ImageIcon,
+                                contentDescription = null,
+                                tint = palette.textSecondary,
+                                modifier = Modifier.padding(10.dp),
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    TextButton(onClick = { iconPicker.launch(arrayOf("image/*")) }) {
+                        Text(stringResource(R.string.custom_search_choose_icon))
+                    }
+                }
+                errorMessage?.let {
+                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val urlText = urlTemplate.text.trim()
+                    val parsed = Uri.parse(urlText.replace("{query}", "hello"))
+                    errorMessage = when {
+                        name.trim().isEmpty() -> context.getString(R.string.custom_search_invalid_name)
+                        !urlText.contains("{query}") ||
+                            (parsed.scheme != "http" && parsed.scheme != "https") ||
+                            parsed.host.isNullOrBlank() -> context.getString(R.string.custom_search_invalid_url)
+                        !hasIcon -> context.getString(R.string.custom_search_no_icon)
+                        else -> onSave(name.trim(), urlText, kind, pickedIcon)
+                    }
+                    if (errorMessage == null) onDismiss()
+                },
+            ) {
+                Text(stringResource(R.string.custom_search_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.custom_search_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun customSearchKindLabel(kind: CustomSearchKind): String {
+    return stringResource(
+        when (kind) {
+            CustomSearchKind.WEB -> R.string.custom_search_web
+            CustomSearchKind.DICT -> R.string.custom_search_dict
+            CustomSearchKind.WIKI -> R.string.custom_search_wiki
+        },
+    )
+}
+
+private fun cropCustomSearchIcon(context: Context, uri: Uri): Bitmap? {
+    val bitmap = runCatching {
+        context.contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
+    }.getOrNull() ?: return null
+    val side = minOf(bitmap.width, bitmap.height)
+    if (side <= 0) return null
+    return Bitmap.createBitmap(
+        bitmap,
+        (bitmap.width - side) / 2,
+        (bitmap.height - side) / 2,
+        side,
+        side,
+    )
+}
+
+private fun saveCustomSearchIcon(bitmap: Bitmap, file: File): Boolean {
+    return runCatching {
+        file.parentFile?.mkdirs()
+        file.outputStream().use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+    }.getOrDefault(false)
+}
+
 @Composable
 private fun OptionSection(
     title: String,
@@ -2384,12 +2891,20 @@ private fun OptionRow(
             modifier = Modifier.size(40.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Image(
-                    painter = painterResource(item.iconRes),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(22.dp),
-                )
+                if (item.iconPath != null) {
+                    SettingsIconImage(
+                        iconPath = item.iconPath,
+                        iconRes = item.iconRes,
+                        modifier = Modifier.size(22.dp),
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(item.iconRes),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.width(14.dp))
