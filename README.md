@@ -21,7 +21,7 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 支持**无障碍权限直接提取文本**，继承经典「**炸了又炸**」交互（上下拖拽追加相邻段落），支持百度、谷歌、有道等**搜索/词典/百科**引擎，额外接入了 DuckDuckGo 与萌娘百科。
 
 ### 离线 OCR 识别
-基于**无障碍截图 / Shizuku 截屏** + **Google ML Kit** 实现纯离线 OCR，支持中文、日语、韩语、英语。自动命中触点附近的文本块，支持**自定义 OCR 白名单**，可在识别后**重新选择识别范围或切换识别语言**。
+基于**无障碍截图 / MediaProjection / Shizuku 截屏** + **Google ML Kit** 实现纯离线 OCR，支持中文、日语、韩语、英语。自动命中触点附近的文本块，支持**自定义 OCR 白名单**，可在识别后**重新选择识别范围或切换识别语言**。
 
 ### 悬浮球交互
 **拖拽触发**，松手自动贴边；**锁定状态下双击移动位置**；支持自定义**大小/透明度/自动隐藏**；特有**单手优化**模式，可调节锁定高度与触发角度阈值。
@@ -70,10 +70,10 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 在设置页中可调整：
 
 - **悬浮球外观** — 大小与透明度，适应不同屏幕和使用习惯
-- **悬浮球交互** — 锁定高度、单手优化模式、单手触发角度阈值
+- **悬浮球交互** — 锁定高度、左右侧锁定、单手优化模式、单手触发角度阈值
 - **OCR 设置** — 识别语言（中文/日语/韩语/英语）、白名单应用列表
 - **搜索源** — 默认搜索引擎（DuckDuckGo / 萌娘百科等）和词典源
-- **调试工具** — 切换预制文本预览 BigBang、开启识别调试日志、选择图片进入 OCR 调试
+- **调试工具** — 切换预制文本预览 BigBang、选择图片进入 OCR 调试
 
 各选项均有即时效果，无需重启应用。
 
@@ -92,7 +92,7 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 - Gradle 构建已打通，继续兼容 legacy `src/` / `res/` 目录
 - `cppjieba` JNI 已替代远程分词主路径，并在启动后后台预热
 - 设置页已重构为 Compose，支持深色模式、调试入口、悬浮球配置、OCR 白名单配置
-- 设置页已补悬浮球锁定高度、单手优化、单手角度阈值、识别调试日志和 Android 7-10 Shizuku 状态
+- 设置页已补悬浮球锁定高度、左右侧锁定、单手优化、单手角度阈值、BigBang 行距和 Android 7-10 截图源设置
 - BigBang 页面已接入 Compose 外层浮层壳，内部词块选择与多选逻辑仍复用 legacy Java
 - 搜索页已改为 Compose + WebView 浮层页
 - OCR 已切到离线 ML Kit V2，支持中文 / 日语 / 韩语 / 英语
@@ -102,6 +102,7 @@ Nova Text 是经典 Smartisan OS「大爆炸」功能的 Android 原生迁移与
 - “炸了又炸”已接通，支持上下拖拽拉取相邻段落，并对连续短段落做批量追加
 - BigBang 外壳已支持重新 OCR 识别，以及 OCR 结果的临时语言切换重跑
 - 搜索页已扩展 DuckDuckGo、萌娘百科，浏览器操作栏已补前进和刷新
+- 已支持自定义搜索源、悬浮球 / 截图 OCR 快捷设置 Tile、应用快捷方式和 Android 通用文本分享
 
 仍在进行：
 
@@ -131,6 +132,7 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 - [开发计划](./docs/development-plan.md)
 - [架构文档](./docs/architecture.md)
 - [接口与 API 文档](./docs/api.md)
+- [第三方应用调用文档](./docs/third-party-integration.md)
 
 ## 致谢
 
@@ -153,4 +155,3 @@ Nova Text 作为一个整体，以 **GNU General Public License v3.0（GPLv3）*
 * Apache License 2.0 与 GPLv3 在该方向上兼容：Apache-2.0 代码可以被纳入 GPLv3 项目中；但本分支中受 GPLv3 约束的新增代码和修改代码，不能在没有额外授权的情况下重新以 Apache-2.0 协议并入原始项目。
 
 本项目是独立的社区分支，不隶属于 Smartisan / SmartisanTech，也未获得 Smartisan / SmartisanTech 的官方背书或赞助。Smartisan、BigBang、BigBoom、锤子科技、Smartisan OS 等名称可能是其各自权利人的商标或产品名称，仅用于说明项目来源与兼容背景。
-

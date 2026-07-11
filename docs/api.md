@@ -53,7 +53,7 @@
 - 无障碍文本抓取与无障碍截图都依赖 `NovaTextAccessibilityService`
 - 前台应用识别依赖无障碍活跃窗口和最近事件缓存，不再依赖使用情况访问权限
 - 前台应用识别失败时，悬浮球链路会直接进入 OCR 截图识别
-- Android 7-10 截图回退依赖 Shizuku user service，不走 MediaProjection
+- Android 7-10 默认使用 MediaProjection 截图，也可通过设置切换到 Shizuku
 
 ## 3. Activity Intent 契约
 
@@ -193,7 +193,7 @@ Activity 上下文：
 - `EXTRA_CAPTURE_TRACE_ID`
   - 含义：当前悬浮球识别链路 trace id
 - `EXTRA_CAPTURE_TRACE_ENABLED`
-  - 含义：是否输出详细识别调试日志
+  - 含义：兼容调用方传入的追踪开关；应用内识别追踪日志统一跟随设置页“调试模式”
 - `EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK`
   - 含义：无障碍抓文失败后允许复用当前缓存图回退到 OCR
 - `EXTRA_SKIP_LEGACY_FADE_IN`
@@ -399,7 +399,7 @@ OCR 白名单默认值：
 当前 provider 选择：
 
 - Android 11+：`AccessibilityService.takeScreenshot()`
-- Android 7-10：`ShizukuScreenshotCapture`
+- Android 7-10：`MediaProjectionScreenshotCapture`，可选 `ShizukuScreenshotCapture`
 
 公开入口：
 

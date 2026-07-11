@@ -76,7 +76,7 @@
 - `ForegroundAppResolver` 只使用无障碍活跃窗口和最近事件缓存
 - `AccessibilityScreenshotCapture` 统一处理截图提供方
   - Android 11+：`AccessibilityService.takeScreenshot()`
-  - Android 7-10：Shizuku 截图回退
+  - Android 7-10：MediaProjection 截图，支持 Shizuku 开关切换
 - 无法解析前台包名时由分流层直接走 OCR
 - 截图缓存只保存在内存里，只保留当前活动 token，对应旧图自动回收
 - 悬浮球拖动松手后会自动贴边，横屏下也不会停在屏幕中间
@@ -240,7 +240,7 @@
 - 搜索源配置（DuckDuckGo / 萌娘百科等）、词典源配置
 - OCR 语言配置（中文 / 日语 / 韩语 / 英语）和 OCR 白名单配置
 - 预制调试文本切换与 BigBang 预览
-- 识别调试日志开关
+- 调试模式统一控制识别追踪日志
 - 图片选择进入 OCR 调试入口
 - 承担开发调试入口
 

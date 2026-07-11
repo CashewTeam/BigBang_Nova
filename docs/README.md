@@ -12,6 +12,8 @@
   - 不写具体待办清单
 - [api.md](./api.md)
   - 只写当前代码中的组件契约、Intent extra、Provider 方法、Service 入口、设置键和截图/OCR provider 选择
+- [third-party-integration.md](./third-party-integration.md)
+  - 面向第三方应用的调用方式、Intent 示例、参数说明和行为限制
   - 不写产品路线和大段架构讨论
 
 ## 阅读顺序
