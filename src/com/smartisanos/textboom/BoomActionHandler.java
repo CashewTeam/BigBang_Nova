@@ -9,6 +9,7 @@ import android.graphics.Rect;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
@@ -28,8 +29,6 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     private final int mSelectRectMarginTop;
     private final int mSelectRectTopOffset;
     private final int mSelectBarYOffset;
-    private final int mFakeSelectBarTop;
-    private final int mFakeSelectBarBottom;
 
     int mSelectedTopRow = -1;
     int mSelectedBottomRow = -1;
@@ -64,13 +63,8 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             mSelectBarYOffset = mRowMoveUpOffset;
         }
 
-        mFakeSelectBarTop = res.getDimensionPixelOffset(R.dimen.fake_select_bar_margin_top);
-        mFakeSelectBarBottom = getScreenHeight() - res.getDimensionPixelOffset(R.dimen.fake_select_bar_margin_bottom);
-
         initViews(mBoomPage.mBoomTable);
-        if (mEnableFakeSelectBar) {
-            initFakeViews(mBoomPage.mBoomPage);
-        }
+        initFakeViews(mBoomPage.mBoomPage);
     }
 
     public void onSelect(TreeSet<Integer> savedState) {
@@ -162,6 +156,15 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         mSelectedId.clear();
         mSelectedTopRow = -1;
         mSelectedBottomRow = -1;
+        if (mSelectBar != null) {
+            mSelectBar.setVisibility(View.INVISIBLE);
+        }
+        if (mSelectRect != null) {
+            ViewGroup.LayoutParams params = mSelectRect.getLayoutParams();
+            params.height = 0;
+            mSelectRect.setLayoutParams(params);
+            mSelectRect.setVisibility(View.INVISIBLE);
+        }
         if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
             mFakeSelectBar.setVisibility(View.INVISIBLE);
         }
@@ -392,29 +395,30 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     public void onScrollChanged() {
         if (!hasSelection()) return;
         if (mSelectBar != null && mFakeSelectBar != null) {
-            mSelectBar.getGlobalVisibleRect(mSelectBarRect);
-            if (mSelectBarRect.top <= mFakeSelectBarTop && mFakeSelectBar.getVisibility() != View.VISIBLE) {
+            final View pinnedBarContainer = (View) mFakeSelectBar.getParent();
+            final Rect pinnedBarRect = new Rect();
+            if (pinnedBarContainer == null || !pinnedBarContainer.getGlobalVisibleRect(pinnedBarRect)) {
+                return;
+            }
+            final int[] selectBarLocation = new int[2];
+            mSelectBar.getLocationOnScreen(selectBarLocation);
+            mSelectBarRect.set(
+                    selectBarLocation[0],
+                    selectBarLocation[1],
+                    selectBarLocation[0] + mSelectBar.getWidth(),
+                    selectBarLocation[1] + mSelectBar.getHeight()
+            );
+            if (mSelectBarRect.top <= pinnedBarRect.top && mFakeSelectBar.getVisibility() != View.VISIBLE) {
                 RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mFakeSelectBar.getLayoutParams();
                 params.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
                 params.addRule(RelativeLayout.ALIGN_PARENT_TOP);
                 mFakeSelectBar.setLayoutParams(params);
                 mSelectBar.setVisibility(View.INVISIBLE);
                 mFakeSelectBar.setVisibility(View.VISIBLE);
-            } else if (mSelectBarRect.bottom >= mFakeSelectBarBottom && mFakeSelectBar.getVisibility() != View.VISIBLE) {
-                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mFakeSelectBar.getLayoutParams();
-                params.removeRule(RelativeLayout.ALIGN_PARENT_TOP);
-                params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-                mFakeSelectBar.setLayoutParams(params);
-                mSelectBar.setVisibility(View.INVISIBLE);
-                mFakeSelectBar.setVisibility(View.VISIBLE);
-            } else if (mSelectBarRect.top > mFakeSelectBarTop && mSelectBarRect.bottom < mFakeSelectBarBottom){
+            } else if (mSelectBarRect.top > pinnedBarRect.top) {
                 mFakeSelectBar.setVisibility(View.INVISIBLE);
                 mSelectBar.setVisibility(View.VISIBLE);
             }
         }
-    }
-
-    private int getScreenHeight() {
-        return mBoomPage.mActivity.getResources().getDisplayMetrics().heightPixels;
     }
 }

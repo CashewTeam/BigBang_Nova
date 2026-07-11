@@ -397,7 +397,7 @@ public class BoomChipPage {
             savedSelection = captureSelectedState();
         }
         if (mBoomActionHandler != null) {
-            mBoomActionHandler.handleClick();
+            mBoomActionHandler.clearSelectionStateForRelayout();
         }
         mSavedData = null;
         mBoomConent.removeAllViews();
@@ -416,7 +416,14 @@ public class BoomChipPage {
                 }
             }
             mSavedData = ranges;
-            mBoomConent.post(() -> restoreSelectedState());
+            mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+                @Override
+                public void onGlobalLayout() {
+                    mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                    updateScrollerInsetsForContent();
+                    restoreSelectedState();
+                }
+            });
         }
         scrollToWord(targetWordIndex);
         finishAdjacentPull();
