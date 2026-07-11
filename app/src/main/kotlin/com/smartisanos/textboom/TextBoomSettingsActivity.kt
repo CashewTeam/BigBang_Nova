@@ -1,6 +1,7 @@
 package com.cashewteam.novatext.android
 
 import android.content.Context
+import android.content.ComponentName
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.content.Intent
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -64,6 +66,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import com.cashewteam.novatext.android.components.SmartisanSwitch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -120,6 +123,7 @@ import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.service.ShizukuScreenshotCapture
+import com.hjq.device.compat.DeviceOs
 import rikka.shizuku.Shizuku
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -169,6 +173,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onOpenPreview = { openBigBangPreview(it) },
                     onOpenOverlayPermission = { openOverlayPermission() },
                     onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                    onOpenBackgroundPopupSettings = { openBackgroundPopupSettings() },
                     onStartFloatingBall = { startFloatingBall() },
                     onStopFloatingBall = { stopFloatingBall() },
                     onResetFloatingBall = { resetFloatingBall() },
@@ -257,6 +262,28 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun openAccessibilitySettings() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    private fun openBackgroundPopupSettings() {
+        val intent = when (detectBackgroundPopupSystem()) {
+            BackgroundPopupSystem.MIUI -> Intent("miui.intent.action.APP_PERM_EDITOR")
+                .setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity"))
+                .putExtra("extra_pkgname", packageName)
+            BackgroundPopupSystem.COLOR_OS -> Intent()
+                .setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"))
+            BackgroundPopupSystem.VIVO -> Intent()
+                .setComponent(ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity"))
+            BackgroundPopupSystem.HUAWEI -> Intent()
+                .setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"))
+            BackgroundPopupSystem.HONOR -> Intent()
+                .setComponent(ComponentName("com.hihonor.systemmanager", "com.hihonor.systemmanager.startupmgr.ui.StartupNormalAppListActivity"))
+            BackgroundPopupSystem.NONE -> return
+        }
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+        } else {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        }
     }
 
     private fun startFloatingBall() {
@@ -358,7 +385,30 @@ private data class PermissionState(
     val overlayGranted: Boolean,
     val accessibilityEnabled: Boolean,
     val floatingBallRunning: Boolean,
-)
+    val backgroundPopupSystem: BackgroundPopupSystem,
+    val backgroundPopupConfirmed: Boolean,
+) {
+    val backgroundPopupRequired: Boolean
+        get() = backgroundPopupSystem != BackgroundPopupSystem.NONE
+}
+
+private enum class BackgroundPopupSystem(val preferenceValue: String) {
+    NONE(""),
+    MIUI("miui"),
+    COLOR_OS("color_os"),
+    VIVO("vivo"),
+    HUAWEI("huawei"),
+    HONOR("honor"),
+}
+
+private fun detectBackgroundPopupSystem(): BackgroundPopupSystem = when {
+    DeviceOs.isHyperOs() || DeviceOs.isMiui() -> BackgroundPopupSystem.MIUI
+    DeviceOs.isColorOs() || DeviceOs.isRealmeUi() || DeviceOs.isOxygenOs() || DeviceOs.isH2Os() -> BackgroundPopupSystem.COLOR_OS
+    DeviceOs.isOriginOs() || DeviceOs.isFuntouchOs() -> BackgroundPopupSystem.VIVO
+    DeviceOs.isHarmonyOs() || DeviceOs.isEmui() -> BackgroundPopupSystem.HUAWEI
+    DeviceOs.isMagicOs() -> BackgroundPopupSystem.HONOR
+    else -> BackgroundPopupSystem.NONE
+}
 
 private data class OcrModeItem(
     val title: String,
@@ -373,6 +423,9 @@ private data class WhitelistAppItem(
 private enum class SettingsPage {
     Main,
     OcrWhitelist,
+    FloatingBall,
+    Ui,
+    Search,
     About,
 }
 
@@ -553,6 +606,7 @@ private fun SettingsScreen(
     onOpenPreview: (String) -> Unit,
     onOpenOverlayPermission: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
+    onOpenBackgroundPopupSettings: () -> Unit,
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
     onResetFloatingBall: () -> Unit,
@@ -591,10 +645,13 @@ private fun SettingsScreen(
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
     var currentPage by rememberSaveable { mutableStateOf(initialPage.name) }
     var debugSkipAccessibility by rememberSaveable {
-        mutableStateOf(settings.isDebugSkipAccessibilityEnabled)
+        mutableStateOf(settings.debugSkipAccessibilitySetting)
     }
     var debugCaptureTrace by rememberSaveable {
-        mutableStateOf(settings.isDebugCaptureTraceEnabled)
+        mutableStateOf(settings.debugCaptureTraceSetting)
+    }
+    var debugModeEnabled by rememberSaveable {
+        mutableStateOf(settings.isDebugModeEnabled)
     }
     var ocrWhitelistPackages by remember {
         mutableStateOf(settings.ocrWhitelistPackages.toSet())
@@ -609,14 +666,21 @@ private fun SettingsScreen(
         initial = FloatingBallService.isActive(),
     )
     val currentPermissionState = {
+            val backgroundPopupSystem = detectBackgroundPopupSystem()
             PermissionState(
                 overlayGranted = canDrawOverlays(context),
                 accessibilityEnabled = FloatingBallService.isAccessibilityEnabled(context),
                 floatingBallRunning = floatingBallRunning,
+                backgroundPopupSystem = backgroundPopupSystem,
+                backgroundPopupConfirmed = backgroundPopupSystem == BackgroundPopupSystem.NONE ||
+                    settings.backgroundPopupGuideOs == backgroundPopupSystem.preferenceValue,
             )
     }
     var permissionState by remember {
         mutableStateOf(currentPermissionState())
+    }
+    var showStartupWizard by rememberSaveable {
+        mutableStateOf(!isPermissionSetupComplete(permissionState))
     }
     var floatingBallSizePercent by rememberSaveable {
         mutableIntStateOf(settings.floatingBallSizePercent)
@@ -680,6 +744,9 @@ private fun SettingsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permissionState = currentPermissionState()
+                if (showStartupWizard && isPermissionSetupComplete(permissionState)) {
+                    showStartupWizard = false
+                }
                 shizukuStatus = ShizukuScreenshotCapture.getStatus()
             }
         }
@@ -728,6 +795,86 @@ private fun SettingsScreen(
             label = "settingsPage",
         ) { page ->
             when (page) {
+                SettingsPage.FloatingBall.name -> {
+                    SettingsDetailPage(topPadding = listTopPadding, onBack = { currentPage = SettingsPage.Main.name }) {
+                        SettingsSectionCard {
+                            FloatingBallSection(
+                                floatingBallSizePercent = floatingBallSizePercent,
+                                floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
+                                floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
+                                floatingBallHeightLocked = floatingBallHeightLocked,
+                                floatingBallSideLocked = floatingBallSideLocked,
+                                floatingBallOneHandMode = floatingBallOneHandMode,
+                                floatingBallOneHandAngle = floatingBallOneHandAngle,
+                                floatingBallHidden = floatingBallHidden,
+                                floatingBallLandscapeSafeArea = floatingBallLandscapeSafeArea,
+                                onFloatingBallSizeChange = { floatingBallSizePercent = it; onFloatingBallSizeChange(it) },
+                                onFloatingBallActiveAlphaChange = { floatingBallActiveAlphaPercent = it; onFloatingBallActiveAlphaChange(it) },
+                                onFloatingBallIdleAlphaChange = { floatingBallIdleAlphaPercent = it; onFloatingBallIdleAlphaChange(it) },
+                                onFloatingBallHeightLockedChange = { floatingBallHeightLocked = it; onFloatingBallHeightLockedChange(it) },
+                                onFloatingBallSideLockedChange = { floatingBallSideLocked = it; onFloatingBallSideLockedChange(it) },
+                                onFloatingBallOneHandModeChange = { floatingBallOneHandMode = it; onFloatingBallOneHandModeChange(it) },
+                                onFloatingBallOneHandAngleChange = { floatingBallOneHandAngle = it; onFloatingBallOneHandAngleChange(it) },
+                                onFloatingBallHiddenChange = { floatingBallHidden = it; onFloatingBallHiddenChange(it) },
+                                onFloatingBallLandscapeSafeAreaChange = { floatingBallLandscapeSafeArea = it; onFloatingBallLandscapeSafeAreaChange(it) },
+                            )
+                            if (floatingBallRunning) {
+                                SecondaryActionButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    text = stringResource(R.string.permission_reset_floating_ball),
+                                    onClick = onResetFloatingBall,
+                                )
+                            }
+                        }
+                    }
+                }
+                SettingsPage.Ui.name -> {
+                    SettingsDetailPage(topPadding = listTopPadding, onBack = { currentPage = SettingsPage.Main.name }) {
+                        SettingsSectionCard {
+                            LauncherIconSection(
+                                adaptiveLauncherIconEnabled = adaptiveLauncherIconEnabled,
+                                onAdaptiveLauncherIconChange = { adaptiveLauncherIconEnabled = it; onAdaptiveLauncherIconChange(it) },
+                            )
+                        }
+                        SettingsSectionCard {
+                            OverlayStyleSection(
+                                classicOverlayStyleEnabled = classicOverlayStyleEnabled,
+                                onClassicOverlayStyleChange = { classicOverlayStyleEnabled = it; onClassicOverlayStyleChange(it) },
+                            )
+                        }
+                    }
+                }
+                SettingsPage.Search.name -> {
+                    SettingsDetailPage(topPadding = listTopPadding, onBack = { currentPage = SettingsPage.Main.name }) {
+                        SettingsSectionCard {
+                            OptionSection(
+                                title = stringResource(R.string.default_search_way),
+                                subtitle = stringResource(R.string.settings_search_summary),
+                                options = searchOptions,
+                                selectedValue = selectedSearch,
+                                onSelect = { selectedSearch = it; settings.setWebSearchType(it) },
+                            )
+                        }
+                        SettingsSectionCard {
+                            OptionSection(
+                                title = stringResource(R.string.default_wiki_way),
+                                subtitle = stringResource(R.string.settings_wiki_summary),
+                                options = wikiOptions,
+                                selectedValue = selectedWiki,
+                                onSelect = { selectedWiki = it; settings.setWikiSearchType(it) },
+                            )
+                        }
+                        SettingsSectionCard {
+                            OptionSection(
+                                title = stringResource(R.string.default_dict),
+                                subtitle = stringResource(R.string.settings_dict_summary),
+                                options = dictionaryOptions,
+                                selectedValue = selectedDictionary,
+                                onSelect = { selectedDictionary = it; settings.setDictSearchType(it) },
+                            )
+                        }
+                    }
+                }
                 SettingsPage.OcrWhitelist.name -> {
                     OcrWhitelistPage(
                 topPadding = listTopPadding,
@@ -781,90 +928,21 @@ private fun SettingsScreen(
                         SettingsSectionCard {
                             PermissionSection(
                                 state = permissionState,
-                                onOpenOverlayPermission = onOpenOverlayPermission,
-                                onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                                onStartFloatingBall = onStartFloatingBall,
+                                onOpenStartupWizard = { showStartupWizard = true },
+                                onStartFloatingBall = {
+                                    if (isPermissionSetupComplete(permissionState)) {
+                                        onStartFloatingBall()
+                                    } else {
+                                        showStartupWizard = true
+                                    }
+                                },
                                 onStopFloatingBall = onStopFloatingBall,
-                                onResetFloatingBall = onResetFloatingBall,
+                                onOpenFloatingBallSettings = { currentPage = SettingsPage.FloatingBall.name },
+                                onOpenUiSettings = { currentPage = SettingsPage.Ui.name },
+                                onOpenSearchSettings = { currentPage = SettingsPage.Search.name },
                         )
                     }
                     }
-                    }
-                }
-
-                item {
-                    SettingsSectionCard {
-                        FloatingBallSection(
-                            floatingBallSizePercent = floatingBallSizePercent,
-                            floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
-                            floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
-                            floatingBallHeightLocked = floatingBallHeightLocked,
-                            floatingBallSideLocked = floatingBallSideLocked,
-                            floatingBallOneHandMode = floatingBallOneHandMode,
-                            floatingBallOneHandAngle = floatingBallOneHandAngle,
-                            floatingBallHidden = floatingBallHidden,
-                            floatingBallLandscapeSafeArea = floatingBallLandscapeSafeArea,
-                            onFloatingBallSizeChange = {
-                                floatingBallSizePercent = it
-                                onFloatingBallSizeChange(it)
-                            },
-                            onFloatingBallActiveAlphaChange = {
-                                floatingBallActiveAlphaPercent = it
-                                onFloatingBallActiveAlphaChange(it)
-                            },
-                            onFloatingBallIdleAlphaChange = {
-                                floatingBallIdleAlphaPercent = it
-                                onFloatingBallIdleAlphaChange(it)
-                            },
-                            onFloatingBallHeightLockedChange = {
-                                floatingBallHeightLocked = it
-                                onFloatingBallHeightLockedChange(it)
-                            },
-                            onFloatingBallSideLockedChange = {
-                                floatingBallSideLocked = it
-                                onFloatingBallSideLockedChange(it)
-                            },
-                            onFloatingBallOneHandModeChange = {
-                                floatingBallOneHandMode = it
-                                onFloatingBallOneHandModeChange(it)
-                            },
-                            onFloatingBallOneHandAngleChange = {
-                                floatingBallOneHandAngle = it
-                                onFloatingBallOneHandAngleChange(it)
-                            },
-                            onFloatingBallHiddenChange = {
-                                floatingBallHidden = it
-                                onFloatingBallHiddenChange(it)
-                            },
-                            onFloatingBallLandscapeSafeAreaChange = {
-                                floatingBallLandscapeSafeArea = it
-                                onFloatingBallLandscapeSafeAreaChange(it)
-                            },
-                        )
-                    }
-                }
-
-                item {
-                    SettingsSectionCard {
-                        LauncherIconSection(
-                            adaptiveLauncherIconEnabled = adaptiveLauncherIconEnabled,
-                            onAdaptiveLauncherIconChange = {
-                                adaptiveLauncherIconEnabled = it
-                                onAdaptiveLauncherIconChange(it)
-                            },
-                        )
-                    }
-                }
-
-                item {
-                    SettingsSectionCard {
-                        OverlayStyleSection(
-                            classicOverlayStyleEnabled = classicOverlayStyleEnabled,
-                            onClassicOverlayStyleChange = {
-                                classicOverlayStyleEnabled = it
-                                onClassicOverlayStyleChange(it)
-                            },
-                        )
                     }
                 }
 
@@ -891,82 +969,53 @@ private fun SettingsScreen(
 
                 item {
                     SettingsSectionCard {
-                        DebugSection(
-                            previewText = previewText,
-                            selectedPresetIndex = selectedPresetIndex,
-                            presetLabels = presetLabels,
-                            warmUpState = warmUpState,
-                            debugSkipAccessibility = debugSkipAccessibility,
-                            debugCaptureTrace = debugCaptureTrace,
-                            onPresetSelected = { index ->
-                                val text = presetTexts[index]
-                                selectedPresetIndex = index
-                                previewText = text
-                                settings.setDebugPresetText(text)
-                                settings.setDebugPreviewText(text)
-                            },
-                            onPreviewTextChange = {
-                                previewText = it
-                                settings.setDebugPreviewText(it)
-                            },
-                            onPreviewClick = {
-                                settings.setDebugPreviewText(previewText)
-                                onOpenPreview(previewText)
-                            },
-                            onDebugSkipAccessibilityChange = {
-                                debugSkipAccessibility = it
-                                settings.setDebugSkipAccessibilityEnabled(it)
-                            },
-                            onDebugCaptureTraceChange = {
-                                debugCaptureTrace = it
-                                settings.setDebugCaptureTraceEnabled(it)
+                        DebugSwitchRow(
+                            title = stringResource(R.string.debug_mode_title),
+                            subtitle = stringResource(R.string.debug_mode_summary),
+                            checked = debugModeEnabled,
+                            onCheckedChange = {
+                                debugModeEnabled = it
+                                settings.setDebugModeEnabled(it)
                             },
                         )
                     }
                 }
 
-                item {
-                    SettingsSectionCard {
-                        OptionSection(
-                            title = stringResource(R.string.default_search_way),
-                            subtitle = stringResource(R.string.settings_search_summary),
-                            options = searchOptions,
-                            selectedValue = selectedSearch,
-                            onSelect = {
-                                selectedSearch = it
-                                settings.setWebSearchType(it)
-                            },
-                        )
-                    }
-                }
-
-                item {
-                    SettingsSectionCard {
-                        OptionSection(
-                            title = stringResource(R.string.default_wiki_way),
-                            subtitle = stringResource(R.string.settings_wiki_summary),
-                            options = wikiOptions,
-                            selectedValue = selectedWiki,
-                            onSelect = {
-                                selectedWiki = it
-                                settings.setWikiSearchType(it)
-                            },
-                        )
-                    }
-                }
-
-                item {
-                    SettingsSectionCard {
-                        OptionSection(
-                            title = stringResource(R.string.default_dict),
-                            subtitle = stringResource(R.string.settings_dict_summary),
-                            options = dictionaryOptions,
-                            selectedValue = selectedDictionary,
-                            onSelect = {
-                                selectedDictionary = it
-                                settings.setDictSearchType(it)
-                            },
-                        )
+                if (debugModeEnabled) {
+                    item {
+                        SettingsSectionCard {
+                            DebugSection(
+                                previewText = previewText,
+                                selectedPresetIndex = selectedPresetIndex,
+                                presetLabels = presetLabels,
+                                warmUpState = warmUpState,
+                                debugSkipAccessibility = debugSkipAccessibility,
+                                debugCaptureTrace = debugCaptureTrace,
+                                onPresetSelected = { index ->
+                                    val text = presetTexts[index]
+                                    selectedPresetIndex = index
+                                    previewText = text
+                                    settings.setDebugPresetText(text)
+                                    settings.setDebugPreviewText(text)
+                                },
+                                onPreviewTextChange = {
+                                    previewText = it
+                                    settings.setDebugPreviewText(it)
+                                },
+                                onPreviewClick = {
+                                    settings.setDebugPreviewText(previewText)
+                                    onOpenPreview(previewText)
+                                },
+                                onDebugSkipAccessibilityChange = {
+                                    debugSkipAccessibility = it
+                                    settings.setDebugSkipAccessibilityEnabled(it)
+                                },
+                                onDebugCaptureTraceChange = {
+                                    debugCaptureTrace = it
+                                    settings.setDebugCaptureTraceEnabled(it)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -977,6 +1026,9 @@ private fun SettingsScreen(
         SettingsTopBar(
             title = when (currentPage) {
                 SettingsPage.OcrWhitelist.name -> stringResource(R.string.ocr_whitelist_title)
+                SettingsPage.FloatingBall.name -> stringResource(R.string.floating_ball_settings_title)
+                SettingsPage.Ui.name -> stringResource(R.string.ui_settings_title)
+                SettingsPage.Search.name -> stringResource(R.string.search_settings_title)
                 SettingsPage.About.name -> stringResource(R.string.about_title)
                 else -> stringResource(R.string.text_boom_settings)
             },
@@ -991,7 +1043,122 @@ private fun SettingsScreen(
                 .align(Alignment.TopCenter)
                 .onSizeChanged { topBarHeightPx = it.height },
         )
+        if (showStartupWizard) {
+            StartupWizardDialog(
+                state = permissionState,
+                onOpenOverlayPermission = onOpenOverlayPermission,
+                onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                onOpenBackgroundPopupSettings = onOpenBackgroundPopupSettings,
+                onBackgroundPopupConfirmed = {
+                    settings.setBackgroundPopupGuideOs(permissionState.backgroundPopupSystem.preferenceValue)
+                    permissionState = currentPermissionState()
+                    if (isPermissionSetupComplete(permissionState)) {
+                        showStartupWizard = false
+                    }
+                },
+                onDismiss = { showStartupWizard = false },
+            )
+        }
     }
+}
+
+private fun isPermissionSetupComplete(state: PermissionState): Boolean {
+    return state.overlayGranted && state.accessibilityEnabled &&
+        (!state.backgroundPopupRequired || state.backgroundPopupConfirmed)
+}
+
+@Composable
+private fun SettingsDetailPage(
+    topPadding: androidx.compose.ui.unit.Dp,
+    onBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(top = topPadding, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            Column(
+                modifier = Modifier.widthIn(max = 600.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StartupWizardDialog(
+    state: PermissionState,
+    onOpenOverlayPermission: () -> Unit,
+    onOpenAccessibilitySettings: () -> Unit,
+    onOpenBackgroundPopupSettings: () -> Unit,
+    onBackgroundPopupConfirmed: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.startup_wizard_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = stringResource(R.string.startup_wizard_summary),
+                    color = LocalSettingsPalette.current.textSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+                PermissionStatusRow(
+                    title = stringResource(R.string.permission_overlay_title),
+                    granted = state.overlayGranted,
+                )
+                if (!state.overlayGranted) {
+                    SecondaryActionButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.permission_overlay_action),
+                        onClick = onOpenOverlayPermission,
+                    )
+                }
+                PermissionStatusRow(
+                    title = stringResource(R.string.permission_accessibility_title),
+                    granted = state.accessibilityEnabled,
+                )
+                if (!state.accessibilityEnabled) {
+                    SecondaryActionButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.permission_accessibility_action),
+                        onClick = onOpenAccessibilitySettings,
+                    )
+                }
+                if (state.backgroundPopupRequired) {
+                    PermissionStatusRow(
+                        title = stringResource(R.string.permission_background_popup_title),
+                        granted = state.backgroundPopupConfirmed,
+                        grantedText = stringResource(R.string.permission_confirmed),
+                        deniedText = stringResource(R.string.permission_missing),
+                    )
+                    if (!state.backgroundPopupConfirmed) {
+                        SecondaryActionButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = stringResource(R.string.permission_background_popup_action),
+                            onClick = onOpenBackgroundPopupSettings,
+                        )
+                        TextButton(onClick = onBackgroundPopupConfirmed) {
+                            Text(stringResource(R.string.permission_background_popup_confirm))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.startup_wizard_later))
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1651,79 +1818,79 @@ private fun DebugSection(
 @Composable
 private fun PermissionSection(
     state: PermissionState,
-    onOpenOverlayPermission: () -> Unit,
-    onOpenAccessibilitySettings: () -> Unit,
+    onOpenStartupWizard: () -> Unit,
     onStartFloatingBall: () -> Unit,
     onStopFloatingBall: () -> Unit,
-    onResetFloatingBall: () -> Unit,
+    onOpenFloatingBallSettings: () -> Unit,
+    onOpenUiSettings: () -> Unit,
+    onOpenSearchSettings: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
-    val primaryActionText = when {
-        !state.overlayGranted -> stringResource(R.string.permission_overlay_action)
-        !state.accessibilityEnabled -> stringResource(R.string.permission_accessibility_action)
-        state.floatingBallRunning -> stringResource(R.string.permission_stop_floating_ball)
-        else -> stringResource(R.string.permission_start_floating_ball)
-    }
-    val primaryAction = when {
-        !state.overlayGranted -> onOpenOverlayPermission
-        !state.accessibilityEnabled -> onOpenAccessibilitySettings
-        state.floatingBallRunning -> onStopFloatingBall
-        else -> onStartFloatingBall
-    }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
-            text = stringResource(R.string.permission_section_title),
+            text = stringResource(R.string.settings_entry_section_title),
             color = palette.textPrimary,
             fontSize = 24.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = stringResource(R.string.permission_section_summary),
+            text = stringResource(R.string.settings_entry_section_summary),
             color = palette.textSecondary,
             fontSize = 14.sp,
             lineHeight = 20.sp,
         )
-        PermissionStatusRow(
-            title = stringResource(R.string.permission_overlay_title),
-            granted = state.overlayGranted,
-        )
-        PermissionStatusRow(
-            title = stringResource(R.string.permission_accessibility_title),
-            granted = state.accessibilityEnabled,
-        )
-        PermissionStatusRow(
-            title = stringResource(R.string.permission_floating_ball_title),
-            granted = state.floatingBallRunning,
-            grantedText = stringResource(R.string.permission_enabled),
-            deniedText = stringResource(R.string.permission_disabled),
-        )
         ShadowedPrimaryButton(
-            text = primaryActionText,
-            onClick = primaryAction,
+            text = stringResource(R.string.startup_wizard_button),
+            onClick = onOpenStartupWizard,
         )
-        Row(
+        SecondaryActionButton(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SecondaryActionButton(
-                modifier = Modifier.weight(1f),
-                text = stringResource(R.string.permission_overlay_action),
-                onClick = onOpenOverlayPermission,
-            )
-            SecondaryActionButton(
-                modifier = Modifier.weight(1f),
-                text = stringResource(R.string.permission_accessibility_action),
-                onClick = onOpenAccessibilitySettings,
-            )
+            text = if (state.floatingBallRunning) {
+                stringResource(R.string.permission_stop_floating_ball)
+            } else {
+                stringResource(R.string.permission_start_floating_ball)
+            },
+            onClick = if (state.floatingBallRunning) onStopFloatingBall else onStartFloatingBall,
+        )
+        SettingsNavigationRow(
+            title = stringResource(R.string.floating_ball_settings_title),
+            subtitle = stringResource(R.string.floating_ball_settings_summary),
+            onClick = onOpenFloatingBallSettings,
+        )
+        SettingsNavigationRow(
+            title = stringResource(R.string.ui_settings_title),
+            subtitle = stringResource(R.string.ui_settings_summary),
+            onClick = onOpenUiSettings,
+        )
+        SettingsNavigationRow(
+            title = stringResource(R.string.search_settings_title),
+            subtitle = stringResource(R.string.search_settings_summary),
+            onClick = onOpenSearchSettings,
+        )
+    }
+}
+
+@Composable
+private fun SettingsNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = palette.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = palette.textSecondary, fontSize = 13.sp, lineHeight = 18.sp)
         }
-        if (state.floatingBallRunning) {
-            SecondaryActionButton(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.permission_reset_floating_ball),
-                onClick = onResetFloatingBall,
-            )
-        }
+        Text("›", color = palette.textSecondary, fontSize = 28.sp)
     }
 }
 

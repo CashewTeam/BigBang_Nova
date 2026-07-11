@@ -248,7 +248,7 @@ class BoomActivity : ComponentActivity() {
 
     private fun segmentLocally(text: String) {
         if (DBG) {
-            Log.d(TAG, "text=$text")
+            LogUtils.d(TAG, "text=$text")
         }
         Thread {
             try {

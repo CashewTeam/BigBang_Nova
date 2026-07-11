@@ -19,6 +19,8 @@ public final class BigBangSettings {
     public static final String KEY_DEBUG_PREVIEW_TEXT = "debug_preview_text";
     public static final String KEY_DEBUG_SKIP_ACCESSIBILITY = "debug_skip_accessibility";
     public static final String KEY_DEBUG_CAPTURE_TRACE = "debug_capture_trace";
+    public static final String KEY_DEBUG_MODE = "debug_mode";
+    public static final String KEY_BACKGROUND_POPUP_GUIDE_OS = "background_popup_guide_os";
     public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
     public static final String KEY_OCR_WHITELIST_PACKAGES = "ocr_whitelist_packages";
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
@@ -148,19 +150,43 @@ public final class BigBangSettings {
     }
 
     public boolean isDebugSkipAccessibilityEnabled() {
-        return preferences.getBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, false);
+        return isDebugModeEnabled() && preferences.getBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, false);
     }
 
     public void setDebugSkipAccessibilityEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, enabled).apply();
     }
 
+    public boolean getDebugSkipAccessibilitySetting() {
+        return preferences.getBoolean(KEY_DEBUG_SKIP_ACCESSIBILITY, false);
+    }
+
     public boolean isDebugCaptureTraceEnabled() {
-        return preferences.getBoolean(KEY_DEBUG_CAPTURE_TRACE, false);
+        return isDebugModeEnabled() && preferences.getBoolean(KEY_DEBUG_CAPTURE_TRACE, false);
     }
 
     public void setDebugCaptureTraceEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_DEBUG_CAPTURE_TRACE, enabled).apply();
+    }
+
+    public boolean getDebugCaptureTraceSetting() {
+        return preferences.getBoolean(KEY_DEBUG_CAPTURE_TRACE, false);
+    }
+
+    public boolean isDebugModeEnabled() {
+        return preferences.getBoolean(KEY_DEBUG_MODE, false);
+    }
+
+    public void setDebugModeEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_DEBUG_MODE, enabled).apply();
+    }
+
+    public String getBackgroundPopupGuideOs() {
+        return preferences.getString(KEY_BACKGROUND_POPUP_GUIDE_OS, "");
+    }
+
+    public void setBackgroundPopupGuideOs(String os) {
+        preferences.edit().putString(KEY_BACKGROUND_POPUP_GUIDE_OS, os).apply();
     }
 
     public Set<String> getOcrWhitelistPackages() {

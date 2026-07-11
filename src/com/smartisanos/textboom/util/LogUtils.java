@@ -1,25 +1,38 @@
 package com.cashewteam.novatext.android.util;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import com.cashewteam.novatext.android.BuildConfig;
+import com.cashewteam.novatext.android.data.BigBangSettings;
 
 public class LogUtils {
     public static final boolean DEBUG = BuildConfig.DEBUG;
     public static final String TAG = "TextBoom";
+    private static SharedPreferences sSettings;
+
+    public static void init(Context context) {
+        sSettings = context.getApplicationContext().getSharedPreferences(
+                BigBangSettings.PREF_NAME, Context.MODE_PRIVATE);
+    }
+
+    private static boolean isDebugEnabled() {
+        return DEBUG && sSettings != null && sSettings.getBoolean(BigBangSettings.KEY_DEBUG_MODE, false);
+    }
 
     public static void d(String tag, String msg) {
-        if (DEBUG)
+        if (isDebugEnabled())
             Log.d(tag, msg);
     }
 
     public static void d(String msg) {
-        if (DEBUG)
+        if (isDebugEnabled())
             Log.d(TAG, msg);
     }
 
     public static void i(String tag, String msg) {
-        if (DEBUG)
+        if (isDebugEnabled())
             Log.i(tag, msg);
     }
 
@@ -28,17 +41,17 @@ public class LogUtils {
     }
 
     public static void i(String msg) {
-        if (DEBUG)
+        if (isDebugEnabled())
             Log.i(TAG, msg);
     }
 
     public static void v(String tag, String msg) {
-        if (DEBUG)
+        if (isDebugEnabled())
             Log.v(tag, msg);
     }
 
     public static void v(String msg) {
-        if (DEBUG)
+        if (isDebugEnabled())
             Log.v(TAG, msg);
     }
 

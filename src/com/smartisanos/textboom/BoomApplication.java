@@ -7,6 +7,7 @@ import com.cashewteam.novatext.android.data.CppJiebaTokenizer;
 import com.cashewteam.novatext.android.data.JiebaWarmUpTracker;
 import com.cashewteam.novatext.android.util.ConfigUtils;
 import com.cashewteam.novatext.android.util.LogUtils;
+import com.cashewteam.novatext.android.util.NovaTextLogger;
 import com.cashewteam.novatext.android.LauncherIconManager;
 
 public class BoomApplication extends Application {
@@ -16,6 +17,8 @@ public class BoomApplication extends Application {
     public void onCreate() {
         super.onCreate();
         ConfigUtils.init(this);
+        LogUtils.init(this);
+        NovaTextLogger.INSTANCE.initialize(this);
         LauncherIconManager.sync(this);
         warmUpTokenizer();
     }

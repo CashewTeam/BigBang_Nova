@@ -18,6 +18,7 @@ import com.cashewteam.novatext.android.BoomAnimator;
 import com.cashewteam.novatext.android.SwipeSelectView;
 import com.cashewteam.novatext.android.BoomActionHandler;
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator;
+import com.cashewteam.novatext.android.util.LogUtils;
 
 import java.io.Serializable;
 import java.util.TreeSet;
@@ -62,7 +63,7 @@ public class BoomChipPage {
             }
             if (restoreSelectedState()) {
                 if (DBG) {
-                    Log.d(TAG, "Skip boom animation when restoring");
+                    LogUtils.d(TAG, "Skip boom animation when restoring");
                 }
                 return;
             }
@@ -73,7 +74,7 @@ public class BoomChipPage {
             float pageX = getChipParentX();
             float pageY = getChipParentY();
             if (DBG) {
-                Log.d(TAG, "init Chip and do boom animation");
+                LogUtils.d(TAG, "init Chip and do boom animation");
             }
             final int animationRows = Math.min(mLayout.getRowCount(), 12);
             for (int i = 0; i < animationRows; ++i) {

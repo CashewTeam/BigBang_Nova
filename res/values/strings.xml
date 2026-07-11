@@ -153,4 +153,22 @@
     <string name="overlay_style_section_summary">设置大爆炸和搜索页共享外壳的显示样式。横屏和分屏下会自动切到全屏模式。</string>
     <string name="overlay_style_classic_title">经典样式</string>
     <string name="overlay_style_classic_summary">开启后，共享外壳始终全屏显示，关闭悬浮窗式圆角与上下留白。</string>
+    <string name="settings_entry_section_title">全局触发入口</string>
+    <string name="settings_entry_section_summary">管理启动向导、悬浮球服务，以及其他设置分类。</string>
+    <string name="startup_wizard_title">启动向导</string>
+    <string name="startup_wizard_summary">首次使用或权限变化后，请按步骤完成必要设置。</string>
+    <string name="startup_wizard_button">打开启动向导</string>
+    <string name="startup_wizard_later">稍后处理</string>
+    <string name="permission_background_popup_title">后台弹出页面</string>
+    <string name="permission_background_popup_action">打开后台弹出设置</string>
+    <string name="permission_background_popup_confirm">我已完成设置</string>
+    <string name="permission_confirmed">已确认</string>
+    <string name="floating_ball_settings_title">悬浮球设置</string>
+    <string name="floating_ball_settings_summary">调整悬浮球大小、透明度、停靠和单手模式。</string>
+    <string name="ui_settings_title">UI 设置</string>
+    <string name="ui_settings_summary">设置启动图标和大爆炸界面样式。</string>
+    <string name="search_settings_title">搜索设置</string>
+    <string name="search_settings_summary">设置网页搜索、百科和词典的默认服务。</string>
+    <string name="debug_mode_title">调试模式</string>
+    <string name="debug_mode_summary">开启调试预览面板和详细运行日志。</string>
 </resources>
