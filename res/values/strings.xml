@@ -97,6 +97,7 @@
     <string name="ocr_mode_korean">韩语</string>
     <string name="ocr_mode_latin">英语</string>
     <string name="ocr_debug_pick_image_button">选择图片进行 OCR 调试</string>
+    <string name="ocr_selection_capture_delay_title">截图前延迟</string>
     <string name="ocr_whitelist_button">OCR 应用白名单</string>
     <string name="ocr_whitelist_title">OCR 应用白名单</string>
     <string name="ocr_whitelist_summary">%1$d 个应用已启用 OCR 白名单。</string>
@@ -124,6 +125,12 @@
     <string name="overlay_notification_text">悬浮球服务正在运行</string>
     <string name="overlay_channel_name">Nova Text 悬浮球</string>
     <string name="overlay_channel_description">悬浮球与全局文本捕获状态</string>
+    <string name="quick_settings_floating_ball">Nova Text 悬浮球</string>
+    <string name="quick_settings_ocr_selection">截图 OCR</string>
+    <string name="quick_settings_state_on">已开启</string>
+    <string name="quick_settings_state_off">已关闭</string>
+    <string name="quick_settings_ocr_ready">点击截图并框选 OCR</string>
+    <string name="quick_settings_ocr_unavailable">请先开启无障碍服务</string>
     <string name="accessibility_service_summary">提取屏幕文本并交给大爆炸分词</string>
     <string name="search_overlay_close">关闭</string>
     <string name="search_overlay_refresh">刷新</string>

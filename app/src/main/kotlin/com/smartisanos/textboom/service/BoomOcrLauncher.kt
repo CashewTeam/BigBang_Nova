@@ -12,6 +12,21 @@ object BoomOcrLauncher {
     const val EXTRA_CAPTURE_OCR_SCREENSHOT = "extra_capture_ocr_screenshot"
 
     @JvmStatic
+    fun selectionCaptureIntent(context: Context): Intent {
+        val metrics = context.resources.displayMetrics
+        return Intent(context, OcrLaunchActivity::class.java).apply {
+            putExtra(OcrLaunchActivity.EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT, true)
+            putExtra("boom_startx", metrics.widthPixels / 2)
+            putExtra("boom_starty", metrics.heightPixels / 2)
+            putExtra("boom_fullscreen", true)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+        }
+    }
+
+    @JvmStatic
     fun open(
         context: Context,
         imageUri: Uri? = null,

@@ -3,6 +3,7 @@ package com.cashewteam.novatext.android.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
@@ -304,10 +305,19 @@ class FloatingBallService : Service(), SensorEventListener {
     }
 
     private fun buildNotification(): Notification {
+        val captureIntent = BoomOcrLauncher.selectionCaptureIntent(this)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.overlay_notification_title))
             .setContentText(getString(R.string.overlay_notification_text))
             .setSmallIcon(android.R.drawable.ic_menu_search)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    captureIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
             .setOngoing(true)
             .build()
     }

@@ -157,6 +157,29 @@
                 android:value="Keep the user-enabled BigBang text capture bubble visible over other apps." />
         </service>
         <service
+            android:name=".service.FloatingBallTileService"
+            android:exported="true"
+            android:icon="@drawable/icon_bigbang"
+            android:label="@string/quick_settings_floating_ball"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+        <service
+            android:name=".service.OcrSelectionTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_quick_ocr"
+            android:label="@string/quick_settings_ocr_selection"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
             android:name=".service.NovaTextAccessibilityService"
             android:enabled="true"
             android:exported="true"

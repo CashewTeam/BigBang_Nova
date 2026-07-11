@@ -43,6 +43,8 @@ class OcrLaunchActivity : Activity() {
     private var captureRequested = false
     private var captureOcrScreenshotRequested = false
     private var captureOcrScreenshotStarted = false
+    private var captureSelectionScreenshotRequested = false
+    private var captureSelectionScreenshotStarted = false
     private var autoNearestOcrRequested = false
     private var autoNearestOcrStarted = false
     private var pendingOcrSelectionLaunch = false
@@ -68,6 +70,10 @@ class OcrLaunchActivity : Activity() {
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
+        captureSelectionScreenshotRequested = intent.getBooleanExtra(
+            EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT,
+            false,
+        )
         autoNearestOcrRequested = intent.getBooleanExtra(EXTRA_AUTO_NEAREST_OCR, false)
         pendingOcrSelectionLaunch = !intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI).isNullOrEmpty() &&
             !autoNearestOcrRequested
@@ -113,6 +119,46 @@ class OcrLaunchActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (captureSelectionScreenshotRequested && !captureSelectionScreenshotStarted && !cancelled) {
+            captureSelectionScreenshotStarted = true
+            window.decorView.postDelayed({
+                if (cancelled || isFinishing || isDestroyed) return@postDelayed
+                val started = AccessibilityScreenshotCapture.captureToOcr(
+                    context = this,
+                    onFinished = { bitmap ->
+                        if (bitmap == null) {
+                            Toast.makeText(this, R.string.ocr_capture_failed, Toast.LENGTH_SHORT).show()
+                            finish()
+                        } else {
+                            launchOcrSelection()
+                        }
+                    },
+                    onCaptured = { bitmap ->
+                        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newActiveToken().also {
+                            manualOcrSourceToken = it
+                        }
+                        ManualOcrSourceStore.put(
+                            ManualOcrSourceStore.Source(
+                                token = sourceToken,
+                                cachedBitmap = bitmap,
+                                touchX = touchX.toInt(),
+                                touchY = touchY.toInt(),
+                                callerPackage = callerPackage,
+                                fullscreen = true,
+                                offsetX = 0,
+                                offsetY = 0,
+                                sourceTag = "ocr_selection_capture",
+                            ),
+                        )
+                    },
+                )
+                if (!started) {
+                    Toast.makeText(this, R.string.accessibility_required_message, Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            }, BigBangSettings.get(this).ocrSelectionCaptureDelayMs.toLong())
+            return
+        }
         if (isReplayRequested() && !replayStarted && !cancelled) {
             replayStarted = true
             startReplayOcr()
@@ -767,6 +813,7 @@ class OcrLaunchActivity : Activity() {
         const val ACTION_BIGBANG_ACCESSIBILITY =
             "com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY"
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
+        const val EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT = "extra_capture_ocr_selection_screenshot"
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK = "extra_allow_accessibility_ocr_fallback"

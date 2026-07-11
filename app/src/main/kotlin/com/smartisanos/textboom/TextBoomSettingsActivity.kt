@@ -729,6 +729,9 @@ private fun SettingsScreen(
     var customSearchEditorVisible by rememberSaveable { mutableStateOf(false) }
     var customSearchDeleteProvider by remember { mutableStateOf<CustomSearchProvider?>(null) }
     var selectedOcrMode by rememberSaveable { mutableStateOf(settings.ocrRecognizerMode) }
+    var ocrSelectionCaptureDelayMs by rememberSaveable {
+        mutableIntStateOf(settings.ocrSelectionCaptureDelayMs)
+    }
     var currentPage by rememberSaveable { mutableStateOf(initialPage.name) }
     var debugSkipAccessibility by rememberSaveable {
         mutableStateOf(settings.debugSkipAccessibilitySetting)
@@ -1162,6 +1165,7 @@ private fun SettingsScreen(
                             selectedMode = selectedOcrMode,
                             modes = ocrModes,
                             whitelistCount = selectedCount,
+                            selectionCaptureDelayMs = ocrSelectionCaptureDelayMs,
                             useShizukuScreenshot = permissionState.useShizukuScreenshot,
                             onModeSelected = {
                                 selectedOcrMode = it
@@ -1169,6 +1173,10 @@ private fun SettingsScreen(
                             },
                             onPickImage = onOpenOcrDebugPicker,
                             onManageWhitelist = { currentPage = SettingsPage.OcrWhitelist.name },
+                            onSelectionCaptureDelayChange = {
+                                ocrSelectionCaptureDelayMs = it
+                                settings.setOcrSelectionCaptureDelayMs(it)
+                            },
                             onUseShizukuScreenshotChange = {
                                 settings.setUseShizukuScreenshotEnabled(it)
                                 permissionState = currentPermissionState()
@@ -1477,10 +1485,12 @@ private fun OcrSection(
     selectedMode: String,
     modes: List<OcrModeItem>,
     whitelistCount: Int,
+    selectionCaptureDelayMs: Int,
     useShizukuScreenshot: Boolean,
     onModeSelected: (String) -> Unit,
     onPickImage: () -> Unit,
     onManageWhitelist: () -> Unit,
+    onSelectionCaptureDelayChange: (Int) -> Unit,
     onUseShizukuScreenshotChange: (Boolean) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -1537,6 +1547,14 @@ private fun OcrSection(
             modifier = Modifier.fillMaxWidth(),
             text = stringResource(R.string.ocr_debug_pick_image_button),
             onClick = onPickImage,
+        )
+        FloatingBallSlider(
+            title = stringResource(R.string.ocr_selection_capture_delay_title),
+            value = selectionCaptureDelayMs,
+            valueRange = 0f..1000f,
+            valueSuffix = "ms",
+            steps = 19,
+            onValueChange = onSelectionCaptureDelayChange,
         )
         if (showShizukuStatus) {
             DebugSwitchRow(
@@ -2337,6 +2355,8 @@ private fun FloatingBallSlider(
     title: String,
     value: Int,
     valueRange: ClosedFloatingPointRange<Float>,
+    valueSuffix: String = "%",
+    steps: Int = 0,
     onValueChange: (Int) -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
@@ -2352,7 +2372,7 @@ private fun FloatingBallSlider(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "$value%",
+                text = "$value$valueSuffix",
                 color = palette.textSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -2362,6 +2382,7 @@ private fun FloatingBallSlider(
             value = value.toFloat(),
             onValueChange = { onValueChange(it.roundToInt()) },
             valueRange = valueRange,
+            steps = steps,
             colors = SliderDefaults.colors(
                 thumbColor = palette.accent,
                 activeTrackColor = palette.accent,

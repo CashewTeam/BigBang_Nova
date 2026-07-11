@@ -24,6 +24,7 @@ public final class BigBangSettings {
     public static final String KEY_BACKGROUND_POPUP_GUIDE_OS = "background_popup_guide_os";
     public static final String KEY_OCR_RECOGNIZER_MODE = "ocr_recognizer_mode";
     public static final String KEY_OCR_WHITELIST_PACKAGES = "ocr_whitelist_packages";
+    public static final String KEY_OCR_SELECTION_CAPTURE_DELAY_MS = "ocr_selection_capture_delay_ms";
     public static final String KEY_FLOATING_BALL_SIZE_PERCENT = "floating_ball_size_percent";
     public static final String KEY_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = "floating_ball_active_alpha_percent";
     public static final String KEY_FLOATING_BALL_IDLE_ALPHA_PERCENT = "floating_ball_idle_alpha_percent";
@@ -73,6 +74,7 @@ public final class BigBangSettings {
     private static final int DEFAULT_DICT_SEARCH_TYPE = TYPE_BINGDICT;
     private static final int DEFAULT_WIKI_SEARCH_TYPE = TYPE_WIKI;
     private static final String DEFAULT_OCR_RECOGNIZER_MODE = OCR_MODE_CHINESE;
+    private static final int DEFAULT_OCR_SELECTION_CAPTURE_DELAY_MS = 250;
     private static final int DEFAULT_FLOATING_BALL_SIZE_PERCENT = 75;
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
@@ -227,6 +229,19 @@ public final class BigBangSettings {
                 .apply();
     }
 
+    public int getOcrSelectionCaptureDelayMs() {
+        return clampOcrSelectionCaptureDelay(preferences.getInt(
+                KEY_OCR_SELECTION_CAPTURE_DELAY_MS,
+                DEFAULT_OCR_SELECTION_CAPTURE_DELAY_MS
+        ));
+    }
+
+    public void setOcrSelectionCaptureDelayMs(int value) {
+        preferences.edit()
+                .putInt(KEY_OCR_SELECTION_CAPTURE_DELAY_MS, clampOcrSelectionCaptureDelay(value))
+                .apply();
+    }
+
     public int getFloatingBallSizePercent() {
         return clampPercent(preferences.getInt(
                 KEY_FLOATING_BALL_SIZE_PERCENT,
@@ -349,6 +364,10 @@ public final class BigBangSettings {
 
     private static int clampAngleDegrees(int value) {
         return Math.max(5, Math.min(45, value));
+    }
+
+    private static int clampOcrSelectionCaptureDelay(int value) {
+        return Math.max(0, Math.min(1000, value));
     }
 
     private static Set<String> defaultOcrWhitelistPackages() {
