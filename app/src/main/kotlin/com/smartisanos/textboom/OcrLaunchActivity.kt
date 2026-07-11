@@ -796,7 +796,7 @@ class OcrLaunchActivity : Activity() {
         result: com.google.mlkit.vision.text.Text,
         nearestMatch: MlKitOcrEngine.NearestTextBlockMatch?,
     ) {
-        if (!traceEnabled && !settings.isDebugCaptureTraceEnabled) {
+        if (!traceEnabled && !settings.isDebugModeEnabled) {
             return
         }
         NovaTextLogger.d("trace[$traceId] phase=ocr")

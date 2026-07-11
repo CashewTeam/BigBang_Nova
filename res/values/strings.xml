@@ -54,8 +54,6 @@
     <string name="debug_preview_text_hint">输入或修改文本，预览大爆炸页面的分词与排版效果</string>
     <string name="debug_skip_accessibility_title">跳过无障碍抓文</string>
     <string name="debug_skip_accessibility_summary">开启后，悬浮球释放会直接使用当前调试文本启动大爆炸，方便快速调试 UI 与动画。</string>
-    <string name="debug_capture_trace_title">输出识别调试日志</string>
-    <string name="debug_capture_trace_summary">开启后，悬浮球释放时会在 logcat 输出分流决策、包名、坐标、无障碍原始块、OCR 原始块和最终选中块信息。</string>
     <string name="debug_preview_button">打开大爆炸预览</string>
     <string name="permission_section_title">全局触发入口</string>
     <string name="permission_section_summary">通过悬浮球和无障碍权限建立新的文本捕获入口。拖拽悬浮球并释放后，会直接抓取当前位置附近的可访问文本并打开大爆炸。</string>
@@ -215,7 +213,7 @@
     <string name="custom_search_cancel">取消</string>
     <string name="custom_search_save">保存</string>
     <string name="debug_mode_title">调试模式</string>
-    <string name="debug_mode_summary">开启调试预览面板和详细运行日志。</string>
+    <string name="debug_mode_summary">开启调试预览面板、详细运行日志和识别追踪日志。</string>
     <string name="screenshot_use_shizuku_title">使用 Shizuku 截图</string>
     <string name="screenshot_use_shizuku_summary">关闭时默认使用系统 Projection 截图；开启后改用 Shizuku。</string>
     <string name="projection_permission_title">屏幕截图权限</string>

@@ -24,7 +24,7 @@ object BigBangCaptureDispatcher {
         touchY: Int,
     ) {
         val settings = BigBangSettings.get(context)
-        val traceEnabled = settings.isDebugCaptureTraceEnabled
+        val traceEnabled = settings.isDebugModeEnabled
         val traceId = UUID.randomUUID().toString().take(8)
         val accessibilityEnabled = NovaTextAccessibilityService.activeInstance != null
         if (!accessibilityEnabled && settings.isDebugSkipAccessibilityEnabled()) {

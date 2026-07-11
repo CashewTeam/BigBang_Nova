@@ -146,7 +146,7 @@ object AccessibilityScreenshotCapture {
         }
         FloatingBallService.hideForScreenshot {
             screenshotExecutor.execute {
-                val debugLog = BigBangSettings.get(context).isDebugCaptureTraceEnabled
+                val debugLog = BigBangSettings.get(context).isDebugModeEnabled
                 if (debugLog) NovaTextLogger.d("shizuku screenshot request")
                 val point = Point()
                 @Suppress("DEPRECATION")

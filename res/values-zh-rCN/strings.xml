@@ -123,7 +123,7 @@
     <string name="custom_search_cancel">取消</string>
     <string name="custom_search_save">保存</string>
     <string name="debug_mode_title">调试模式</string>
-    <string name="debug_mode_summary">开启调试预览面板和详细运行日志。</string>
+    <string name="debug_mode_summary">开启调试预览面板、详细运行日志和识别追踪日志。</string>
     <string name="screenshot_use_shizuku_title">使用 Shizuku 截图</string>
     <string name="screenshot_use_shizuku_summary">关闭时默认使用系统 Projection 截图；开启后改用 Shizuku。</string>
     <string name="projection_permission_title">屏幕截图权限</string>

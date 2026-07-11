@@ -254,7 +254,7 @@ class BoomOcrActivity : ComponentActivity() {
     }
 
     private fun logOcrTrace(result: MlKitText) {
-        if (!settings.isDebugCaptureTraceEnabled) {
+        if (!settings.isDebugModeEnabled) {
             return
         }
         val rawBlocks = MlKitOcrEngine.collectRawBlocks(result)
