@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -47,8 +48,6 @@ fun SmartisanSwitch(
     val btnBmp    = remember(idBtn)    { BitmapFactory.decodeResource(context.resources, idBtn) }
     val btnPrBmp  = remember(idBtnPr)  { BitmapFactory.decodeResource(context.resources, idBtnPr) }
 
-    val bmpW = bottomBmp.width.toFloat()  // 286
-
     val pillBounds = remember(maskBmp) {
         val w = maskBmp.width
         val h = maskBmp.height
@@ -69,8 +68,7 @@ fun SmartisanSwitch(
     val density = LocalDensity.current
     val dispW = with(density) { maskBmp.width.toDp() }
     val dispH = with(density) { maskBmp.height.toDp() }
-
-    val slideRange = 88f / bmpW
+    val touchSlop = LocalViewConfiguration.current.touchSlop
 
     var progress by remember { mutableStateOf(if (checked) 1f else 0f) }
     var isPressed by remember { mutableStateOf(false) }
@@ -92,7 +90,7 @@ fun SmartisanSwitch(
     Canvas(
         modifier = modifier
             .size(dispW, dispH)
-            .pointerInput(enabled) {
+            .pointerInput(enabled, touchSlop) {
                 awaitEachGesture {
                     if (!enabled) return@awaitEachGesture
                     val down = awaitFirstDown()
@@ -100,18 +98,16 @@ fun SmartisanSwitch(
                     val startX = down.position.x
                     val startP = progress
                     var dragged = false
-                    var prevPos = down.position.x
                     do {
                         val event = awaitPointerEvent()
                         val change = event.changes.first()
                         change.consume()
                         val curX = change.position.x
                         val dx = curX - startX
-                        if (abs(curX - prevPos) > 0.5f) {
+                        if (abs(dx) > touchSlop) {
                             dragged = true
                         }
                         progress = (startP + dx / size.width.toFloat()).coerceIn(0f, 1f)
-                        prevPos = curX
                     } while (change.pressed)
                     isPressed = false
                     val newChecked = if (dragged) progress > 0.5f else progress < 0.5f
@@ -124,9 +120,12 @@ fun SmartisanSwitch(
         val pw = pillBounds[2].toFloat(); val ph = pillBounds[3].toFloat()
 
         val voff = ((size.height - bottomBmp.height) / 2f).roundToInt()
-        val btnAdj = 3f
-        val slideOff = (-(1f - animProgress) * slideRange * bmpW).roundToInt()
-        val btnOff = (-(1f - animProgress) * slideRange * bmpW + btnAdj).roundToInt()
+        // Resource layers are decoded at the device density. Derive the movement from
+        // their decoded widths so the frame and moving layers stay registered everywhere.
+        val travel = bottomBmp.width - size.width
+        val btnAdj = travel / 29f // 3px in the original 88px travel range.
+        val slideOff = (-(1f - animProgress) * travel).roundToInt()
+        val btnOff = (-(1f - animProgress) * travel + btnAdj).roundToInt()
 
         val pillPath = Path().apply {
             addRoundRect(androidx.compose.ui.geometry.RoundRect(pl, pt, pl + pw, pt + ph, CornerRadius(ph / 2f)))
