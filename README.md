@@ -133,6 +133,7 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 - [架构文档](./docs/architecture.md)
 - [接口与 API 文档](./docs/api.md)
 - [第三方应用调用文档](./docs/third-party-integration.md)
+- [更新日志](./CHANGELOG.md)
 
 ## 致谢
 
