@@ -11,7 +11,7 @@
   - Launcher Activity
 - `com.cashewteam.novatext.android.OcrLaunchActivity`
   - 启动代理页
-  - `exported=true`，支持第三方 Action `com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY`
+  - `exported=true`，支持第三方 Action `com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY` 与 `com.cashewteam.novatext.android.action.BIGBANG_CAPTURE`
 - `com.cashewteam.novatext.android.OverlayActivity`
   - 内部透明转发页
 - `com.cashewteam.novatext.android.BoomActivity`
@@ -186,6 +186,10 @@ Activity 上下文：
 
 - `EXTRA_CAPTURE_ACCESSIBILITY`
   - 含义：进入无障碍文本抓取链路
+- `ACTION_BIGBANG_CAPTURE`
+  - 含义：第三方调用完整默认分流；使用 `caller_pkg` 做 OCR 白名单判定，复用 `BigBangCaptureDispatcher.captureAt(...)`
+- `EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK`
+  - 含义：无障碍抓文失败后，允许对 `ocr_image_uri` 或静默缓存截图做最近段落 OCR
 - `EXTRA_CAPTURE_TRACE_ID`
   - 含义：当前悬浮球识别链路 trace id
 - `EXTRA_CAPTURE_TRACE_ENABLED`
@@ -209,6 +213,14 @@ Activity 上下文：
     - `selection_rect`
 
 ## 4. OCR 输入契约
+
+### 第三方无障碍 + 图片输入
+
+`ACTION_BIGBANG_ACCESSIBILITY` 可同时带 `ocr_image_uri` 与 `EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK=true`。无障碍文本树优先；失败时才读取该 Uri 做 OCR 回退。Uri 必须通过 `clipData` 和 `FLAG_GRANT_READ_URI_PERMISSION` 授予读取权限。
+
+### 第三方完整默认分流
+
+`ACTION_BIGBANG_CAPTURE` 由 `OcrLaunchActivity` 接收后立即转交 `BigBangCaptureDispatcher.captureAt(...)`。调用必须提供 `caller_pkg`、`boom_startx`、`boom_starty`；分流器以 `caller_pkg` 判断 OCR 白名单，命中时直接截图 OCR，未命中时无障碍抓文并在失败时 OCR 回退。
 
 ### `BoomOcrActivity`
 

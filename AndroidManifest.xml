@@ -77,6 +77,10 @@
                 <action android:name="com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="com.cashewteam.novatext.android.action.BIGBANG_CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <activity

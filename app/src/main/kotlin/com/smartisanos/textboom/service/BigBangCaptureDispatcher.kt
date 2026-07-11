@@ -22,6 +22,7 @@ object BigBangCaptureDispatcher {
         context: Context,
         touchX: Int,
         touchY: Int,
+        callerPackage: String? = null,
     ) {
         val settings = BigBangSettings.get(context)
         val traceEnabled = settings.isDebugModeEnabled
@@ -77,8 +78,8 @@ object BigBangCaptureDispatcher {
             )
             return
         }
-        val currentPackage = ForegroundAppResolver.resolveForegroundPackage(context)
-        val cachedPackage = ForegroundAppResolver.cachedForegroundPackage(context)
+        val currentPackage = callerPackage ?: ForegroundAppResolver.resolveForegroundPackage(context)
+        val cachedPackage = if (callerPackage == null) ForegroundAppResolver.cachedForegroundPackage(context) else null
         if (currentPackage.isNullOrBlank()) {
             if (!cachedPackage.isNullOrBlank()) {
                 val cachedWhitelistHit = settings.ocrWhitelistPackages.contains(cachedPackage)

@@ -1213,7 +1213,7 @@ private fun SettingsScreen(
                         modifier = Modifier.widthIn(max = 600.dp),
                     ) {
                         Text(
-                            text = "Alpha ${BuildConfig.VERSION_NAME}",
+                            text = "Beta ${BuildConfig.VERSION_NAME}",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { currentPage = SettingsPage.About.name }
@@ -1911,7 +1911,7 @@ private fun AboutPage(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Alpha ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    text = "Beta ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                     color = palette.textSecondary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,

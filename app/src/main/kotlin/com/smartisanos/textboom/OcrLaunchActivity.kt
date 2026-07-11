@@ -21,6 +21,7 @@ import com.cashewteam.novatext.android.domain.capture.CaptureTextBlockContract
 import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.service.AccessibilityScreenshotCapture
+import com.cashewteam.novatext.android.service.BigBangCaptureDispatcher
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
@@ -93,11 +94,22 @@ class OcrLaunchActivity : Activity() {
             ?: traceId
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)
+        if (intent.action == ACTION_BIGBANG_CAPTURE) {
+            BigBangCaptureDispatcher.captureAt(
+                applicationContext,
+                touchX.toInt(),
+                touchY.toInt(),
+                callerPackage,
+            )
+            finish()
+            return
+        }
         captureRequested = intent.getBooleanExtra(
             EXTRA_CAPTURE_ACCESSIBILITY,
             intent.action == ACTION_BIGBANG_ACCESSIBILITY,
         )
         allowAccessibilityOcrFallback = intent.getBooleanExtra(EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK, false)
+        prepareProvidedOcrSource()
         pendingText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
         ensureLaunchUi()
         if (pendingOcrSelectionLaunch) {
@@ -680,6 +692,29 @@ class OcrLaunchActivity : Activity() {
         }
     }
 
+    private fun prepareProvidedOcrSource() {
+        if (!captureRequested || ManualOcrSourceStore.get(manualOcrSourceToken) != null) {
+            return
+        }
+        val imageUri = intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI)?.let(Uri::parse) ?: return
+        val sourceToken = manualOcrSourceToken ?: ManualOcrSourceStore.newActiveToken().also {
+            manualOcrSourceToken = it
+        }
+        ManualOcrSourceStore.put(
+            ManualOcrSourceStore.Source(
+                token = sourceToken,
+                imageUri = imageUri,
+                touchX = touchX.toInt(),
+                touchY = touchY.toInt(),
+                callerPackage = callerPackage,
+                fullscreen = true,
+                offsetX = 0,
+                offsetY = 0,
+                sourceTag = "accessibility_input",
+            ),
+        )
+    }
+
     private fun startAccessibilityOcrFallbackOrWait(): Boolean {
         if (!captureRequested || !allowAccessibilityOcrFallback || accessibilityOcrFallbackStarted) {
             return false
@@ -842,6 +877,7 @@ class OcrLaunchActivity : Activity() {
     companion object {
         const val ACTION_BIGBANG_ACCESSIBILITY =
             "com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY"
+        const val ACTION_BIGBANG_CAPTURE = "com.cashewteam.novatext.android.action.BIGBANG_CAPTURE"
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
         const val EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT = "extra_capture_ocr_selection_screenshot"
         const val EXTRA_PROCESS_CLIPBOARD_TEXT = "extra_process_clipboard_text"
