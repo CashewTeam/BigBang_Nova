@@ -83,14 +83,44 @@ jobs:
 
             - name: 写入签名密钥
               if: github.event_name == 'workflow_dispatch'
+              env:
+                  SIGN_KEYSTORE_BASE64: ${{ secrets.SIGN_KEYSTORE_BASE64 }}
+                  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+                  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+                  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
               run: |
-                  if [ -n "${{ secrets.SIGN_KEYSTORE_BASE64 }}" ]; then
-                    echo "${{ secrets.SIGN_KEYSTORE_BASE64 }}" | base64 --decode > app/key.jks
-                    echo storeFile='key.jks' >> key.properties
-                    echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> key.properties
-                    echo keyAlias='${{ secrets.KEY_ALIAS }}' >> key.properties
-                    echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> key.properties
+                  if [ -z "$SIGN_KEYSTORE_BASE64" ]; then
+                    echo "::error::SIGN_KEYSTORE_BASE64 未配置或当前 Job 无权访问"
+                    exit 1
                   fi
+
+                  if [ -z "$KEYSTORE_PASSWORD" ]; then
+                    echo "::error::KEYSTORE_PASSWORD 未配置"
+                    exit 1
+                  fi
+
+                  if [ -z "$KEY_ALIAS" ]; then
+                    echo "::error::KEY_ALIAS 未配置"
+                    exit 1
+                  fi
+
+                  if [ -z "$KEY_PASSWORD" ]; then
+                    echo "::error::KEY_PASSWORD 未配置"
+                    exit 1
+                  fi
+
+                  echo "$SIGN_KEYSTORE_BASE64" | base64 --decode > app/key.jks
+
+                  cat > key.properties <<EOF
+                  storeFile=key.jks
+                  storePassword=$KEYSTORE_PASSWORD
+                  keyAlias=$KEY_ALIAS
+                  keyPassword=$KEY_PASSWORD
+                  EOF
+
+                  echo "Signing files created successfully."
+                  test -f app/key.jks
+                  test -f key.properties
 
             - name: 构建 Debug APK
               if: github.event_name == 'pull_request'
