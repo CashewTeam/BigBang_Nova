@@ -720,7 +720,8 @@ class OcrLaunchActivity : Activity() {
         }
         loopRotateImage?.visibility = View.INVISIBLE
         loopAnimFrame?.visibility = View.INVISIBLE
-        if (pendingOcrSelectionLaunch || captureRequested || captureOcrScreenshotRequested || isReplayRequested()) {
+        if (pendingOcrSelectionLaunch || captureRequested || captureOcrScreenshotRequested ||
+            captureSelectionScreenshotRequested || isReplayRequested()) {
             return
         }
         loopAnimFrame?.post {
