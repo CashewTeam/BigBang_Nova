@@ -20,7 +20,7 @@ android {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 24
         targetSdk = 36
-        versionCode = 302
+        versionCode = 303
         versionName = "1.14.19"
 
         ndk {

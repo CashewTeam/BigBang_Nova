@@ -71,6 +71,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity="com.cashewteam.novatext.android.overlay"
             android:configChanges="screenSize|layoutDirection|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode">
             <intent-filter>
                 <action android:name="com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY" />
