@@ -263,7 +263,11 @@ class FloatingBallService : Service(), SensorEventListener {
                     val sampleY = bubbleCenter?.y ?: (layoutParams.y + layoutParams.height / 2)
                     beginCaptureLaunchSuppression()
                     val nextY = if (settings.isFloatingBallHeightLocked) anchorY else layoutParams.y
-                    dockToNearestSide(sampleX, nextY)
+                    if (settings.isFloatingBallSideLocked) {
+                        dockToSide(dockedSide, nextY)
+                    } else {
+                        dockToNearestSide(sampleX, nextY)
+                    }
                     updateBubbleLayout()
                     mode = MODE_IDLE
                     BigBangCaptureDispatcher.captureAt(applicationContext, sampleX, sampleY)

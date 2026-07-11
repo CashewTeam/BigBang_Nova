@@ -176,6 +176,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onFloatingBallActiveAlphaChange = { updateFloatingBallActiveAlphaPercent(it) },
                     onFloatingBallIdleAlphaChange = { updateFloatingBallIdleAlphaPercent(it) },
                     onFloatingBallHeightLockedChange = { updateFloatingBallHeightLocked(it) },
+                    onFloatingBallSideLockedChange = { updateFloatingBallSideLocked(it) },
                     onFloatingBallOneHandModeChange = { updateFloatingBallOneHandMode(it) },
                     onFloatingBallOneHandAngleChange = { updateFloatingBallOneHandAngle(it) },
                     onFloatingBallHiddenChange = { updateFloatingBallHidden(it) },
@@ -288,6 +289,11 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateFloatingBallHeightLocked(enabled: Boolean) {
         settings.setFloatingBallHeightLocked(enabled)
+        FloatingBallService.refreshAppearance(this)
+    }
+
+    private fun updateFloatingBallSideLocked(enabled: Boolean) {
+        settings.setFloatingBallSideLocked(enabled)
         FloatingBallService.refreshAppearance(this)
     }
 
@@ -554,6 +560,7 @@ private fun SettingsScreen(
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
     onFloatingBallHeightLockedChange: (Boolean) -> Unit,
+    onFloatingBallSideLockedChange: (Boolean) -> Unit,
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
@@ -622,6 +629,9 @@ private fun SettingsScreen(
     }
     var floatingBallHeightLocked by rememberSaveable {
         mutableStateOf(settings.isFloatingBallHeightLocked)
+    }
+    var floatingBallSideLocked by rememberSaveable {
+        mutableStateOf(settings.isFloatingBallSideLocked)
     }
     var floatingBallOneHandMode by rememberSaveable {
         mutableStateOf(settings.isFloatingBallOneHandModeEnabled)
@@ -789,6 +799,7 @@ private fun SettingsScreen(
                             floatingBallActiveAlphaPercent = floatingBallActiveAlphaPercent,
                             floatingBallIdleAlphaPercent = floatingBallIdleAlphaPercent,
                             floatingBallHeightLocked = floatingBallHeightLocked,
+                            floatingBallSideLocked = floatingBallSideLocked,
                             floatingBallOneHandMode = floatingBallOneHandMode,
                             floatingBallOneHandAngle = floatingBallOneHandAngle,
                             floatingBallHidden = floatingBallHidden,
@@ -808,6 +819,10 @@ private fun SettingsScreen(
                             onFloatingBallHeightLockedChange = {
                                 floatingBallHeightLocked = it
                                 onFloatingBallHeightLockedChange(it)
+                            },
+                            onFloatingBallSideLockedChange = {
+                                floatingBallSideLocked = it
+                                onFloatingBallSideLockedChange(it)
                             },
                             onFloatingBallOneHandModeChange = {
                                 floatingBallOneHandMode = it
@@ -1767,6 +1782,7 @@ private fun FloatingBallSection(
     floatingBallActiveAlphaPercent: Int,
     floatingBallIdleAlphaPercent: Int,
     floatingBallHeightLocked: Boolean,
+    floatingBallSideLocked: Boolean,
     floatingBallOneHandMode: Boolean,
     floatingBallOneHandAngle: Int,
     floatingBallHidden: Boolean,
@@ -1775,6 +1791,7 @@ private fun FloatingBallSection(
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
     onFloatingBallIdleAlphaChange: (Int) -> Unit,
     onFloatingBallHeightLockedChange: (Boolean) -> Unit,
+    onFloatingBallSideLockedChange: (Boolean) -> Unit,
     onFloatingBallOneHandModeChange: (Boolean) -> Unit,
     onFloatingBallOneHandAngleChange: (Int) -> Unit,
     onFloatingBallHiddenChange: (Boolean) -> Unit,
@@ -1817,6 +1834,12 @@ private fun FloatingBallSection(
             subtitle = stringResource(R.string.permission_floating_ball_height_lock_summary),
             checked = floatingBallHeightLocked,
             onCheckedChange = onFloatingBallHeightLockedChange,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.permission_floating_ball_side_lock_title),
+            subtitle = stringResource(R.string.permission_floating_ball_side_lock_summary),
+            checked = floatingBallSideLocked,
+            onCheckedChange = onFloatingBallSideLockedChange,
         )
         DebugSwitchRow(
             title = stringResource(R.string.permission_floating_ball_one_hand_title),
