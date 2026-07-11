@@ -251,6 +251,16 @@ class FloatingBallService : Service(), SensorEventListener {
                 val moved = abs(event.rawX - downRawX) > MOVE_THRESHOLD_PX ||
                     abs(event.rawY - downRawY) > MOVE_THRESHOLD_PX
                 if (!moved) {
+                    if (mode == MODE_RELOCATE) {
+                        mode = MODE_IDLE
+                        lastTapAt = 0L
+                        BoomOcrLauncher.launchSelectionCapture(
+                            context = applicationContext,
+                            forceSystemBack = false,
+                            captureDelayMs = 0,
+                        )
+                        return true
+                    }
                     scheduleBubbleFade()
                     bubbleView?.performClick()
                     return true

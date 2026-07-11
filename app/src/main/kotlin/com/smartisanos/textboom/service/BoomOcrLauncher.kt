@@ -13,10 +13,13 @@ object BoomOcrLauncher {
     const val EXTRA_CAPTURE_OCR_SCREENSHOT = "extra_capture_ocr_screenshot"
 
     @JvmStatic
-    fun selectionCaptureIntent(context: Context): Intent {
+    fun selectionCaptureIntent(context: Context, captureDelayMs: Int? = null): Intent {
         val metrics = context.resources.displayMetrics
         return Intent(context, OcrLaunchActivity::class.java).apply {
             putExtra(OcrLaunchActivity.EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT, true)
+            captureDelayMs?.let {
+                putExtra(OcrLaunchActivity.EXTRA_SELECTION_CAPTURE_DELAY_MS, it)
+            }
             putExtra("boom_startx", metrics.widthPixels / 2)
             putExtra("boom_starty", metrics.heightPixels / 2)
             putExtra("boom_fullscreen", true)
@@ -28,11 +31,17 @@ object BoomOcrLauncher {
     }
 
     @JvmStatic
-    fun launchSelectionCapture(context: Context) {
-        NovaTextAccessibilityService.activeInstance?.performGlobalAction(
-            AccessibilityService.GLOBAL_ACTION_BACK,
-        )
-        context.startActivity(selectionCaptureIntent(context))
+    fun launchSelectionCapture(
+        context: Context,
+        forceSystemBack: Boolean = true,
+        captureDelayMs: Int? = null,
+    ) {
+        if (forceSystemBack) {
+            NovaTextAccessibilityService.activeInstance?.performGlobalAction(
+                AccessibilityService.GLOBAL_ACTION_BACK,
+            )
+        }
+        context.startActivity(selectionCaptureIntent(context, captureDelayMs))
     }
 
     @JvmStatic

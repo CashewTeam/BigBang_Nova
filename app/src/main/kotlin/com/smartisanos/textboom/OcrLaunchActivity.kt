@@ -156,7 +156,10 @@ class OcrLaunchActivity : Activity() {
                     Toast.makeText(this, R.string.accessibility_required_message, Toast.LENGTH_SHORT).show()
                     finish()
                 }
-            }, BigBangSettings.get(this).ocrSelectionCaptureDelayMs.toLong())
+            }, intent.getIntExtra(
+                EXTRA_SELECTION_CAPTURE_DELAY_MS,
+                BigBangSettings.get(this).ocrSelectionCaptureDelayMs,
+            ).toLong())
             return
         }
         if (isReplayRequested() && !replayStarted && !cancelled) {
@@ -815,6 +818,7 @@ class OcrLaunchActivity : Activity() {
             "com.cashewteam.novatext.android.action.BIGBANG_ACCESSIBILITY"
         const val EXTRA_CAPTURE_ACCESSIBILITY = "extra_capture_accessibility"
         const val EXTRA_CAPTURE_OCR_SELECTION_SCREENSHOT = "extra_capture_ocr_selection_screenshot"
+        const val EXTRA_SELECTION_CAPTURE_DELAY_MS = "extra_selection_capture_delay_ms"
         const val EXTRA_CAPTURE_TRACE_ID = "extra_capture_trace_id"
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK = "extra_allow_accessibility_ocr_fallback"
