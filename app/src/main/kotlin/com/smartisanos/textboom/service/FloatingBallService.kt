@@ -1,12 +1,12 @@
 package com.cashewteam.novatext.android.service
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -36,9 +36,9 @@ import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.view.animation.LinearInterpolator
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -48,10 +48,10 @@ import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.roundToInt
-import java.util.concurrent.atomic.AtomicInteger
 
 class FloatingBallService : Service(), SensorEventListener {
     private lateinit var windowManager: WindowManager
@@ -112,7 +112,9 @@ class FloatingBallService : Service(), SensorEventListener {
                 else -> 0
             },
         )
-        attachBubble()
+        if (settings.isTouchEventEnable) {
+            createTouchEventOverlay()
+        } else attachBubble()
         updateOneHandSensor()
         NovaTextLogger.d("floating ball service created")
     }
@@ -159,6 +161,108 @@ class FloatingBallService : Service(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+    private var downEventTime: Long = 0L
+    private var captured = false
+    private var startX = 0f
+    private var startY = 0f
+    private var lastX = 0f
+    private var lastY = 0f
+    private var isSwiping = false
+    private val swipeThreshold = 20f
+    private fun createTouchEventOverlay() {
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnTouchListener { _, event ->
+                if (settings.touchEventPrsPercent != 0) {
+                    if (event.pressure > (settings.touchEventPrsPercent / 100.0f)) {
+                        if (!captured) {
+                            captured = true
+                            val x = event.rawX.toInt()
+                            val y = event.rawY.toInt()
+                            BigBangCaptureDispatcher.captureAt(applicationContext, x, y)
+                        }
+                    }
+                }
+                if (settings.touchEventSizePercent != 0) {
+                    if (event.size > (settings.touchEventSizePercent / 100.0f)) {
+                        if (!captured) {
+                            captured = true
+                            val x = event.rawX.toInt()
+                            val y = event.rawY.toInt()
+                            BigBangCaptureDispatcher.captureAt(applicationContext, x, y)
+                        }
+                    }
+                }
+
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downEventTime = event.eventTime
+                        downX = event.rawX.toInt()
+                        downY = event.rawY.toInt()
+                        startX = event.rawX
+                        startY = event.rawY
+                        lastX = startX
+                        lastY = startY
+                        isSwiping = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - startX
+                        val dy = event.rawY - startY
+                        if (kotlin.math.sqrt(dx*dx + dy*dy) > swipeThreshold) {
+                            isSwiping = true
+                        }
+                        lastX = event.rawX
+                        lastY = event.rawY
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!captured) {
+                            if (isSwiping) {
+                                val start = Pair(startX.toInt(), startY.toInt())
+                                val end = Pair(lastX.toInt(), lastY.toInt())
+                                val duration = (event.eventTime - downEventTime).coerceAtLeast(20)
+                                windowManager.removeView(this)
+                                bubbleHandler.postDelayed({
+                                    NovaTextAccessibilityService.performSwipe(start, end, duration)
+                                }, 20)
+                                bubbleHandler.postDelayed({
+                                    createTouchEventOverlay()
+                                }, duration)
+                            } else {
+                                val x = event.rawX.toInt()
+                                val y = event.rawY.toInt()
+                                val duration = (event.eventTime - downEventTime).coerceAtLeast(20)
+                                windowManager.removeView(this)
+                                bubbleHandler.postDelayed({
+                                    NovaTextAccessibilityService.performClick(x, y, duration)
+                                }, 20)
+                                bubbleHandler.postDelayed({
+                                    createTouchEventOverlay()
+                                }, duration)
+                            }
+                        }
+                        captured = false
+                        true
+                    } else -> false
+                }
+            }
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayWindowType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+
+        windowManager.addView(overlay, params)
+    }
 
     private fun attachBubble() {
         if (bubbleView != null) return

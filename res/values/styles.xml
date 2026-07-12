@@ -20,6 +20,7 @@
         <item name="android:windowIsTranslucent">false</item>
         <item name="android:windowEnableSplitTouch">false</item>
         <item name="android:splitMotionEvents">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 
     <style name="OverlayActivityTheme" parent="@*android:style/Theme.DeviceDefault.NoActionBar">

@@ -1,6 +1,8 @@
 package com.cashewteam.novatext.android.service
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import com.cashewteam.novatext.android.util.NovaTextLogger
@@ -56,6 +58,27 @@ class NovaTextAccessibilityService : AccessibilityService() {
             if (cached.isNullOrBlank() || cached == selfPackage) return null
             val ageMs = SystemClock.elapsedRealtime() - latestExternalPackageAt
             return cached.takeIf { ageMs in 0..PACKAGE_CACHE_TTL_MS }
+        }
+
+        fun performClick(x: Int, y: Int, time: Long): Boolean {
+            val service = activeInstance ?: return false
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, time))
+                .build()
+            return service.dispatchGesture(gesture, null, null)
+        }
+
+        fun performSwipe(start: Pair<Int, Int>, end: Pair<Int, Int>, duration: Long): Boolean {
+            val service = activeInstance ?: return false
+            val path = Path().apply {
+                moveTo(start.first.toFloat(), start.second.toFloat())
+                lineTo(end.first.toFloat(), end.second.toFloat())
+            }
+            val gestureBuilder = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+                .build()
+            return service.dispatchGesture(gestureBuilder, null, null)
         }
     }
 

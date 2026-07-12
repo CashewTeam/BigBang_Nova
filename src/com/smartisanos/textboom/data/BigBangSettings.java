@@ -33,6 +33,9 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = "floating_ball_one_hand_angle_degrees";
     public static final String KEY_FLOATING_BALL_HIDDEN = "floating_ball_hidden";
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
+    public static final String KEY_TOUCH_EVENT_ENABLE = "touch_event_enable";
+    public static final String KEY_TOUCH_EVENT_PRS_PERCENT = "touch_event_prs_percent";
+    public static final String KEY_TOUCH_EVENT_SIZE_PERCENT = "touch_event_size_percent";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
     public static final String KEY_GAP_ROW_HEIGHT_PERCENT = "gap_row_height_percent";
@@ -79,6 +82,8 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
     private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
+    private static final int DEFAULT_TOUCH_EVENT_PRS_PERCENT = 50;
+    private static final int DEFAULT_TOUCH_EVENT_SIZE_PERCENT = 50;
     private static final int DEFAULT_GAP_ROW_HEIGHT_PERCENT = 15;
 
     private final SharedPreferences preferences;
@@ -315,6 +320,36 @@ public final class BigBangSettings {
 
     public void setFloatingBallLandscapeSafeAreaEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA, enabled).apply();
+    }
+
+    public boolean isTouchEventEnable() {
+        return preferences.getBoolean(KEY_TOUCH_EVENT_ENABLE, false);
+    }
+
+    public void setTouchEventEnable(boolean enabled) {
+        preferences.edit().putBoolean(KEY_TOUCH_EVENT_ENABLE, enabled).apply();
+    }
+
+    public int getTouchEventPrsPercent() {
+        return clampPercent(preferences.getInt(
+                KEY_TOUCH_EVENT_PRS_PERCENT,
+                DEFAULT_TOUCH_EVENT_PRS_PERCENT
+        ));
+    }
+
+    public void setTouchEventPrsPercent(int value) {
+        preferences.edit().putInt(KEY_TOUCH_EVENT_PRS_PERCENT, clampPercent(value)).apply();
+    }
+
+    public int getTouchEventSizePercent() {
+        return clampPercent(preferences.getInt(
+                KEY_TOUCH_EVENT_SIZE_PERCENT,
+                DEFAULT_TOUCH_EVENT_SIZE_PERCENT
+        ));
+    }
+
+    public void setTouchEventSizePercent(int value) {
+        preferences.edit().putInt(KEY_TOUCH_EVENT_SIZE_PERCENT, clampPercent(value)).apply();
     }
 
     public boolean isAdaptiveLauncherIconEnabled() {

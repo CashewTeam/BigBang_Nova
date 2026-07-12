@@ -220,4 +220,13 @@
     <string name="projection_permission_action">申请屏幕截图权限</string>
     <string name="projection_permission_required">请先在启动向导中授权屏幕截图。</string>
     <string name="projection_capture_failed">Projection 截图失败，请重新授权后重试。</string>
+    <string name="touch_event_settings_title">touch event settings</string>
+    <string name="touch_event_settings_summary">original</string>
+    <string name="touch_event_status">Enable</string>
+    <string name="touch_event_summary">On some models, the screen may not display this information, and the settings may be invalid.</string>
+    <string name="touch_event_prs">Triggering pressure</string>
+    <string name="touch_event_size">Trigger size</string>
+    <string name="touch_event_test">Press inside the frame to test.</string>
+    <string name="touch_event_test_prs">pressure</string>
+    <string name="touch_event_test_size">size</string>
 </resources>
