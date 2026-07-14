@@ -944,6 +944,15 @@ class FloatingBallService : Service(), SensorEventListener {
             clearCaptureLaunchSuppression()
         }
 
+        fun prepareCaptureProxyLaunch() {
+            launchFallbackGeneration.incrementAndGet()
+        }
+
+        fun notifyCaptureProxyStarted() {
+            launchFallbackGeneration.incrementAndGet()
+            clearCaptureLaunchSuppression()
+        }
+
         fun showLaunchLoopAt(x: Int, y: Int) {
             activeService?.bubbleHandler?.post {
                 activeService?.showLaunchLoopAtInternal(x, y)

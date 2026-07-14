@@ -11,6 +11,7 @@ import com.cashewteam.novatext.android.OcrLaunchActivity
 
 object BoomOcrLauncher {
     const val EXTRA_CAPTURE_OCR_SCREENSHOT = "extra_capture_ocr_screenshot"
+    const val EXTRA_CAPTURE_PROXY_RECOVERY_TOKEN = "extra_capture_proxy_recovery_token"
 
     @JvmStatic
     fun selectionCaptureIntent(context: Context, captureDelayMs: Int? = null): Intent {
@@ -105,6 +106,7 @@ object BoomOcrLauncher {
         traceEnabled: Boolean = false,
         captureScreenshot: Boolean = false,
         externalLaunchLoop: Boolean = false,
+        captureProxyRecoveryToken: Int? = null,
     ) {
         val intent = Intent(context, OcrLaunchActivity::class.java).apply {
             if (imageUri != null) {
@@ -126,6 +128,9 @@ object BoomOcrLauncher {
                 putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID, traceId)
             }
             putExtra(OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ENABLED, traceEnabled)
+            captureProxyRecoveryToken?.let {
+                putExtra(EXTRA_CAPTURE_PROXY_RECOVERY_TOKEN, it)
+            }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)

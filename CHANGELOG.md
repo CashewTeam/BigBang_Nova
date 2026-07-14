@@ -1,5 +1,11 @@
 ## 更新日志
 
+### Beta 1.14.26
+
+#### 问题修复
+
+- 修复部分定制系统和动态页面中，悬浮球截图成功后 OCR 代理页未显示的问题。现在会在启动前清理旧的等待状态；仅当代理页未进入前台时自动重试一次，不影响正常识别流程。[Issue #21](https://github.com/CashewTeam/BigBang_NovaText/issues/21)
+
 ### [Beta 1.14.25](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.14.25)
 
 更新日期：2026-07-08 至 2026-07-12

@@ -13,10 +13,22 @@ import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
 import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator
 import com.cashewteam.novatext.android.util.NovaTextLogger
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 object BigBangCaptureDispatcher {
     private val mainHandler = Handler(Looper.getMainLooper())
+    private const val OCR_PROXY_RECOVERY_TIMEOUT_MS = 1_000L
+    private val nextOcrProxyRecoveryToken = AtomicInteger(0)
+
+    @Volatile
+    private var pendingOcrProxyRecoveryToken = 0
+
+    fun notifyOcrCaptureProxyStarted(token: Int) {
+        if (token != 0 && pendingOcrProxyRecoveryToken == token) {
+            pendingOcrProxyRecoveryToken = 0
+        }
+    }
 
     fun captureAt(
         context: Context,
@@ -212,17 +224,14 @@ object BigBangCaptureDispatcher {
             }
             mainHandler.post {
                 FloatingBallService.showLaunchLoopAt(touchX, touchY)
-                BoomOcrLauncher.launchCapture(
+                launchOcrActivityWithRecovery(
                     context = context,
                     touchX = touchX,
                     touchY = touchY,
-                    fullscreen = true,
                     callerPackage = callerPackage,
                     manualOcrSourceToken = sourceToken,
                     traceId = traceId,
                     traceEnabled = traceEnabled,
-                    captureScreenshot = false,
-                    externalLaunchLoop = true,
                 )
             }
         }
@@ -274,17 +283,14 @@ object BigBangCaptureDispatcher {
                 return
             }
             mainHandler.post {
-                BoomOcrLauncher.launchCapture(
+                launchOcrActivityWithRecovery(
                     context = context,
                     touchX = touchX,
                     touchY = touchY,
-                    fullscreen = true,
                     callerPackage = callerPackage,
                     manualOcrSourceToken = sourceToken,
                     traceId = traceId,
                     traceEnabled = traceEnabled,
-                    captureScreenshot = false,
-                    externalLaunchLoop = true,
                 )
             }
         }
@@ -346,6 +352,46 @@ object BigBangCaptureDispatcher {
         if (!started) {
             launchTextCapture()
         }
+    }
+
+    private fun launchOcrActivityWithRecovery(
+        context: Context,
+        touchX: Int,
+        touchY: Int,
+        callerPackage: String?,
+        manualOcrSourceToken: String,
+        traceId: String,
+        traceEnabled: Boolean,
+    ) {
+        val recoveryToken = nextOcrProxyRecoveryToken.incrementAndGet()
+        pendingOcrProxyRecoveryToken = recoveryToken
+        fun launch() {
+            FloatingBallService.prepareCaptureProxyLaunch()
+            BoomOcrLauncher.launchCapture(
+                context = context,
+                touchX = touchX,
+                touchY = touchY,
+                fullscreen = true,
+                callerPackage = callerPackage,
+                manualOcrSourceToken = manualOcrSourceToken,
+                traceId = traceId,
+                traceEnabled = traceEnabled,
+                captureScreenshot = false,
+                externalLaunchLoop = true,
+                captureProxyRecoveryToken = recoveryToken,
+            )
+        }
+        launch()
+        mainHandler.postDelayed(
+            {
+                if (pendingOcrProxyRecoveryToken != recoveryToken) return@postDelayed
+                pendingOcrProxyRecoveryToken = 0
+                NovaTextLogger.d("OCR capture proxy did not start, retry once")
+                FloatingBallService.notifyCaptureProxyStarted()
+                launch()
+            },
+            OCR_PROXY_RECOVERY_TIMEOUT_MS,
+        )
     }
 
     private fun logTrace(

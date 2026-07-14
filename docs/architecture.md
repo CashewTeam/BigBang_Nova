@@ -81,6 +81,7 @@
 - 截图缓存只保存在内存里，只保留当前活动 token，对应旧图自动回收
 - 悬浮球拖动松手后会自动贴边，横屏下也不会停在屏幕中间
 - `notifyBigBangShellShown()` 负责收口 loop 动画和隐藏状态；3 秒内未拉起外层 UI 自动兜底恢复悬浮球
+- 悬浮球 OCR 代理页启动前会废弃旧的 launch timeout；`OcrLaunchActivity.onStart()` 会确认代理页已启动并释放启动抑制。只有未进入前台时才统一重试一次
 
 ### 4. `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`
 
@@ -180,6 +181,7 @@
 - 当前不会进入范围选择页
 - 这条链路先在 `BigBangCaptureDispatcher` 截图并写入内存缓存，再显示 loop 动画，再启动 `OcrLaunchActivity`
 - `OcrLaunchActivity` 只负责读取缓存图做 OCR，并打开 BigBang 启动门槛；外部 loop 动画通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 复用
+- 白名单直接 OCR 与无障碍抓文为空后的 OCR fallback 共用代理页启动恢复：启动前刷新旧状态，代理页未进入 `onStart()` 时仅重试一次
 - 最近文本选择统一收口在 `MlKitOcrEngine`
 - OCR 结果先按 ML Kit `TextBlock` 取段落
 - 自带多行文本的 `TextBlock` 清洗换行后直接输出，不再参与后续合并

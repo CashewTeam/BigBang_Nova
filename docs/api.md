@@ -154,6 +154,7 @@ Activity 上下文：
 - `OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID`
 - `OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ENABLED`
 - `OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP`
+- `BoomOcrLauncher.EXTRA_CAPTURE_PROXY_RECOVERY_TOKEN`（仅 dispatcher 的悬浮球 OCR 恢复链路）
 
 约束：
 
@@ -161,6 +162,7 @@ Activity 上下文：
 - `OcrLaunchActivity` 读取 `manual_ocr_source_token` 对应的缓存图后做 OCR
 - loop 动画由 `FloatingBallService.showLaunchLoopAt(...)` 在截图完成后先显示；代理页通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 跳过重复 loop
 - OCR 成功拿到最近段落后，由 `OcrLaunchActivity` 继续拉起 `OverlayActivity -> BoomActivity`
+- 悬浮球触发时由 `BigBangCaptureDispatcher` 写入恢复 token。代理页在 `onStart()` 回报启动成功；只有该回报缺失时 dispatcher 才会重试一次
 
 ### 3.5 `BoomOcrLauncher.replayWithLanguage(...)`
 

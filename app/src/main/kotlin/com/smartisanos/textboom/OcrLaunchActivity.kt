@@ -273,7 +273,10 @@ class OcrLaunchActivity : Activity() {
         if (floatingBallHideToken == null) {
             floatingBallHideToken = FloatingBallService.acquireVisibilitySuppression()
         }
-        FloatingBallService.clearCaptureLaunchSuppression()
+        BigBangCaptureDispatcher.notifyOcrCaptureProxyStarted(
+            intent.getIntExtra(BoomOcrLauncher.EXTRA_CAPTURE_PROXY_RECOVERY_TOKEN, 0),
+        )
+        FloatingBallService.notifyCaptureProxyStarted()
     }
 
     override fun onStop() {
