@@ -112,9 +112,7 @@ class FloatingBallService : Service(), SensorEventListener {
                 else -> 0
             },
         )
-        if (settings.isTouchEventEnable) {
-            createTouchEventOverlay()
-        } else attachBubble()
+        if (settings.isTouchEventEnable) createTouchEventOverlay() else attachBubble()
         updateOneHandSensor()
         NovaTextLogger.d("floating ball service created")
     }
@@ -174,19 +172,17 @@ class FloatingBallService : Service(), SensorEventListener {
         val overlay = FrameLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             setOnTouchListener { _, event ->
-                if (settings.touchEventPrsPercent != 0) {
-                    if (event.pressure > (settings.touchEventPrsPercent / 100.0f)) {
-                        if (!captured) {
+                if (!captured) {
+                    if (event.pressure < 1f && settings.touchEventPrsPercent < 100) {
+                        if (event.pressure > (settings.touchEventPrsPercent / 100.0f)) {
                             captured = true
                             val x = event.rawX.toInt()
                             val y = event.rawY.toInt()
                             BigBangCaptureDispatcher.captureAt(applicationContext, x, y)
                         }
                     }
-                }
-                if (settings.touchEventSizePercent != 0) {
-                    if (event.size > (settings.touchEventSizePercent / 100.0f)) {
-                        if (!captured) {
+                    if (event.size < 1f && settings.touchEventSizePercent < 100) {
+                        if (event.size > (settings.touchEventSizePercent / 100.0f)) {
                             captured = true
                             val x = event.rawX.toInt()
                             val y = event.rawY.toInt()
@@ -226,9 +222,9 @@ class FloatingBallService : Service(), SensorEventListener {
                                 windowManager.removeView(this)
                                 bubbleHandler.postDelayed({
                                     NovaTextAccessibilityService.performSwipe(start, end, duration)
-                                }, 20)
+                                }, 1)
                                 bubbleHandler.postDelayed({
-                                    createTouchEventOverlay()
+                                    if (isRunning) createTouchEventOverlay()
                                 }, duration)
                             } else {
                                 val x = event.rawX.toInt()
@@ -237,9 +233,9 @@ class FloatingBallService : Service(), SensorEventListener {
                                 windowManager.removeView(this)
                                 bubbleHandler.postDelayed({
                                     NovaTextAccessibilityService.performClick(x, y, duration)
-                                }, 20)
+                                }, 1)
                                 bubbleHandler.postDelayed({
-                                    createTouchEventOverlay()
+                                    if (isRunning) createTouchEventOverlay()
                                 }, duration)
                             }
                         }

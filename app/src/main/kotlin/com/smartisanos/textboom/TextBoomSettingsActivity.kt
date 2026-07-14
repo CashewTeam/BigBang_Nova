@@ -426,6 +426,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
     }
 
     private fun updateTouchEventEnable(enabled: Boolean) {
+        stopFloatingBall()
         settings.setTouchEventEnable(enabled)
     }
 
@@ -2581,13 +2582,13 @@ private fun TouchEventSection(
         FloatingBallSlider(
             title = stringResource(R.string.touch_event_prs),
             value = touchEventPrsPercent,
-            valueRange = 0f..100f,
+            valueRange = 1f..100f,
             onValueChange = onTouchEventPrsChange,
         )
         FloatingBallSlider(
             title = stringResource(R.string.touch_event_size),
             value = touchEventSizePercent,
-            valueRange = 0f..100f,
+            valueRange = 1f..100f,
             onValueChange = onTouchEventSizeChange,
         )
         TouchEventTest(

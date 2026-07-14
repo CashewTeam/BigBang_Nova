@@ -82,8 +82,8 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_ACTIVE_ALPHA_PERCENT = 80;
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
     private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
-    private static final int DEFAULT_TOUCH_EVENT_PRS_PERCENT = 50;
-    private static final int DEFAULT_TOUCH_EVENT_SIZE_PERCENT = 50;
+    private static final int DEFAULT_TOUCH_EVENT_PRS_PERCENT = 100;
+    private static final int DEFAULT_TOUCH_EVENT_SIZE_PERCENT = 100;
     private static final int DEFAULT_GAP_ROW_HEIGHT_PERCENT = 15;
 
     private final SharedPreferences preferences;
