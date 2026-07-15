@@ -7,6 +7,9 @@
 - [development-plan.md](./development-plan.md)
   - 只写当前开发状态、下一阶段目标、里程碑和未完成项
   - 不展开实现细节，不重复接口定义
+- [edit-mode-development-plan.md](./edit-mode-development-plan.md)
+  - 基于原版 APK、反编译源码和实机截图整理编辑模式 UI、交互、实现证据与专项开发计划
+  - 只服务编辑模式落地，不替代总体开发计划
 - [architecture.md](./architecture.md)
   - 只写模块边界、组件职责、启动流程、动画时序和迁移约束
   - 不写具体待办清单
@@ -22,3 +25,4 @@
 2. 再看 [architecture.md](./architecture.md) 了解代码分层和启动流程
 3. 然后看 [api.md](./api.md) 查具体契约
 4. 最后看 [development-plan.md](./development-plan.md) 了解后续工作
+5. 开发编辑模式时再看 [edit-mode-development-plan.md](./edit-mode-development-plan.md) 的专项规格与验收用例
