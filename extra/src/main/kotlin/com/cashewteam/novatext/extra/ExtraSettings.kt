@@ -11,7 +11,7 @@ import java.util.ArrayDeque
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 
-enum class TriggerMode { PRESSURE, SIZE }
+enum class TriggerMode { PRESSURE, SIZE, TOUCH_AREA }
 
 data class TriggerConfig(
     val enabled: Boolean,
@@ -39,6 +39,9 @@ class ExtraSettings(context: Context) {
     var sizeThreshold: Float
         get() = preferences.getFloat(KEY_SIZE, 0f)
         set(value) = write { putFloat(KEY_SIZE, value) }
+    var touchAreaThreshold: Float
+        get() = preferences.getFloat(KEY_TOUCH_AREA, 500f)
+        set(value) = write { putFloat(KEY_TOUCH_AREA, value) }
     var experimentalEnabled: Boolean
         get() = preferences.getBoolean(KEY_EXPERIMENTAL, false)
         set(value) = write { putBoolean(KEY_EXPERIMENTAL, value) }
@@ -47,7 +50,11 @@ class ExtraSettings(context: Context) {
         enabled = triggerEnabled,
         calibrated = calibrated,
         mode = mode,
-        threshold = if (mode == TriggerMode.PRESSURE) pressureThreshold else sizeThreshold,
+        threshold = when (mode) {
+            TriggerMode.PRESSURE -> pressureThreshold
+            TriggerMode.SIZE -> sizeThreshold
+            TriggerMode.TOUCH_AREA -> touchAreaThreshold
+        },
     )
 
     private fun write(change: SharedPreferences.Editor.() -> Unit) {
@@ -62,6 +69,7 @@ class ExtraSettings(context: Context) {
         const val KEY_MODE = "trigger_mode"
         const val KEY_PRESSURE = "pressure_threshold"
         const val KEY_SIZE = "size_threshold"
+        const val KEY_TOUCH_AREA = "touch_area_threshold"
         const val KEY_EXPERIMENTAL = "experimental_enabled"
         private const val PREFS = "nova_text_extra"
     }
@@ -99,6 +107,7 @@ object VectorServiceBridge {
             .putString(ExtraSettings.KEY_MODE, settings.mode.name)
             .putFloat(ExtraSettings.KEY_PRESSURE, settings.pressureThreshold)
             .putFloat(ExtraSettings.KEY_SIZE, settings.sizeThreshold)
+            .putFloat(ExtraSettings.KEY_TOUCH_AREA, settings.touchAreaThreshold)
             .apply()
     }
 

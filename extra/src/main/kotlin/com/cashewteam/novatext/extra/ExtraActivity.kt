@@ -15,7 +15,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,7 +57,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -248,8 +246,12 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
 @Composable
 private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit, onMessage: (String) -> Unit) {
     var mode by remember { mutableStateOf(config.mode) }
-    var thresholdPercent by remember(mode) {
-        mutableFloatStateOf((if (mode == TriggerMode.PRESSURE) settings.pressureThreshold else settings.sizeThreshold) * 100f)
+    var threshold by remember(mode) {
+        mutableFloatStateOf(when (mode) {
+            TriggerMode.PRESSURE -> settings.pressureThreshold
+            TriggerMode.SIZE -> settings.sizeThreshold
+            TriggerMode.TOUCH_AREA -> settings.touchAreaThreshold
+        })
     }
     PageList {
         item {
@@ -257,16 +259,36 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                 Text("选择触发数据", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectButton("压感", mode == TriggerMode.PRESSURE) { mode = TriggerMode.PRESSURE }
-                    SelectButton("触控面积", mode == TriggerMode.SIZE) { mode = TriggerMode.SIZE }
+                    SelectButton("Size", mode == TriggerMode.SIZE) { mode = TriggerMode.SIZE }
+                    SelectButton("椭圆面积", mode == TriggerMode.TOUCH_AREA) { mode = TriggerMode.TOUCH_AREA }
                 }
                 Text("阈值由滑条设置；仅在 Extra 的测试区域读取本机触控数据，不使用 Xposed。", color = Color(0xFF60656D), fontSize = 14.sp)
             }
         }
         item {
             ExtraCard {
-                Text(if (mode == TriggerMode.PRESSURE) "压感阈值" else "触控面积阈值", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Text("%d%%  ·  %.3f".format(thresholdPercent.toInt(), thresholdPercent / 100f), color = Color(0xFF60656D))
-                Slider(value = thresholdPercent, onValueChange = { thresholdPercent = it }, valueRange = 1f..100f)
+                Text(when (mode) {
+                    TriggerMode.PRESSURE -> "压感阈值"
+                    TriggerMode.SIZE -> "Size 阈值"
+                    TriggerMode.TOUCH_AREA -> "椭圆接触面积阈值"
+                }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    when (mode) {
+                        TriggerMode.PRESSURE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
+                        TriggerMode.SIZE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
+                        TriggerMode.TOUCH_AREA -> "%.1f px²".format(threshold)
+                    },
+                    color = Color(0xFF60656D),
+                )
+                Slider(
+                    value = threshold,
+                    onValueChange = { threshold = it },
+                    valueRange = when (mode) {
+                        TriggerMode.PRESSURE -> 0.01f..1f
+                        TriggerMode.SIZE -> 0.01f..1f
+                        TriggerMode.TOUCH_AREA -> 0f..2_000f
+                    },
+                )
             }
         }
         item {
@@ -278,7 +300,11 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                 onClick = {
                     settings.mode = mode
                     settings.calibrated = true
-                    if (mode == TriggerMode.PRESSURE) settings.pressureThreshold = thresholdPercent / 100f else settings.sizeThreshold = thresholdPercent / 100f
+                    when (mode) {
+                        TriggerMode.PRESSURE -> settings.pressureThreshold = threshold
+                        TriggerMode.SIZE -> settings.sizeThreshold = threshold
+                        TriggerMode.TOUCH_AREA -> settings.touchAreaThreshold = threshold
+                    }
                     settings.triggerEnabled = false
                     refresh()
                     onMessage("触发阈值已保存")
@@ -293,26 +319,32 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
 private fun TouchEventTest() = ExtraCard {
     var pressure by remember { mutableFloatStateOf(0f) }
     var size by remember { mutableFloatStateOf(0f) }
+    var touchMajor by remember { mutableFloatStateOf(0f) }
+    var touchMinor by remember { mutableFloatStateOf(0f) }
     Text("触控数据测试", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
     Box(
         Modifier.fillMaxWidth().height(150.dp).background(Color(0xFFF6F7F8), RoundedCornerShape(14.dp))
             .pointerInteropFilter { event ->
-                size = event.getSize(0)
-                true
-            }
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        event.changes.firstOrNull()?.let { pressure = it.pressure }
-                    }
+                if (event.pointerCount > 0) {
+                    pressure = event.getPressure(0)
+                    size = event.getSize(0)
+                    touchMajor = event.getTouchMajor(0)
+                    touchMinor = event.getTouchMinor(0)
                 }
+                true
             },
         contentAlignment = Alignment.Center,
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            TouchValue("压感", pressure)
-            TouchValue("触控面积", size)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TouchValue("压感", pressure)
+                TouchValue("Size", size)
+                TouchValue("椭圆面积", TriggerPolicy.touchArea(touchMajor, touchMinor))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TouchValue("TouchMajor", touchMajor)
+                TouchValue("TouchMinor", touchMinor)
+            }
         }
     }
     Text("在此区域按压或滑动，数值仅用于观察和设置阈值。", color = Color(0xFF60656D), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
@@ -384,8 +416,12 @@ private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress
                 StatusRow("作用域", VectorServiceBridge.scopeStatus())
                 StatusRow("Nova Text", if (novaInstalled) "已安装" else "未安装")
                 StatusRow("触发设置", if (config.calibrated) "已保存" else "未保存")
-                StatusRow("触发方式", if (config.mode == TriggerMode.PRESSURE) "压感" else "触控面积")
-                StatusRow("阈值", "%.3f".format(config.threshold))
+                StatusRow("触发方式", when (config.mode) {
+                    TriggerMode.PRESSURE -> "压感"
+                    TriggerMode.SIZE -> "Size"
+                    TriggerMode.TOUCH_AREA -> "椭圆接触面积"
+                })
+                StatusRow("阈值", if (config.mode == TriggerMode.TOUCH_AREA) "%.1f px²".format(config.threshold) else "%.3f".format(config.threshold))
                 StatusRow("系统监听", if (settings.triggerEnabled) "已启用" else "未启用")
                 StatusRow("实验浮窗", if (ExperimentalOverlayService.isRunning()) "运行中" else "未运行")
                 StatusRow("Extra 无障碍", if (ExtraAccessibilityService.active != null) "已连接" else "未连接")

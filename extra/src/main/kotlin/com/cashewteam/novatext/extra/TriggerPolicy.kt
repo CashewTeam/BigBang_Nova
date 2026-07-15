@@ -14,8 +14,15 @@ object TriggerPolicy {
     }
 
     fun readSample(event: MotionEvent, mode: TriggerMode, pointerIndex: Int): Float {
-        return if (mode == TriggerMode.PRESSURE) event.getPressure(pointerIndex) else event.getSize(pointerIndex)
+        return when (mode) {
+            TriggerMode.PRESSURE -> event.getPressure(pointerIndex)
+            TriggerMode.SIZE -> event.getSize(pointerIndex)
+            TriggerMode.TOUCH_AREA -> touchArea(event.getTouchMajor(pointerIndex), event.getTouchMinor(pointerIndex))
+        }
     }
+
+    fun touchArea(touchMajor: Float, touchMinor: Float): Float =
+        (Math.PI.toFloat() * touchMajor * touchMinor) / 4f
 
     const val NOVA_TEXT = "com.cashewteam.novatext.android"
     const val EXTRA = "com.cashewteam.novatext.extra"

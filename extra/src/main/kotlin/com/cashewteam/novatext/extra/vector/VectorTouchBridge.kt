@@ -47,10 +47,10 @@ object VectorTouchBridge {
             enabled = preferences.getBoolean(ExtraSettings.KEY_ENABLED, false),
             calibrated = preferences.getBoolean(ExtraSettings.KEY_CALIBRATED, false),
             mode = mode,
-            threshold = if (mode == TriggerMode.PRESSURE) {
-                preferences.getFloat(ExtraSettings.KEY_PRESSURE, 0f)
-            } else {
-                preferences.getFloat(ExtraSettings.KEY_SIZE, 0f)
+            threshold = when (mode) {
+                TriggerMode.PRESSURE -> preferences.getFloat(ExtraSettings.KEY_PRESSURE, 0f)
+                TriggerMode.SIZE -> preferences.getFloat(ExtraSettings.KEY_SIZE, 0f)
+                TriggerMode.TOUCH_AREA -> preferences.getFloat(ExtraSettings.KEY_TOUCH_AREA, 500f)
             },
         )
     }
