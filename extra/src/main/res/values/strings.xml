@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Nova Text Extra</string>
+    <string name="extra_accessibility_summary">为实验性全屏触控浮窗回放未触发的点击和滑动。</string>
+</resources>
