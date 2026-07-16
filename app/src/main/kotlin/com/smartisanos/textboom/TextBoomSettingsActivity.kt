@@ -2416,7 +2416,7 @@ private fun FloatingBallSection(
         FloatingBallSlider(
             title = stringResource(R.string.permission_floating_ball_size_title),
             value = floatingBallSizePercent,
-            valueRange = 40f..100f,
+            valueRange = 40f..150f,
             onValueChange = onFloatingBallSizeChange,
         )
         FloatingBallSlider(

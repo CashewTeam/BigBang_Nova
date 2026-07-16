@@ -232,14 +232,16 @@ public final class BigBangSettings {
     }
 
     public int getFloatingBallSizePercent() {
-        return clampPercent(preferences.getInt(
+        return clampFloatingBallSizePercent(preferences.getInt(
                 KEY_FLOATING_BALL_SIZE_PERCENT,
                 DEFAULT_FLOATING_BALL_SIZE_PERCENT
         ));
     }
 
     public void setFloatingBallSizePercent(int value) {
-        preferences.edit().putInt(KEY_FLOATING_BALL_SIZE_PERCENT, clampPercent(value)).apply();
+        preferences.edit()
+                .putInt(KEY_FLOATING_BALL_SIZE_PERCENT, clampFloatingBallSizePercent(value))
+                .apply();
     }
 
     public int getFloatingBallActiveAlphaPercent() {
@@ -360,6 +362,10 @@ public final class BigBangSettings {
 
     private static int clampPercent(int value) {
         return Math.max(0, Math.min(100, value));
+    }
+
+    private static int clampFloatingBallSizePercent(int value) {
+        return Math.max(0, Math.min(150, value));
     }
 
     private static int clampAngleDegrees(int value) {
