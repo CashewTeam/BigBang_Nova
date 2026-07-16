@@ -274,7 +274,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                 }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     when (mode) {
-                        TriggerMode.PRESSURE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
+                        TriggerMode.PRESSURE -> "%.3f".format(threshold)
                         TriggerMode.SIZE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
                         TriggerMode.TOUCH_AREA -> "%.1f px²".format(threshold)
                     },
@@ -284,7 +284,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                     value = threshold,
                     onValueChange = { threshold = it },
                     valueRange = when (mode) {
-                        TriggerMode.PRESSURE -> 0.01f..1f
+                        TriggerMode.PRESSURE -> 0f..3f
                         TriggerMode.SIZE -> 0.01f..1f
                         TriggerMode.TOUCH_AREA -> 0f..2_000f
                     },

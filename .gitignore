@@ -3,6 +3,7 @@
 /app/build/
 /extra/build/
 /extra/**/build/
+/extra/release/
 /app/.cxx/
 /app/release/
 /local.properties
