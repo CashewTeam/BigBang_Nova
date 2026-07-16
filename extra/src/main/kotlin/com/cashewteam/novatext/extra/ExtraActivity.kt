@@ -1,8 +1,7 @@
 package com.cashewteam.novatext.extra
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -10,7 +9,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -76,21 +74,20 @@ class ExtraActivity : ComponentActivity() {
         val settings = ExtraSettings(this)
         VectorServiceBridge.connect(settings)
         setContent {
-            val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
             ExtraTheme {
                 ExtraScreen(
                     settings = settings,
                     resumeVersion = resumeVersion,
-                    requestOverlay = {
-                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                            data = android.net.Uri.parse("package:$packageName")
+                    requestAccessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                    requestBatteryExemption = {
+                        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:$packageName")
                         })
                     },
-                    requestAccessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                    requestNotification = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                        ) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    requestAppPermissions = {
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                        })
                     },
                     onMessage = { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() },
                 )
@@ -114,9 +111,9 @@ private fun ExtraTheme(content: @Composable () -> Unit) {
 private fun ExtraScreen(
     settings: ExtraSettings,
     @Suppress("UNUSED_PARAMETER") resumeVersion: Int,
-    requestOverlay: () -> Unit,
     requestAccessibility: () -> Unit,
-    requestNotification: () -> Unit,
+    requestBatteryExemption: () -> Unit,
+    requestAppPermissions: () -> Unit,
     onMessage: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -141,9 +138,10 @@ private fun ExtraScreen(
                 ExtraPage.EXPERIMENTAL -> ExperimentalPage(
                     settings = settings,
                     onEnable = { riskDialog = true },
-                    onStop = { ExperimentalOverlayService.stop(context); refresh() },
-                    requestOverlay = requestOverlay,
+                    onStop = { ExperimentalTouchController.stop(context); refresh() },
                     requestAccessibility = requestAccessibility,
+                    requestBatteryExemption = requestBatteryExemption,
+                    requestAppPermissions = requestAppPermissions,
                 )
                 ExtraPage.STATUS -> StatusPage(settings, config, version)
             }
@@ -152,18 +150,20 @@ private fun ExtraScreen(
     if (riskDialog) {
         AlertDialog(
             onDismissRequest = { riskDialog = false },
-            title = { Text("启用实验性全屏浮窗？") },
-            text = { Text("该模式会拦截并通过无障碍回放未触发的触控，可能降低点击和滑动手感。") },
+            title = { Text("启用实验性触控监听？") },
+            text = { Text("仅支持 Android 13 及以上。普通触控会直接委托给当前应用；压感或面积达到阈值时，本次触控将被消费并触发 Nova Text。") },
             confirmButton = {
                 TextButton(onClick = {
                     riskDialog = false
-                    requestNotification()
-                    if (!android.provider.Settings.canDrawOverlays(context)) {
-                        requestOverlay()
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                        onMessage("实验模式需要 Android 13 或更高版本")
+                    } else if (!ExperimentalTouchController.hasBatteryExemption(context)) {
+                        onMessage("请先允许 Extra 在后台持续运行")
+                        requestBatteryExemption()
                     } else if (ExtraAccessibilityService.active == null) {
                         requestAccessibility()
-                    } else if (!ExperimentalOverlayService.start(context)) {
-                        onMessage("请先保存触发设置，并完成悬浮窗与无障碍授权")
+                    } else if (!ExperimentalTouchController.start(context)) {
+                        onMessage("请先保存触发设置，并完成无障碍授权")
                     } else refresh()
                 }) { Text("继续") }
             },
@@ -179,7 +179,7 @@ private fun ExtraTopBar(page: ExtraPage, onBack: () -> Unit) {
         ExtraPage.HOME -> "Nova Text Extra"
         ExtraPage.SYSTEM -> "系统触控监听"
         ExtraPage.TRIGGER -> "触发设置"
-        ExtraPage.EXPERIMENTAL -> "实验性全屏浮窗"
+        ExtraPage.EXPERIMENTAL -> "实验性触控监听"
         ExtraPage.STATUS -> "状态与诊断"
     }
     TopAppBar(
@@ -199,7 +199,7 @@ private fun HomePage(onOpen: (ExtraPage) -> Unit, enabled: Boolean, calibrated: 
         item { IntroCard(enabled, calibrated) }
         item { NavigationCard("系统触控监听", "Xposed 模块、作用域与稳定触发", { onOpen(ExtraPage.SYSTEM) }) }
         item { NavigationCard("触发设置", "App 内实时读取触控数据并设置阈值", { onOpen(ExtraPage.TRIGGER) }) }
-        item { NavigationCard("实验性全屏浮窗", "免 Root，但会影响原始触控体验", { onOpen(ExtraPage.EXPERIMENTAL) }) }
+        item { NavigationCard("实验性触控监听", "免 Root，Android 13+ 原样委托普通触控", { onOpen(ExtraPage.EXPERIMENTAL) }) }
         item { NavigationCard("状态与诊断", "框架、权限与最近配置状态", { onOpen(ExtraPage.STATUS) }) }
     }
 }
@@ -295,8 +295,15 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
             TouchEventTest()
         }
         item {
+            ExtraCard {
+                Text("重要提醒", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("请确认触发设置正确并且设备支持，否则可能会导致无障碍触控拦截无法关闭。")
+            }
+        }
+        item {
             Button(
                 modifier = Modifier.fillMaxWidth(),
+                enabled = threshold > 0f && threshold.isFinite(),
                 onClick = {
                     settings.mode = mode
                     settings.calibrated = true
@@ -310,6 +317,9 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                     onMessage("触发阈值已保存")
                 },
             ) { Text("保存触发设置") }
+            if (threshold <= 0f || !threshold.isFinite()) {
+                Text("阈值必须大于 0，否则所有普通触摸都会被判定为触发。", color = Color(0xFFB05D00), fontSize = 13.sp)
+            }
         }
     }
 }
@@ -361,20 +371,22 @@ private fun ExperimentalPage(
     settings: ExtraSettings,
     onEnable: () -> Unit,
     onStop: () -> Unit,
-    requestOverlay: () -> Unit,
     requestAccessibility: () -> Unit,
+    requestBatteryExemption: () -> Unit,
+    requestAppPermissions: () -> Unit,
 ) {
     val context = LocalContext.current
-    val overlayGranted = android.provider.Settings.canDrawOverlays(context)
     val accessibilityEnabled = ExtraAccessibilityService.isEnabled(context)
     val accessibilityConnected = ExtraAccessibilityService.active != null
-    val running = ExperimentalOverlayService.isRunning()
+    val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    val batteryExempt = ExperimentalTouchController.hasBatteryExemption(context)
+    val running = ExperimentalTouchController.running
     PageList {
         item {
             ExtraCard {
                 Text("实验性功能", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("全屏透明浮窗会接收全部触控，未触发事件只能经无障碍手势近似回放。它可能造成滚动和点击手感下降。")
-                SwitchRow("启用实验模式", "进入第三方 App 后创建全屏透明浮窗", running) { enabled ->
+                Text("使用 Android 13 的 TouchInteractionController。普通点击、滑动和多指操作会原样委托给当前应用；仅首个按下事件超过阈值时才消费并触发 Nova Text。")
+                SwitchRow("启用实验模式", "仅 Android 13+，不需要悬浮窗或手势回放", running, enabled = supported) { enabled ->
                     if (enabled) onEnable() else onStop()
                 }
             }
@@ -382,22 +394,26 @@ private fun ExperimentalPage(
         item {
             ExtraCard {
                 Text("权限与运行状态", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                StatusRow("悬浮窗权限", if (overlayGranted) "已授权" else "未授权")
+                StatusRow("系统版本", if (supported) "Android 13+，已支持" else "需要 Android 13+")
+                StatusRow("后台持续运行", if (batteryExempt) "已允许" else "未允许，触控监听不会启动")
+                StatusRow("后台弹出页面", "需在系统权限管理中手动允许")
                 StatusRow("无障碍权限", when {
                     accessibilityConnected -> "已授权并连接"
                     accessibilityEnabled -> "已授权，等待连接"
                     else -> "未授权"
                 })
-                StatusRow("实验服务", if (running) "运行中" else "未运行")
-                StatusRow("全屏浮窗", when {
-                    ExperimentalOverlayService.overlayCreated -> "已创建"
-                    running -> "当前页面受保护，已暂停"
-                    else -> "未创建"
+                StatusRow("触控控制器", when {
+                    ExperimentalTouchController.listening -> "监听中"
+                    running -> "等待无障碍连接"
+                    else -> "未监听"
                 })
-                if (!overlayGranted) OutlinedButton(onClick = requestOverlay) { Text("授权悬浮窗") }
                 if (!accessibilityEnabled || !accessibilityConnected) {
                     OutlinedButton(onClick = requestAccessibility) { Text("打开无障碍设置") }
                 }
+                if (!batteryExempt) {
+                    OutlinedButton(onClick = requestBatteryExemption) { Text("允许后台持续运行") }
+                }
+                OutlinedButton(onClick = requestAppPermissions) { Text("打开应用权限设置") }
                 if (!settings.calibrated) Text("请先在“触发设置”中保存阈值", color = Color(0xFFB05D00), fontSize = 13.sp)
             }
         }
@@ -423,7 +439,12 @@ private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress
                 })
                 StatusRow("阈值", if (config.mode == TriggerMode.TOUCH_AREA) "%.1f px²".format(config.threshold) else "%.3f".format(config.threshold))
                 StatusRow("系统监听", if (settings.triggerEnabled) "已启用" else "未启用")
-                StatusRow("实验浮窗", if (ExperimentalOverlayService.isRunning()) "运行中" else "未运行")
+                StatusRow("后台持续运行", if (ExperimentalTouchController.hasBatteryExemption(context)) "已允许" else "未允许")
+                StatusRow("实验触控监听", when {
+                    ExperimentalTouchController.listening -> "运行中"
+                    ExperimentalTouchController.running -> "等待无障碍连接"
+                    else -> "未运行"
+                })
                 StatusRow("Extra 无障碍", if (ExtraAccessibilityService.active != null) "已连接" else "未连接")
                 StatusRow("最近触发", ExtraDiagnostics.last(context))
             }

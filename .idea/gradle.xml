@@ -11,6 +11,10 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/extra" />
+            <option value="$PROJECT_DIR$/extra/libxposed-api" />
+            <option value="$PROJECT_DIR$/extra/libxposed-service" />
+            <option value="$PROJECT_DIR$/extra/libxposed-service-interface" />
           </set>
         </option>
       </GradleProjectSettings>

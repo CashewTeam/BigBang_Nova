@@ -18,4 +18,10 @@ class TriggerPolicyTest {
         assertFalse(TriggerPolicy.isExcludedPackage("com.android.chrome"))
         assertFalse(TriggerPolicy.isExcludedPackage("com.example.reader"))
     }
+
+    @Test
+    fun zeroThresholdCannotConsumeEveryTouch() {
+        assertFalse(TriggerPolicy.hasUsableThreshold(TriggerConfig(true, true, TriggerMode.PRESSURE, 0f)))
+        assertTrue(TriggerPolicy.hasUsableThreshold(TriggerConfig(true, true, TriggerMode.PRESSURE, 1f)))
+    }
 }

@@ -24,6 +24,9 @@ object TriggerPolicy {
     fun touchArea(touchMajor: Float, touchMinor: Float): Float =
         (Math.PI.toFloat() * touchMajor * touchMinor) / 4f
 
+    fun hasUsableThreshold(config: TriggerConfig): Boolean =
+        config.calibrated && config.threshold.isFinite() && config.threshold > 0f
+
     const val NOVA_TEXT = "com.cashewteam.novatext.android"
     const val EXTRA = "com.cashewteam.novatext.extra"
 
@@ -47,7 +50,7 @@ object TriggerPolicy {
                     return false
                 }
             }
-            if (!config.enabled || !config.calibrated || triggered || pointerId == MotionEvent.INVALID_POINTER_ID) return false
+            if (!config.enabled || !hasUsableThreshold(config) || triggered || pointerId == MotionEvent.INVALID_POINTER_ID) return false
             val index = event.findPointerIndex(pointerId)
             if (index < 0 || readSample(event, config.mode, index) <= config.threshold) return false
             val now = event.eventTime

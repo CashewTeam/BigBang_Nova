@@ -1,16 +1,22 @@
 package com.cashewteam.novatext.extra
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
-import android.graphics.Path
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 
 class ExtraAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         active = this
+        ExperimentalTouchController.connect(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -18,32 +24,55 @@ class ExtraAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
         ) {
-            ExperimentalOverlayService.onForegroundPackage(packageName, event.className?.toString())
+            ExperimentalTouchController.onForegroundPackage(packageName)
         }
     }
 
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        ExperimentalTouchController.disconnect()
+        stopExperimentalForeground()
         if (active === this) {
             active = null
         }
         super.onDestroy()
     }
 
-    fun replay(path: Path, duration: Long, onFinished: () -> Unit) {
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, duration.coerceIn(20L, 60_000L)))
+    fun startExperimentalForeground() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(NOTIFICATION_CHANNEL, "实验性触控监听", NotificationManager.IMPORTANCE_LOW),
+        )
+        val notification = Notification.Builder(this, NOTIFICATION_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setContentTitle("Nova Text Extra 正在监听触控")
+            .setContentText("保持运行以便立即委托普通触控")
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    Intent(this, ExtraActivity::class.java),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
+            .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
             .build()
-        if (!dispatchGesture(gesture, object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) = onFinished()
-                override fun onCancelled(gestureDescription: GestureDescription?) = onFinished()
-            }, null)) {
-            onFinished()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
+    fun stopExperimentalForeground() {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
     companion object {
+        private const val NOTIFICATION_CHANNEL = "experimental_touch"
+        private const val NOTIFICATION_ID = 2201
         @Volatile var active: ExtraAccessibilityService? = null
             private set
         fun isEnabled(context: Context): Boolean {
