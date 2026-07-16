@@ -80,7 +80,7 @@
 - 无法解析前台包名时由分流层直接走 OCR
 - 截图缓存只保存在内存里，只保留当前活动 token，对应旧图自动回收
 - 悬浮球拖动松手后会自动贴边，横屏下也不会停在屏幕中间
-- `notifyBigBangShellShown()` 负责收口 loop 动画和隐藏状态；3 秒内未拉起外层 UI 自动兜底恢复悬浮球
+- `notifyBigBangShellShown()` 负责收口悬浮球隐藏状态；3 秒内未拉起外层 UI 自动兜底恢复悬浮球
 - 悬浮球 OCR 代理页启动前会废弃旧的 launch timeout；`OcrLaunchActivity.onStart()` 会确认代理页已启动并释放启动抑制。只有未进入前台时才统一重试一次
 
 ### 4. `app/src/main/kotlin/com/smartisanos/textboom/domain/capture/`
@@ -146,7 +146,6 @@
 `FloatingBallService`
 -> `BigBangCaptureDispatcher.captureAt(...)`
 -> `AccessibilityScreenshotCapture.captureToCache(...)`
--> `FloatingBallService.showLaunchLoopAt(...)`
 -> `TextSessionCoordinator.runAccessibilityFirst(...)`
 -> `BoomActivityLauncher.openText(...)`
 -> `OcrLaunchActivity`
@@ -158,8 +157,7 @@
 - 用于 OCR 白名单外的默认文本提取路径
 - 静默截图缓存成功时会写入 `ManualOcrSourceStore`，供 BigBang 内手动重进 OCR 使用
 - 静默截图失败不阻塞无障碍抓文，文本链路会继续
-- loop 动画在截图之后、无障碍文本树处理之前显示
-- `OcrLaunchActivity` 在这条链路里主要承担统一启动门槛，不再重复播放 loop 动画
+- `OcrLaunchActivity` 统一按触点坐标播放启动 loop 动画并打开启动门槛
 
 ### C. 悬浮球白名单 OCR 链路
 
@@ -167,7 +165,6 @@
 -> `BigBangCaptureDispatcher.captureAt(...)`
 -> `AccessibilityScreenshotCapture.captureToOcr(...)`
 -> `ManualOcrSourceStore`
--> `FloatingBallService.showLaunchLoopAt(...)`
 -> `BoomOcrLauncher.launchCapture(...)`
 -> `OcrLaunchActivity`
 -> `MlKitOcrEngine.recognize(...)`
@@ -179,8 +176,8 @@
 说明：
 
 - 当前不会进入范围选择页
-- 这条链路先在 `BigBangCaptureDispatcher` 截图并写入内存缓存，再显示 loop 动画，再启动 `OcrLaunchActivity`
-- `OcrLaunchActivity` 只负责读取缓存图做 OCR，并打开 BigBang 启动门槛；外部 loop 动画通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 复用
+- 这条链路先在 `BigBangCaptureDispatcher` 截图并写入内存缓存，再启动 `OcrLaunchActivity`
+- `OcrLaunchActivity` 读取缓存图做 OCR，并统一播放启动 loop 动画、打开 BigBang 启动门槛
 - 白名单直接 OCR 与无障碍抓文为空后的 OCR fallback 共用代理页启动恢复：启动前刷新旧状态，代理页未进入 `onStart()` 时仅重试一次
 - 最近文本选择统一收口在 `MlKitOcrEngine`
 - OCR 结果先按 ML Kit `TextBlock` 取段落
@@ -270,7 +267,7 @@
 
 - 通用启动代理页
 - 负责统一启动门槛、OCR 重跑和范围选择页跳转
-- 无障碍抓文与白名单 OCR 如果已经在外层服务里显示 loop 动画，会通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 跳过内部重复动画
+- 无障碍抓文、白名单 OCR 与第三方默认分流都由本页统一播放启动 loop 动画
 - 白名单 OCR 模式下使用 dispatcher 已缓存的截图；识别成功后打开 BigBang 启动门槛
 - 预览文本、手动图片 OCR 和临时语言重跑也都复用这个代理页，避免再分叉新入口
 

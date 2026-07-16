@@ -223,7 +223,6 @@ object BigBangCaptureDispatcher {
                 return
             }
             mainHandler.post {
-                FloatingBallService.showLaunchLoopAt(touchX, touchY)
                 launchOcrActivityWithRecovery(
                     context = context,
                     touchX = touchX,
@@ -278,7 +277,6 @@ object BigBangCaptureDispatcher {
         val sourceToken = ManualOcrSourceStore.newActiveToken()
         fun launchOcrFallback() {
             if (!allowOcrFallback || ManualOcrSourceStore.get(sourceToken) == null) {
-                FloatingBallService.hideLaunchLoop()
                 FloatingBallService.clearCaptureLaunchSuppression()
                 return
             }
@@ -295,7 +293,6 @@ object BigBangCaptureDispatcher {
             }
         }
         fun launchTextCapture() {
-            FloatingBallService.showLaunchLoopAt(touchX, touchY)
             thread(name = "bigbang-dispatcher-accessibility") {
                 val snapshot = TextSessionCoordinator.runAccessibilityFirst(
                     CaptureRequestContract(
@@ -323,7 +320,6 @@ object BigBangCaptureDispatcher {
                         animateLaunch = true,
                         enableAdjacentSession = true,
                         manualOcrSourceToken = sourceToken,
-                        externalLaunchLoop = true,
                     )
                 }
             }
@@ -377,7 +373,6 @@ object BigBangCaptureDispatcher {
                 traceId = traceId,
                 traceEnabled = traceEnabled,
                 captureScreenshot = false,
-                externalLaunchLoop = true,
                 captureProxyRecoveryToken = recoveryToken,
             )
         }

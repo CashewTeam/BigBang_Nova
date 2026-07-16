@@ -65,7 +65,6 @@ class OcrLaunchActivity : Activity() {
     private var accessibilityCaptureFailed = false
     private var accessibilityOcrFallbackStarted = false
     private var allowAccessibilityOcrFallback = false
-    private var externalLaunchLoop = false
     private var clipboardTextRequested = false
     private var clipboardTextProcessed = false
 
@@ -88,7 +87,6 @@ class OcrLaunchActivity : Activity() {
         manualOcrSourceToken = intent.getStringExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN)
         replayOcrMode = intent.getStringExtra(EXTRA_REPLAY_OCR_MODE)
         replayMode = intent.getStringExtra(EXTRA_REPLAY_MODE)
-        externalLaunchLoop = intent.getBooleanExtra(EXTRA_EXTERNAL_LAUNCH_LOOP, false)
         traceEnabled = intent.getBooleanExtra(EXTRA_CAPTURE_TRACE_ENABLED, false)
         traceId = intent.getStringExtra(EXTRA_CAPTURE_TRACE_ID)?.takeIf { it.isNotBlank() }
             ?: traceId
@@ -339,12 +337,7 @@ class OcrLaunchActivity : Activity() {
     }
 
     private fun openLaunchGate() {
-        if (externalLaunchLoop) {
-            launchGateOpen = true
-            maybeLaunchBigBang()
-        } else {
-            startLaunchAnimationAtTouch()
-        }
+        startLaunchAnimationAtTouch()
     }
 
     private fun positionLaunchAnimationAtTouch(): Boolean {
@@ -889,7 +882,6 @@ class OcrLaunchActivity : Activity() {
         const val EXTRA_CAPTURE_TRACE_ENABLED = "extra_capture_trace_enabled"
         const val EXTRA_ALLOW_ACCESSIBILITY_OCR_FALLBACK = "extra_allow_accessibility_ocr_fallback"
         const val EXTRA_SKIP_LEGACY_FADE_IN = "extra_skip_legacy_fade_in"
-        const val EXTRA_EXTERNAL_LAUNCH_LOOP = "extra_external_launch_loop"
         const val EXTRA_AUTO_NEAREST_OCR = "extra_auto_nearest_ocr"
         const val EXTRA_REPLAY_OCR_MODE = "extra_replay_ocr_mode"
         const val EXTRA_REPLAY_MODE = "extra_replay_mode"

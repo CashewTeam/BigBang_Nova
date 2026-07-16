@@ -77,7 +77,6 @@
 - `boom_startx`
 - `boom_starty`
 - `OcrLaunchActivity.EXTRA_CAPTURE_ACCESSIBILITY = false`
-- `OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP`
 - `BoomActivity.EXTRA_DEBUG_PREVIEW_TEXT`（仅预览链路）
 - `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`（有可复用图片源时）
 
@@ -153,14 +152,13 @@ Activity 上下文：
 - `BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN`
 - `OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ID`
 - `OcrLaunchActivity.EXTRA_CAPTURE_TRACE_ENABLED`
-- `OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP`
 - `BoomOcrLauncher.EXTRA_CAPTURE_PROXY_RECOVERY_TOKEN`（仅 dispatcher 的悬浮球 OCR 恢复链路）
 
 约束：
 
 - 白名单 OCR 主路径不在 `OcrLaunchActivity` 内重复首张截图
 - `OcrLaunchActivity` 读取 `manual_ocr_source_token` 对应的缓存图后做 OCR
-- loop 动画由 `FloatingBallService.showLaunchLoopAt(...)` 在截图完成后先显示；代理页通过 `EXTRA_EXTERNAL_LAUNCH_LOOP` 跳过重复 loop
+- 所有默认分流的启动 loop 动画统一由 `OcrLaunchActivity` 按触点坐标播放
 - OCR 成功拿到最近段落后，由 `OcrLaunchActivity` 继续拉起 `OverlayActivity -> BoomActivity`
 - 悬浮球触发时由 `BigBangCaptureDispatcher` 写入恢复 token。代理页在 `onStart()` 回报启动成功；只有该回报缺失时 dispatcher 才会重试一次
 
@@ -200,8 +198,6 @@ Activity 上下文：
   - 含义：无障碍抓文失败后允许复用当前缓存图回退到 OCR
 - `EXTRA_SKIP_LEGACY_FADE_IN`
   - 含义：BigBang 已走外层入场动画，内部 legacy fade-in 跳过
-- `EXTRA_EXTERNAL_LAUNCH_LOOP`
-  - 含义：外部服务层已经显示 loop 动画，代理页不要再播一套
 - `EXTRA_AUTO_NEAREST_OCR`
   - 含义：直接用当前图片源做最近段落 OCR，不进入范围选择页
 - `BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT`

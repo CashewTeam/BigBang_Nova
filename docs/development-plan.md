@@ -13,7 +13,7 @@
 - 悬浮球白名单 OCR -> 截图 -> 全屏 OCR -> 最近文本块 -> BigBang
 - BigBang 内重进 OCR、临时切换 OCR 语言
 - "炸了又炸"相邻段落追加
-- 悬浮球启动 loop 动画、BigBang 入场动画和关闭动画
+- `OcrLaunchActivity` 统一启动 loop 动画、BigBang 入场动画和关闭动画
 - Android 7-10 MediaProjection 截图，支持 Shizuku 开关切换
 - Android 7-9 安装支持（未做实机完整测试）
 - 二次分词（"菜刀"功能）已接入
@@ -156,4 +156,4 @@
 2. 文档只写当前真实状态，不把目标态写成已完成。
 3. 新链路优先复用现有 launcher / dispatcher / settings，不再各起一套分支。
 4. 继续保留 legacy Java BigBang 内核，除非有明确收益，否则不重写。
-5. 悬浮球主链路的截图、loop 动画和 BigBang 启动门槛继续收口在共享链路里，不再拆分成各入口私有时序。
+5. 主链路的截图继续收口在 dispatcher，loop 动画和 BigBang 启动门槛统一收口在 `OcrLaunchActivity`。

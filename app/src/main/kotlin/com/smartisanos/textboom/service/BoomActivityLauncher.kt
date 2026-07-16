@@ -18,7 +18,6 @@ object BoomActivityLauncher {
         animateLaunch: Boolean = false,
         enableAdjacentSession: Boolean = false,
         manualOcrSourceToken: String? = null,
-        externalLaunchLoop: Boolean = false,
         adjacentTextBefore: String? = null,
         adjacentTextAfter: String? = null,
         selectedCharIndex: Int = -1,
@@ -36,7 +35,6 @@ object BoomActivityLauncher {
             if (!manualOcrSourceToken.isNullOrEmpty()) {
                 putExtra(BoomActivity.EXTRA_MANUAL_OCR_SOURCE_TOKEN, manualOcrSourceToken)
             }
-            putExtra(OcrLaunchActivity.EXTRA_EXTERNAL_LAUNCH_LOOP, externalLaunchLoop)
             if (targetActivity == OverlayActivity::class.java) {
                 putExtra(OcrLaunchActivity.EXTRA_SKIP_LEGACY_FADE_IN, true)
             }
