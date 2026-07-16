@@ -18,7 +18,20 @@ object TriggerPolicy {
             TriggerMode.PRESSURE -> event.getPressure(pointerIndex)
             TriggerMode.SIZE -> event.getSize(pointerIndex)
             TriggerMode.TOUCH_AREA -> touchArea(event.getTouchMajor(pointerIndex), event.getTouchMinor(pointerIndex))
+            TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP -> 0f
         }
+    }
+
+    fun isSensorMode(mode: TriggerMode): Boolean =
+        mode == TriggerMode.PRESSURE || mode == TriggerMode.SIZE || mode == TriggerMode.TOUCH_AREA
+
+    fun isWithinDuration(startTime: Long, endTime: Long, maximumMs: Float): Boolean =
+        maximumMs > 0f && endTime >= startTime && endTime - startTime <= maximumMs
+
+    fun movedBeyondSlop(startX: Float, startY: Float, x: Float, y: Float, slop: Int): Boolean {
+        val dx = x - startX
+        val dy = y - startY
+        return dx * dx + dy * dy > slop * slop
     }
 
     fun touchArea(touchMajor: Float, touchMinor: Float): Float =
@@ -50,7 +63,9 @@ object TriggerPolicy {
                     return false
                 }
             }
-            if (!config.enabled || !hasUsableThreshold(config) || triggered || pointerId == MotionEvent.INVALID_POINTER_ID) return false
+            if (!config.enabled || !hasUsableThreshold(config) || !isSensorMode(config.mode) ||
+                triggered || pointerId == MotionEvent.INVALID_POINTER_ID
+            ) return false
             val index = event.findPointerIndex(pointerId)
             if (index < 0 || readSample(event, config.mode, index) <= config.threshold) return false
             val now = event.eventTime

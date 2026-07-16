@@ -24,4 +24,12 @@ class TriggerPolicyTest {
         assertFalse(TriggerPolicy.hasUsableThreshold(TriggerConfig(true, true, TriggerMode.PRESSURE, 0f)))
         assertTrue(TriggerPolicy.hasUsableThreshold(TriggerConfig(true, true, TriggerMode.PRESSURE, 1f)))
     }
+
+    @Test
+    fun xposedGestureTimingAndMovementAreBounded() {
+        assertTrue(TriggerPolicy.isWithinDuration(1_000L, 1_300L, 300f))
+        assertFalse(TriggerPolicy.isWithinDuration(1_000L, 1_301L, 300f))
+        assertFalse(TriggerPolicy.movedBeyondSlop(0f, 0f, 3f, 4f, 5))
+        assertTrue(TriggerPolicy.movedBeyondSlop(0f, 0f, 4f, 4f, 5))
+    }
 }

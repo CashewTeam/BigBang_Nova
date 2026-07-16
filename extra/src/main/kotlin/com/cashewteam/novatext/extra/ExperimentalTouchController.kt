@@ -26,7 +26,7 @@ object ExperimentalTouchController {
         val config = settings.config()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ExtraAccessibilityService.active == null || !TriggerPolicy.hasUsableThreshold(config) ||
-            !hasBatteryExemption(context)
+            !TriggerPolicy.isSensorMode(config.mode) || !hasBatteryExemption(context)
         ) return false
         settings.experimentalEnabled = true
         running = true
@@ -46,8 +46,9 @@ object ExperimentalTouchController {
     }
 
     fun connect(accessibilityService: ExtraAccessibilityService) {
+        val settings = ExtraSettings(accessibilityService)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            !ExtraSettings(accessibilityService).experimentalEnabled ||
+            !settings.experimentalEnabled || !TriggerPolicy.isSensorMode(settings.mode) ||
             !hasBatteryExemption(accessibilityService)
         ) return
         running = true
@@ -200,7 +201,8 @@ object ExperimentalTouchController {
     }
 
     private fun isStrongPress(event: MotionEvent, config: TriggerConfig): Boolean =
-        TriggerPolicy.hasUsableThreshold(config) && TriggerPolicy.readSample(event, config.mode, 0) > config.threshold
+        TriggerPolicy.isSensorMode(config.mode) && TriggerPolicy.hasUsableThreshold(config) &&
+            TriggerPolicy.readSample(event, config.mode, 0) > config.threshold
 
     private const val TAG = "NovaExtraTouch"
 }

@@ -245,12 +245,15 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
 
 @Composable
 private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit, onMessage: (String) -> Unit) {
+    val context = LocalContext.current
     var mode by remember { mutableStateOf(config.mode) }
     var threshold by remember(mode) {
         mutableFloatStateOf(when (mode) {
             TriggerMode.PRESSURE -> settings.pressureThreshold
             TriggerMode.SIZE -> settings.sizeThreshold
             TriggerMode.TOUCH_AREA -> settings.touchAreaThreshold
+            TriggerMode.SINGLE_LONG_PRESS -> settings.longPressDuration
+            TriggerMode.TWO_FINGER_TAP -> settings.twoFingerTapDuration
         })
     }
     PageList {
@@ -262,7 +265,16 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                     SelectButton("Size", mode == TriggerMode.SIZE) { mode = TriggerMode.SIZE }
                     SelectButton("椭圆面积", mode == TriggerMode.TOUCH_AREA) { mode = TriggerMode.TOUCH_AREA }
                 }
-                Text("阈值由滑条设置；仅在 Extra 的测试区域读取本机触控数据，不使用 Xposed。", color = Color(0xFF60656D), fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectButton("单指长按", mode == TriggerMode.SINGLE_LONG_PRESS) { mode = TriggerMode.SINGLE_LONG_PRESS }
+                    SelectButton("双指短按", mode == TriggerMode.TWO_FINGER_TAP) { mode = TriggerMode.TWO_FINGER_TAP }
+                }
+                Text(
+                    if (TriggerPolicy.isSensorMode(mode)) "阈值由滑条设置；仅在 Extra 的测试区域读取本机触控数据，不使用 Xposed。"
+                    else "该触发方式仅在 Xposed 系统触控监听中生效。",
+                    color = Color(0xFF60656D),
+                    fontSize = 14.sp,
+                )
             }
         }
         item {
@@ -271,12 +283,15 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                     TriggerMode.PRESSURE -> "压感阈值"
                     TriggerMode.SIZE -> "Size 阈值"
                     TriggerMode.TOUCH_AREA -> "椭圆接触面积阈值"
+                    TriggerMode.SINGLE_LONG_PRESS -> "单指长按时长"
+                    TriggerMode.TWO_FINGER_TAP -> "双指短按最长时长"
                 }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     when (mode) {
                         TriggerMode.PRESSURE -> "%.3f".format(threshold)
                         TriggerMode.SIZE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
                         TriggerMode.TOUCH_AREA -> "%.1f px²".format(threshold)
+                        TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP -> "%.0f ms".format(threshold)
                     },
                     color = Color(0xFF60656D),
                 )
@@ -287,12 +302,14 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.PRESSURE -> 0f..3f
                         TriggerMode.SIZE -> 0.01f..1f
                         TriggerMode.TOUCH_AREA -> 0f..2_000f
+                        TriggerMode.SINGLE_LONG_PRESS -> 300f..1_500f
+                        TriggerMode.TWO_FINGER_TAP -> 100f..600f
                     },
                 )
             }
         }
-        item {
-            TouchEventTest()
+        if (TriggerPolicy.isSensorMode(mode)) {
+            item { TouchEventTest() }
         }
         item {
             ExtraCard {
@@ -311,8 +328,11 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.PRESSURE -> settings.pressureThreshold = threshold
                         TriggerMode.SIZE -> settings.sizeThreshold = threshold
                         TriggerMode.TOUCH_AREA -> settings.touchAreaThreshold = threshold
+                        TriggerMode.SINGLE_LONG_PRESS -> settings.longPressDuration = threshold
+                        TriggerMode.TWO_FINGER_TAP -> settings.twoFingerTapDuration = threshold
                     }
                     settings.triggerEnabled = false
+                    if (!TriggerPolicy.isSensorMode(mode)) ExperimentalTouchController.stop(context)
                     refresh()
                     onMessage("触发阈值已保存")
                 },
@@ -436,8 +456,14 @@ private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress
                     TriggerMode.PRESSURE -> "压感"
                     TriggerMode.SIZE -> "Size"
                     TriggerMode.TOUCH_AREA -> "椭圆接触面积"
+                    TriggerMode.SINGLE_LONG_PRESS -> "单指长按（仅 Xposed）"
+                    TriggerMode.TWO_FINGER_TAP -> "双指短按（仅 Xposed）"
                 })
-                StatusRow("阈值", if (config.mode == TriggerMode.TOUCH_AREA) "%.1f px²".format(config.threshold) else "%.3f".format(config.threshold))
+                StatusRow("阈值", when (config.mode) {
+                    TriggerMode.TOUCH_AREA -> "%.1f px²".format(config.threshold)
+                    TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP -> "%.0f ms".format(config.threshold)
+                    else -> "%.3f".format(config.threshold)
+                })
                 StatusRow("系统监听", if (settings.triggerEnabled) "已启用" else "未启用")
                 StatusRow("后台持续运行", if (ExperimentalTouchController.hasBatteryExemption(context)) "已允许" else "未允许")
                 StatusRow("实验触控监听", when {

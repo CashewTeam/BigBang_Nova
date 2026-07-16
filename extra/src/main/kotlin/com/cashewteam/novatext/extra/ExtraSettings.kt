@@ -11,7 +11,7 @@ import java.util.ArrayDeque
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 
-enum class TriggerMode { PRESSURE, SIZE, TOUCH_AREA }
+enum class TriggerMode { PRESSURE, SIZE, TOUCH_AREA, SINGLE_LONG_PRESS, TWO_FINGER_TAP }
 
 data class TriggerConfig(
     val enabled: Boolean,
@@ -42,6 +42,12 @@ class ExtraSettings(context: Context) {
     var touchAreaThreshold: Float
         get() = preferences.getFloat(KEY_TOUCH_AREA, 500f)
         set(value) = write { putFloat(KEY_TOUCH_AREA, value) }
+    var longPressDuration: Float
+        get() = preferences.getFloat(KEY_LONG_PRESS_DURATION, 600f)
+        set(value) = write { putFloat(KEY_LONG_PRESS_DURATION, value) }
+    var twoFingerTapDuration: Float
+        get() = preferences.getFloat(KEY_TWO_FINGER_TAP_DURATION, 300f)
+        set(value) = write { putFloat(KEY_TWO_FINGER_TAP_DURATION, value) }
     var experimentalEnabled: Boolean
         get() = preferences.getBoolean(KEY_EXPERIMENTAL, false)
         set(value) = write { putBoolean(KEY_EXPERIMENTAL, value) }
@@ -54,6 +60,8 @@ class ExtraSettings(context: Context) {
             TriggerMode.PRESSURE -> pressureThreshold
             TriggerMode.SIZE -> sizeThreshold
             TriggerMode.TOUCH_AREA -> touchAreaThreshold
+            TriggerMode.SINGLE_LONG_PRESS -> longPressDuration
+            TriggerMode.TWO_FINGER_TAP -> twoFingerTapDuration
         },
     )
 
@@ -70,6 +78,8 @@ class ExtraSettings(context: Context) {
         const val KEY_PRESSURE = "pressure_threshold"
         const val KEY_SIZE = "size_threshold"
         const val KEY_TOUCH_AREA = "touch_area_threshold"
+        const val KEY_LONG_PRESS_DURATION = "long_press_duration"
+        const val KEY_TWO_FINGER_TAP_DURATION = "two_finger_tap_duration"
         const val KEY_EXPERIMENTAL = "experimental_enabled"
         private const val PREFS = "nova_text_extra"
     }
@@ -108,6 +118,8 @@ object VectorServiceBridge {
             .putFloat(ExtraSettings.KEY_PRESSURE, settings.pressureThreshold)
             .putFloat(ExtraSettings.KEY_SIZE, settings.sizeThreshold)
             .putFloat(ExtraSettings.KEY_TOUCH_AREA, settings.touchAreaThreshold)
+            .putFloat(ExtraSettings.KEY_LONG_PRESS_DURATION, settings.longPressDuration)
+            .putFloat(ExtraSettings.KEY_TWO_FINGER_TAP_DURATION, settings.twoFingerTapDuration)
             .apply()
     }
 
