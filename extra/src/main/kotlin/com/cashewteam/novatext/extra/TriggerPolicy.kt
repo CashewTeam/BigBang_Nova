@@ -18,12 +18,29 @@ object TriggerPolicy {
             TriggerMode.PRESSURE -> event.getPressure(pointerIndex)
             TriggerMode.SIZE -> event.getSize(pointerIndex)
             TriggerMode.TOUCH_AREA -> touchArea(event.getTouchMajor(pointerIndex), event.getTouchMinor(pointerIndex))
-            TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP -> 0f
+            TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> 0f
         }
     }
 
     fun isSensorMode(mode: TriggerMode): Boolean =
         mode == TriggerMode.PRESSURE || mode == TriggerMode.SIZE || mode == TriggerMode.TOUCH_AREA
+
+    fun isMultiFingerTap(mode: TriggerMode): Boolean =
+        mode == TriggerMode.TWO_FINGER_TAP || mode == TriggerMode.THREE_FINGER_TAP
+
+    fun supportsExperimental(mode: TriggerMode): Boolean = isSensorMode(mode) || isMultiFingerTap(mode)
+
+    fun requiredPointerCount(mode: TriggerMode): Int = when (mode) {
+        TriggerMode.TWO_FINGER_TAP -> 2
+        TriggerMode.THREE_FINGER_TAP -> 3
+        else -> 1
+    }
+
+    fun hasExactPointerCount(mode: TriggerMode, currentCount: Int, maximumCount: Int): Boolean =
+        currentCount == requiredPointerCount(mode) && maximumCount == currentCount
+
+    fun isCooldownElapsed(lastTriggeredAt: Long, now: Long): Boolean =
+        lastTriggeredAt == 0L || now - lastTriggeredAt >= COOLDOWN_MS
 
     fun isWithinDuration(startTime: Long, endTime: Long, maximumMs: Float): Boolean =
         maximumMs > 0f && endTime >= startTime && endTime - startTime <= maximumMs
@@ -69,7 +86,7 @@ object TriggerPolicy {
             val index = event.findPointerIndex(pointerId)
             if (index < 0 || readSample(event, config.mode, index) <= config.threshold) return false
             val now = event.eventTime
-            if (now - lastTriggeredAt < COOLDOWN_MS) return false
+            if (!isCooldownElapsed(lastTriggeredAt, now)) return false
             lastTriggeredAt = now
             triggered = true
             return true

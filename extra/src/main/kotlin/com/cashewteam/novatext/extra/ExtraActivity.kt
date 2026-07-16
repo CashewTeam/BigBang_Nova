@@ -151,7 +151,12 @@ private fun ExtraScreen(
         AlertDialog(
             onDismissRequest = { riskDialog = false },
             title = { Text("启用实验性触控监听？") },
-            text = { Text("仅支持 Android 13 及以上。普通触控会直接委托给当前应用；压感或面积达到阈值时，本次触控将被消费并触发 Nova Text。") },
+            text = { Text(
+                if (TriggerPolicy.isMultiFingerTap(config.mode))
+                    "仅支持 Android 13 及以上。双指/三指识别会暂时拦截起始触摸，可能造成普通操作延迟；未形成多指手势的短点击会在抬起后补发。命中后将消费本次触控并触发 Nova Text。"
+                else
+                    "仅支持 Android 13 及以上。普通触控会立即委托给当前应用；触控数据达到阈值时，本次触控将被消费并触发 Nova Text。",
+            ) },
             confirmButton = {
                 TextButton(onClick = {
                     riskDialog = false
@@ -254,6 +259,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
             TriggerMode.TOUCH_AREA -> settings.touchAreaThreshold
             TriggerMode.SINGLE_LONG_PRESS -> settings.longPressDuration
             TriggerMode.TWO_FINGER_TAP -> settings.twoFingerTapDuration
+            TriggerMode.THREE_FINGER_TAP -> settings.threeFingerTapDuration
         })
     }
     PageList {
@@ -267,11 +273,17 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectButton("单指长按", mode == TriggerMode.SINGLE_LONG_PRESS) { mode = TriggerMode.SINGLE_LONG_PRESS }
-                    SelectButton("双指短按", mode == TriggerMode.TWO_FINGER_TAP) { mode = TriggerMode.TWO_FINGER_TAP }
+                    SelectButton("双指单击", mode == TriggerMode.TWO_FINGER_TAP) { mode = TriggerMode.TWO_FINGER_TAP }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectButton("三指单击", mode == TriggerMode.THREE_FINGER_TAP) { mode = TriggerMode.THREE_FINGER_TAP }
                 }
                 Text(
-                    if (TriggerPolicy.isSensorMode(mode)) "阈值由滑条设置；仅在 Extra 的测试区域读取本机触控数据，不使用 Xposed。"
-                    else "该触发方式仅在 Xposed 系统触控监听中生效。",
+                    when {
+                        TriggerPolicy.isSensorMode(mode) -> "支持 Xposed 与免 Root；测试区域直接读取本机触控数据，不使用 Xposed。"
+                        TriggerPolicy.isMultiFingerTap(mode) -> "支持 Xposed 与免 Root；免 Root 识别期间会暂时保留起始触摸。"
+                        else -> "该触发方式仅在 Xposed 系统触控监听中生效。"
+                    },
                     color = Color(0xFF60656D),
                     fontSize = 14.sp,
                 )
@@ -284,14 +296,15 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                     TriggerMode.SIZE -> "Size 阈值"
                     TriggerMode.TOUCH_AREA -> "椭圆接触面积阈值"
                     TriggerMode.SINGLE_LONG_PRESS -> "单指长按时长"
-                    TriggerMode.TWO_FINGER_TAP -> "双指短按最长时长"
+                    TriggerMode.TWO_FINGER_TAP -> "双指单击最长时长"
+                    TriggerMode.THREE_FINGER_TAP -> "三指单击最长时长"
                 }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     when (mode) {
                         TriggerMode.PRESSURE -> "%.3f".format(threshold)
                         TriggerMode.SIZE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
                         TriggerMode.TOUCH_AREA -> "%.1f px²".format(threshold)
-                        TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP -> "%.0f ms".format(threshold)
+                        TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> "%.0f ms".format(threshold)
                     },
                     color = Color(0xFF60656D),
                 )
@@ -303,7 +316,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.SIZE -> 0.01f..1f
                         TriggerMode.TOUCH_AREA -> 0f..2_000f
                         TriggerMode.SINGLE_LONG_PRESS -> 300f..1_500f
-                        TriggerMode.TWO_FINGER_TAP -> 100f..600f
+                        TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> 100f..600f
                     },
                 )
             }
@@ -315,6 +328,9 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
             ExtraCard {
                 Text("重要提醒", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("请确认触发设置正确并且设备支持，否则可能会导致无障碍触控拦截无法关闭。")
+                if (TriggerPolicy.isMultiFingerTap(mode)) {
+                    Text("免 Root 使用双指或三指触发时，识别期间会暂时拦截起始触摸，点击、滚动和多指操作可能延迟；未形成多指手势的短点击会在抬起后补发。可通过常驻通知进入 Extra 或在实验模式页面关闭监听。")
+                }
             }
         }
         item {
@@ -330,9 +346,10 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.TOUCH_AREA -> settings.touchAreaThreshold = threshold
                         TriggerMode.SINGLE_LONG_PRESS -> settings.longPressDuration = threshold
                         TriggerMode.TWO_FINGER_TAP -> settings.twoFingerTapDuration = threshold
+                        TriggerMode.THREE_FINGER_TAP -> settings.threeFingerTapDuration = threshold
                     }
                     settings.triggerEnabled = false
-                    if (!TriggerPolicy.isSensorMode(mode)) ExperimentalTouchController.stop(context)
+                    if (!TriggerPolicy.supportsExperimental(mode)) ExperimentalTouchController.stop(context)
                     refresh()
                     onMessage("触发阈值已保存")
                 },
@@ -405,7 +422,10 @@ private fun ExperimentalPage(
         item {
             ExtraCard {
                 Text("实验性功能", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("使用 Android 13 的 TouchInteractionController。普通点击、滑动和多指操作会原样委托给当前应用；仅首个按下事件超过阈值时才消费并触发 Nova Text。")
+                Text("使用 Android 13 的 TouchInteractionController。压感、Size、面积模式会在按下时立即决定触发或委托，不增加识别等待。")
+                if (TriggerPolicy.isMultiFingerTap(settings.mode)) {
+                    Text("当前双指/三指模式会暂时保留起始触摸，可能造成点击、滚动和多指操作延迟；未形成多指手势的短点击会在抬起后补发。", color = Color(0xFFB05D00), fontWeight = FontWeight.Bold)
+                }
                 SwitchRow("启用实验模式", "仅 Android 13+，不需要悬浮窗或手势回放", running, enabled = supported) { enabled ->
                     if (enabled) onEnable() else onStop()
                 }
@@ -457,11 +477,12 @@ private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress
                     TriggerMode.SIZE -> "Size"
                     TriggerMode.TOUCH_AREA -> "椭圆接触面积"
                     TriggerMode.SINGLE_LONG_PRESS -> "单指长按（仅 Xposed）"
-                    TriggerMode.TWO_FINGER_TAP -> "双指短按（仅 Xposed）"
+                    TriggerMode.TWO_FINGER_TAP -> "双指单击（Xposed / 免 Root）"
+                    TriggerMode.THREE_FINGER_TAP -> "三指单击（Xposed / 免 Root）"
                 })
                 StatusRow("阈值", when (config.mode) {
                     TriggerMode.TOUCH_AREA -> "%.1f px²".format(config.threshold)
-                    TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP -> "%.0f ms".format(config.threshold)
+                    TriggerMode.SINGLE_LONG_PRESS, TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> "%.0f ms".format(config.threshold)
                     else -> "%.3f".format(config.threshold)
                 })
                 StatusRow("系统监听", if (settings.triggerEnabled) "已启用" else "未启用")

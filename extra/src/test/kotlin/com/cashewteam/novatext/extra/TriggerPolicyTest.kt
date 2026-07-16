@@ -32,4 +32,18 @@ class TriggerPolicyTest {
         assertFalse(TriggerPolicy.movedBeyondSlop(0f, 0f, 3f, 4f, 5))
         assertTrue(TriggerPolicy.movedBeyondSlop(0f, 0f, 4f, 4f, 5))
     }
+
+    @Test
+    fun experimentalSupportAndPointerCountsMatchModes() {
+        assertTrue(TriggerPolicy.supportsExperimental(TriggerMode.PRESSURE))
+        assertTrue(TriggerPolicy.supportsExperimental(TriggerMode.TWO_FINGER_TAP))
+        assertTrue(TriggerPolicy.supportsExperimental(TriggerMode.THREE_FINGER_TAP))
+        assertFalse(TriggerPolicy.supportsExperimental(TriggerMode.SINGLE_LONG_PRESS))
+        assertTrue(TriggerPolicy.hasExactPointerCount(TriggerMode.TWO_FINGER_TAP, 2, 2))
+        assertTrue(TriggerPolicy.hasExactPointerCount(TriggerMode.THREE_FINGER_TAP, 3, 3))
+        assertFalse(TriggerPolicy.hasExactPointerCount(TriggerMode.TWO_FINGER_TAP, 2, 3))
+        assertFalse(TriggerPolicy.hasExactPointerCount(TriggerMode.THREE_FINGER_TAP, 2, 2))
+        assertFalse(TriggerPolicy.isCooldownElapsed(1_000L, 1_749L))
+        assertTrue(TriggerPolicy.isCooldownElapsed(1_000L, 1_750L))
+    }
 }

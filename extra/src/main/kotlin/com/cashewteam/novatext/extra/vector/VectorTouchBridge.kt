@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import com.cashewteam.novatext.extra.ExtraDiagnostics
@@ -23,15 +24,14 @@ object VectorTouchBridge {
     private var activeMode = TriggerMode.PRESSURE
     private var longPressTask: Runnable? = null
     private var firstPointerId = MotionEvent.INVALID_POINTER_ID
-    private var secondPointerId = MotionEvent.INVALID_POINTER_ID
     private var gestureStartTime = 0L
     private var firstX = 0f
     private var firstY = 0f
-    private var secondX = 0f
-    private var secondY = 0f
     private var triggerX = 0
     private var triggerY = 0
-    private var twoFingerCandidate = false
+    private val tapStartPositions = mutableMapOf<Int, Pair<Float, Float>>()
+    private var multiFingerCandidate = false
+    private var maximumPointerCount = 0
     private var lastGestureTriggeredAt = 0L
 
     @JvmStatic
@@ -55,8 +55,8 @@ object VectorTouchBridge {
                 TriggerMode.SINGLE_LONG_PRESS -> if (config.enabled && TriggerPolicy.hasUsableThreshold(config)) {
                     onSingleLongPress(event, context, packageName)
                 } else resetGesture()
-                TriggerMode.TWO_FINGER_TAP -> if (config.enabled && TriggerPolicy.hasUsableThreshold(config)) {
-                    onTwoFingerTap(event, context, packageName)
+                TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> if (config.enabled && TriggerPolicy.hasUsableThreshold(config)) {
+                    onMultiFingerTap(event, context, packageName)
                 } else resetGesture()
                 else -> if (gate.onEvent(event, config)) {
                     launch(context, packageName, event.rawX.toInt(), event.rawY.toInt(), TriggerPolicy.readSample(event, config.mode, 0))
@@ -100,40 +100,49 @@ object VectorTouchBridge {
         }
     }
 
-    private fun onTwoFingerTap(event: MotionEvent, context: Context, packageName: String) {
+    private fun onMultiFingerTap(event: MotionEvent, context: Context, packageName: String) {
+        val requiredPointers = TriggerPolicy.requiredPointerCount(config.mode)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 resetGesture()
                 firstPointerId = event.getPointerId(0)
                 gestureStartTime = event.eventTime
-                firstX = event.getX(0)
-                firstY = event.getY(0)
-                triggerX = event.rawX.toInt()
-                triggerY = event.rawY.toInt()
+                tapStartPositions[firstPointerId] = event.getX(0) to event.getY(0)
+                multiFingerCandidate = true
+                maximumPointerCount = 1
+                Log.d(TAG, "route=observe mode=${config.mode} requiredPointers=$requiredPointers")
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                if (event.pointerCount == 2 && TriggerPolicy.isWithinDuration(gestureStartTime, event.eventTime, config.threshold)) {
-                    secondPointerId = event.getPointerId(event.actionIndex)
-                    secondX = event.getX(event.actionIndex)
-                    secondY = event.getY(event.actionIndex)
-                    twoFingerCandidate = true
-                } else {
-                    twoFingerCandidate = false
+                maximumPointerCount = maxOf(maximumPointerCount, event.pointerCount)
+                val index = event.actionIndex
+                tapStartPositions[event.getPointerId(index)] = event.getX(index) to event.getY(index)
+                multiFingerCandidate = multiFingerCandidate && event.pointerCount <= requiredPointers &&
+                    TriggerPolicy.isWithinDuration(gestureStartTime, event.eventTime, config.threshold)
+                if (!multiFingerCandidate) {
+                    Log.d(TAG, "route=ignore reason=pointer_or_duration mode=${config.mode} maxPointers=$maximumPointerCount elapsedMs=${event.eventTime - gestureStartTime}")
                 }
             }
-            MotionEvent.ACTION_MOVE -> if (twoFingerCandidate) {
-                val firstIndex = event.findPointerIndex(firstPointerId)
-                val secondIndex = event.findPointerIndex(secondPointerId)
+            MotionEvent.ACTION_MOVE -> if (multiFingerCandidate) {
                 val slop = ViewConfiguration.get(context).scaledTouchSlop
-                if (firstIndex < 0 || secondIndex < 0 ||
-                    TriggerPolicy.movedBeyondSlop(firstX, firstY, event.getX(firstIndex), event.getY(firstIndex), slop) ||
-                    TriggerPolicy.movedBeyondSlop(secondX, secondY, event.getX(secondIndex), event.getY(secondIndex), slop)
-                ) twoFingerCandidate = false
+                val stillWithinSlop = tapStartPositions.all { (pointerId, start) ->
+                    val index = event.findPointerIndex(pointerId)
+                    index >= 0 && !TriggerPolicy.movedBeyondSlop(start.first, start.second, event.getX(index), event.getY(index), slop)
+                }
+                if (!stillWithinSlop) Log.d(TAG, "route=ignore reason=movement mode=${config.mode} maxPointers=$maximumPointerCount")
+                multiFingerCandidate = stillWithinSlop
             }
             MotionEvent.ACTION_POINTER_UP -> {
-                if (twoFingerCandidate && event.pointerCount == 2 &&
+                val elapsedMs = event.eventTime - gestureStartTime
+                if (multiFingerCandidate && TriggerPolicy.hasExactPointerCount(config.mode, event.pointerCount, maximumPointerCount) &&
                     TriggerPolicy.isWithinDuration(gestureStartTime, event.eventTime, config.threshold)
-                ) launch(context, packageName, triggerX, triggerY, (event.eventTime - gestureStartTime).toFloat())
+                ) {
+                    val x = (0 until event.pointerCount).sumOf { event.getRawX(it).toDouble() } / event.pointerCount
+                    val y = (0 until event.pointerCount).sumOf { event.getRawY(it).toDouble() } / event.pointerCount
+                    Log.d(TAG, "route=trigger mode=${config.mode} maxPointers=$maximumPointerCount elapsedMs=$elapsedMs")
+                    launch(context, packageName, x.toInt(), y.toInt(), elapsedMs.toFloat())
+                } else {
+                    Log.d(TAG, "route=ignore reason=tap_rejected mode=${config.mode} maxPointers=$maximumPointerCount elapsedMs=$elapsedMs")
+                }
                 resetGesture()
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> resetGesture()
@@ -142,7 +151,7 @@ object VectorTouchBridge {
 
     private fun launch(context: Context, packageName: String, x: Int, y: Int, value: Float) {
         val now = SystemClock.uptimeMillis()
-        if (now - lastGestureTriggeredAt < COOLDOWN_MS || !NovaTextLauncher.launch(context, packageName, x, y)) return
+        if (!TriggerPolicy.isCooldownElapsed(lastGestureTriggeredAt, now) || !NovaTextLauncher.launch(context, packageName, x, y)) return
         lastGestureTriggeredAt = now
         context.sendBroadcast(Intent(ExtraDiagnostics.ACTION_TRIGGERED).apply {
             setPackage(TriggerPolicy.EXTRA)
@@ -155,8 +164,9 @@ object VectorTouchBridge {
         longPressTask?.let(handler::removeCallbacks)
         longPressTask = null
         firstPointerId = MotionEvent.INVALID_POINTER_ID
-        secondPointerId = MotionEvent.INVALID_POINTER_ID
-        twoFingerCandidate = false
+        tapStartPositions.clear()
+        multiFingerCandidate = false
+        maximumPointerCount = 0
     }
 
     private fun refresh(preferences: SharedPreferences) {
@@ -173,6 +183,7 @@ object VectorTouchBridge {
                 TriggerMode.TOUCH_AREA -> preferences.getFloat(ExtraSettings.KEY_TOUCH_AREA, 500f)
                 TriggerMode.SINGLE_LONG_PRESS -> preferences.getFloat(ExtraSettings.KEY_LONG_PRESS_DURATION, 600f)
                 TriggerMode.TWO_FINGER_TAP -> preferences.getFloat(ExtraSettings.KEY_TWO_FINGER_TAP_DURATION, 300f)
+                TriggerMode.THREE_FINGER_TAP -> preferences.getFloat(ExtraSettings.KEY_THREE_FINGER_TAP_DURATION, 300f)
             },
         )
     }
@@ -185,5 +196,5 @@ object VectorTouchBridge {
         }.getOrNull()
     }
 
-    private const val COOLDOWN_MS = 750L
+    private const val TAG = "NovaExtraTouch"
 }
