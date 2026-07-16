@@ -11,10 +11,15 @@ on:
             - "**.md"
     workflow_dispatch:
         inputs:
-            build_android:
-                description: "Build Android"
+            build_nova_text:
+                description: "构建 Nova Text Release APK"
                 required: false
                 default: true
+                type: boolean
+            build_extra:
+                description: "构建 Nova Text Extra Release APK"
+                required: false
+                default: false
                 type: boolean
             tag:
                 description: "Release tag"
@@ -24,7 +29,7 @@ on:
 
 jobs:
     android:
-        if: ${{ (github.event_name == 'pull_request' && github.repository == 'CashewTeam/BigBang_NovaText') || github.event.inputs.build_android == 'true' }}
+        if: ${{ (github.event_name == 'pull_request' && github.repository == 'CashewTeam/BigBang_NovaText') || inputs.build_nova_text || inputs.build_extra }}
         name: Build Android
         runs-on: ubuntu-latest
         permissions: write-all
@@ -122,40 +127,37 @@ jobs:
                   test -f app/key.jks
                   test -f key.properties
 
-            - name: 构建 Debug APK
+            - name: 校验 Release 编译
               if: github.event_name == 'pull_request'
-              run: gradle assembleDebug --stacktrace
+              run: gradle :app:compileReleaseKotlin :extra:compileReleaseKotlin --stacktrace
 
-            - name: 构建 Release APK
+            - name: 构建选择的 Release APK
               if: github.event_name == 'workflow_dispatch'
-              run: gradle assembleRelease --stacktrace
+              run: |
+                  TASKS=()
+                  if [ "${{ inputs.build_nova_text }}" = "true" ]; then
+                    TASKS+=(":app:assembleRelease")
+                  fi
+                  if [ "${{ inputs.build_extra }}" = "true" ]; then
+                    TASKS+=(":extra:assembleRelease")
+                  fi
+                  gradle "${TASKS[@]}" --stacktrace
 
             - name: 重命名 APK
               id: rename
+              if: github.event_name == 'workflow_dispatch'
               run: |
-                  VERSION=$(grep 'versionName' app/build.gradle.kts | sed -E 's/.*versionName\s*=\s*"([^"]+)".*/\1/')
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                  if [ "${{ inputs.build_nova_text }}" = "true" ]; then
+                    VERSION=$(grep 'versionName' app/build.gradle.kts | sed -E 's/.*versionName\s*=\s*"([^"]+)".*/\1/')
                     APK=$(ls app/build/outputs/apk/release/*.apk 2>/dev/null | head -1)
-                    if [ -n "$APK" ]; then
-                      mv "$APK" "BigBang_NovaText_${VERSION}_arm64-v8a.apk"
-                      echo "Renamed $APK -> BigBang_NovaText_${VERSION}_arm64-v8a.apk"
-                    else
-                      echo "ERROR: No APK found in app/build/outputs/apk/release/"
-                      ls -la app/build/outputs/apk/release/ 2>/dev/null || true
-                      exit 1
-                    fi
-                  else
-                    APK=$(ls app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)
-                    if [ -n "$APK" ]; then
-                      mv "$APK" "BigBang_NovaText_${VERSION}_debug.apk"
-                      echo "Renamed $APK -> BigBang_NovaText_${VERSION}_debug.apk"
-                    else
-                      echo "ERROR: No APK found in app/build/outputs/apk/debug/"
-                      ls -la app/build/outputs/apk/debug/ 2>/dev/null || true
-                      exit 1
-                    fi
+                    test -n "$APK"
+                    mv "$APK" "Nova_Text_${VERSION}_arm64-v8a.apk"
+                  fi
+                  if [ "${{ inputs.build_extra }}" = "true" ]; then
+                    VERSION=$(grep 'versionName' extra/build.gradle.kts | sed -E 's/.*versionName\s*=\s*"([^"]+)".*/\1/')
+                    APK=$(ls extra/build/outputs/apk/release/*.apk 2>/dev/null | head -1)
+                    test -n "$APK"
+                    mv "$APK" "Nova_Text_Extra_${VERSION}.apk"
                   fi
 
             - name: 发布 Release
@@ -164,10 +166,11 @@ jobs:
               with:
                   tag_name: ${{ github.event.inputs.tag }}
                   name: ${{ github.event.inputs.tag }}
-                  files: BigBang_NovaText_*.apk
+                  files: Nova_Text_*.apk
 
             - name: 上传 APK
+              if: github.event_name == 'workflow_dispatch'
               uses: actions/upload-artifact@v4
               with:
                   name: Android_APK
-                  path: BigBang_NovaText_*.apk
+                  path: Nova_Text_*.apk

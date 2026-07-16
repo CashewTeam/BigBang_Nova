@@ -1427,11 +1427,18 @@ private fun SettingsDetailPage(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Column(
-                modifier = Modifier.widthIn(max = 600.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = content,
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 600.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    content = content,
+                )
+            }
         }
     }
 }

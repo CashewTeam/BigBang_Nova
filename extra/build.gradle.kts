@@ -1,7 +1,15 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val keyPropsFile = rootProject.file("key.properties")
+val keyProps = Properties()
+if (keyPropsFile.exists()) {
+    keyProps.load(keyPropsFile.inputStream())
 }
 
 android {
@@ -14,6 +22,25 @@ android {
         targetSdk = 36
         versionCode = 4
         versionName = "0.1.3"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keyPropsFile.exists()) {
+                storeFile = rootProject.file("app/${keyProps["storeFile"] as String}")
+                storePassword = keyProps["storePassword"] as String
+                keyAlias = keyProps["keyAlias"] as String
+                keyPassword = keyProps["keyPassword"] as String
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (keyPropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     buildFeatures {
