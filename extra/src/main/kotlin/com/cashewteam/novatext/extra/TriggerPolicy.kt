@@ -42,6 +42,9 @@ object TriggerPolicy {
     fun isCooldownElapsed(lastTriggeredAt: Long, now: Long): Boolean =
         lastTriggeredAt == 0L || now - lastTriggeredAt >= COOLDOWN_MS
 
+    fun inputMethodPackage(setting: String?): String? =
+        setting?.substringBefore('/')?.takeIf(String::isNotBlank)
+
     fun isWithinDuration(startTime: Long, endTime: Long, maximumMs: Float): Boolean =
         maximumMs > 0f && endTime >= startTime && endTime - startTime <= maximumMs
 

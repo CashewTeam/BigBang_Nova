@@ -130,7 +130,9 @@ object ExperimentalTouchController {
                             val config = ExtraSettings(accessibilityService).config().copy(enabled = true)
                             val packageName = foregroundPackage
                             val sample = TriggerPolicy.readSample(event, config.mode, 0)
-                            if (TriggerPolicy.isExcludedPackage(packageName)) {
+                            if ((accessibilityService as ExtraAccessibilityService).isInputMethodVisible()) {
+                                requestDelegating(currentController, "input_method_visible")
+                            } else if (TriggerPolicy.isExcludedPackage(packageName)) {
                                 requestDelegating(currentController, "excluded_package package=$packageName")
                             } else if (TriggerPolicy.isMultiFingerTap(config.mode)) {
                                 beginMultiFingerCandidate(event, config, currentController)

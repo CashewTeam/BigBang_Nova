@@ -11,7 +11,9 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
 
 class ExtraAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
@@ -21,6 +23,10 @@ class ExtraAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val packageName = event?.packageName?.toString() ?: return
+        val inputMethodPackage = TriggerPolicy.inputMethodPackage(
+            Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD),
+        )
+        if (packageName == inputMethodPackage) return
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED
         ) {
@@ -70,9 +76,17 @@ class ExtraAccessibilityService : AccessibilityService() {
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
+    fun isInputMethodVisible(): Boolean {
+        val activeWindows = windows
+        val visible = activeWindows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        Log.d(TAG, "ime_visible=$visible source=windows count=${activeWindows.size}")
+        return visible
+    }
+
     companion object {
         private const val NOTIFICATION_CHANNEL = "experimental_touch"
         private const val NOTIFICATION_ID = 2201
+        private const val TAG = "NovaExtraTouch"
         @Volatile var active: ExtraAccessibilityService? = null
             private set
         fun isEnabled(context: Context): Boolean {

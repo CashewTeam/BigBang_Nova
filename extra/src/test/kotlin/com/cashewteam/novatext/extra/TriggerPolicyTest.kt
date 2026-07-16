@@ -46,4 +46,10 @@ class TriggerPolicyTest {
         assertFalse(TriggerPolicy.isCooldownElapsed(1_000L, 1_749L))
         assertTrue(TriggerPolicy.isCooldownElapsed(1_000L, 1_750L))
     }
+
+    @Test
+    fun extractsInputMethodPackage() {
+        assertEquals("com.example.ime", TriggerPolicy.inputMethodPackage("com.example.ime/.Keyboard"))
+        assertEquals(null, TriggerPolicy.inputMethodPackage(null))
+    }
 }

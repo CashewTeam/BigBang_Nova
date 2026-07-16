@@ -3,12 +3,17 @@ package com.cashewteam.novatext.extra.vector
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
+import android.view.WindowInsets
 import com.cashewteam.novatext.extra.ExtraDiagnostics
 import com.cashewteam.novatext.extra.ExtraSettings
 import com.cashewteam.novatext.extra.NovaTextLauncher
@@ -33,6 +38,7 @@ object VectorTouchBridge {
     private var multiFingerCandidate = false
     private var maximumPointerCount = 0
     private var lastGestureTriggeredAt = 0L
+    private var skippingInputMethod = false
 
     @JvmStatic
     fun attach(preferences: SharedPreferences) {
@@ -47,6 +53,19 @@ object VectorTouchBridge {
         contextFrom(receiver)?.let { context ->
             val packageName = context.packageName
             if (TriggerPolicy.isExcludedPackage(packageName)) return
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                val inputMethodPackage = TriggerPolicy.inputMethodPackage(
+                    Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD),
+                )
+                skippingInputMethod = packageName == inputMethodPackage || isInputMethodVisible(receiver)
+                if (skippingInputMethod) resetGesture()
+            }
+            if (skippingInputMethod) {
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    skippingInputMethod = false
+                }
+                return
+            }
             if (activeMode != config.mode) {
                 resetGesture()
                 activeMode = config.mode
@@ -195,6 +214,22 @@ object VectorTouchBridge {
             outer.javaClass.getDeclaredField("mContext").apply { isAccessible = true }.get(outer) as? Context
         }.getOrNull()
     }
+
+    private fun isInputMethodVisible(receiver: Any?): Boolean {
+        val rootView = rootViewFrom(receiver) ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            rootView.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
+        } else {
+            val visibleFrame = Rect().also(rootView::getWindowVisibleDisplayFrame)
+            rootView.rootView.height > 0 &&
+                rootView.rootView.height - visibleFrame.height() > rootView.rootView.height * 0.15f
+        }
+    }
+
+    private fun rootViewFrom(receiver: Any?): View? = runCatching {
+        val outer = receiver?.javaClass?.getDeclaredField("this$0")?.apply { isAccessible = true }?.get(receiver)
+        outer?.javaClass?.getDeclaredField("mView")?.apply { isAccessible = true }?.get(outer) as? View
+    }.getOrNull()
 
     private const val TAG = "NovaExtraTouch"
 }
