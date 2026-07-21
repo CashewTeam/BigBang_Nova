@@ -435,10 +435,15 @@ class OcrLaunchActivity : Activity() {
     ) {
         thread(name = "bigbang-ocr-nearest") {
             val settings = BigBangSettings.get(this)
-            val fullscreen = intent.getBooleanExtra("boom_fullscreen", false)
-            val offsetX = intent.getIntExtra("boom_offsetx", 0)
-            val offsetY = intent.getIntExtra("boom_offsety", 0)
-            val imageUri = intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI)?.let(Uri::parse)
+            val source = ManualOcrSourceStore.get(manualOcrSourceToken)
+            val sourceCallerPackage = source?.callerPackage ?: callerPackage
+            val fullscreen = source?.fullscreen ?: intent.getBooleanExtra("boom_fullscreen", false)
+            val offsetX = source?.offsetX ?: intent.getIntExtra("boom_offsetx", 0)
+            val offsetY = source?.offsetY ?: intent.getIntExtra("boom_offsety", 0)
+            val sourceTouchX = source?.touchX ?: touchX.toInt()
+            val sourceTouchY = source?.touchY ?: touchY.toInt()
+            val imageUri = source?.imageUri
+                ?: intent.getStringExtra(BoomOcrActivity.EXTRA_OCR_IMAGE_URI)?.let(Uri::parse)
             val bitmap = try {
                 MlKitOcrEngine.loadBitmap(this, manualOcrSourceToken, imageUri)
             } catch (exception: Exception) {
@@ -459,12 +464,12 @@ class OcrLaunchActivity : Activity() {
             val prepared = MlKitOcrEngine.prepareBitmap(
                 context = this,
                 screenshot = bitmap,
-                callerPackage = callerPackage,
+                callerPackage = sourceCallerPackage,
                 fullscreen = fullscreen,
                 offsetX = offsetX,
                 offsetY = offsetY,
-                touchX = touchX.toInt(),
-                touchY = touchY.toInt(),
+                touchX = sourceTouchX,
+                touchY = sourceTouchY,
             )
             MlKitOcrEngine.recognize(prepared.bitmap, mode)
                 .addOnSuccessListener(this) { result ->
@@ -473,7 +478,7 @@ class OcrLaunchActivity : Activity() {
                     logOcrTrace(
                         settings = settings,
                         mode = mode,
-                        callerPackage = callerPackage,
+                        callerPackage = sourceCallerPackage,
                         rawWidth = rawWidth,
                         rawHeight = rawHeight,
                         prepared = prepared,

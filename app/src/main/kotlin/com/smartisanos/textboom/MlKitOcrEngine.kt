@@ -126,7 +126,7 @@ object MlKitOcrEngine {
     ): PreparedBitmap {
         val sourceWidth = screenshot.width
         val sourceHeight = screenshot.height
-        if (callerPackage.isNullOrEmpty() && offsetX == 0 && offsetY == 0) {
+        if ((callerPackage.isNullOrEmpty() || fullscreen) && offsetX == 0 && offsetY == 0) {
             return PreparedBitmap(
                 bitmap = screenshot,
                 touchX = touchX.coerceIn(0, (sourceWidth - 1).coerceAtLeast(0)),
