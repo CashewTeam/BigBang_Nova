@@ -1,5 +1,25 @@
 ## 更新日志
 
+### [Beta 1.14.29](https://github.com/CashewTeam/BigBang_NovaText/commits/smartisan-m-onestep_bigboom/)
+
+#### 新增功能
+
+- 新增 Nova Text Extra 触控扩展模块，提供 Xposed 与 Android 13+ 实验性无障碍两种触发方式。
+- 新增压感、椭圆接触面积、单指长按、双指单击和三指单击等触发选项；不同方式会在设置页标明适用范围。
+- Extra 模块新增输入法忽略策略，输入时不会意外触发 Nova Text。
+触控信息获取的实现由 @EX3124 提供 https://github.com/CashewTeam/BigBang_NovaText/pull/22
+
+#### 体验优化
+
+- 默认识别流程的启动动画统一由 OCR 代理页按实际触点播放，动画位置和识别位置更一致。
+- 悬浮球最大尺寸提高至 150%，方便大屏和视力辅助场景使用 https://github.com/CashewTeam/BigBang_NovaText/issues/14#issuecomment-4945160395
+#### 问题修复
+
+- 修复设置页在横屏下没有正确居中的问题。
+#### 仓库更新
+- 自动构建现在支持同时生成 Extra 模块。
+- 补充触控触发接入说明和编辑模式开发计划，方便尝鲜和后续功能迭代。
+
 ### Beta 1.14.26
 
 #### 问题修复
