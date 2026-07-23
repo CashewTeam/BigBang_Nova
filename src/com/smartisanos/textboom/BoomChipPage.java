@@ -3,14 +3,32 @@ package com.cashewteam.novatext.android;
 import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.graphics.Color;
+import android.graphics.Rect;
+import android.text.Editable;
+import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputConnectionWrapper;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.cashewteam.novatext.android.BoomActivity;
 import com.cashewteam.novatext.android.BoomWordsLayout;
@@ -46,6 +64,22 @@ public class BoomChipPage {
     private final int mScrollerBaseInset;
     private final int mTableBasePaddingTop;
     private final int mTableBasePaddingBottom;
+    private final FrameLayout mEditorOverlayHost;
+    private final BigCursorView mBigCursorView;
+    private final EditorInputView mEditInput;
+    private final ClipboardManager mClipboard;
+    private final ClipboardManager.OnPrimaryClipChangedListener mClipboardListener;
+
+    private boolean mSynchronizingEditInput;
+    private String mInputBuffer = "";
+    private int mInputBufferOffset;
+    private boolean mCursorDragActive;
+    private int mCursorAutoScrollVelocity;
+    private float mCursorDragRawX;
+    private float mCursorDragRawY;
+    private boolean mCursorUpdatePending;
+    private boolean mCursorUpdateNeedsVisibility;
+    private Runnable mCursorAutoScrollRunnable;
 
     Serializable mSavedData;
     private EditSessionState mEditSession;
@@ -55,6 +89,175 @@ public class BoomChipPage {
 
     private int mTouchedX;
     private int mTouchedY;
+
+    private interface EditorInputCallback {
+        boolean onInputDeleteBefore(int count, boolean inCodePoints);
+
+        boolean onInputDeleteAfter(int count, boolean inCodePoints);
+
+        boolean onInputDeleteSurrounding(int beforeCount, int afterCount,
+                boolean inCodePoints, int inputSelectionStart);
+
+        void onInputEnter();
+
+        void onInputSelectionChanged(int selectionStart, int selectionEnd);
+    }
+
+    /**
+     * A transparent EditText keeps Android's normal IME input connection while
+     * the visible text continues to be rendered as BigBang chips.
+     */
+    private static final class EditorInputView extends EditText {
+        private EditorInputCallback mCallback;
+
+        EditorInputView(Context context) {
+            super(context);
+        }
+
+        void setEditorInputCallback(EditorInputCallback callback) {
+            mCallback = callback;
+        }
+
+        @Override
+        public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+            final InputConnection target = super.onCreateInputConnection(outAttrs);
+            outAttrs.imeOptions = (outAttrs.imeOptions & ~EditorInfo.IME_MASK_ACTION)
+                    | EditorInfo.IME_ACTION_NONE;
+            return new InputConnectionWrapper(target, true) {
+                @Override
+                public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+                    if (deleteSurroundingMainText(beforeLength, afterLength, false)) {
+                        return true;
+                    }
+                    return super.deleteSurroundingText(beforeLength, afterLength);
+                }
+
+                @Override
+                public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+                    if (deleteSurroundingMainText(beforeLength, afterLength, true)) {
+                        return true;
+                    }
+                    return super.deleteSurroundingTextInCodePoints(beforeLength, afterLength);
+                }
+
+                @Override
+                public boolean sendKeyEvent(KeyEvent event) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN && mCallback != null) {
+                        final int selection = Math.max(0, getSelectionStart());
+                        if (event.getKeyCode() == KeyEvent.KEYCODE_DEL && selection == 0) {
+                            return mCallback.onInputDeleteBefore(1, true);
+                        }
+                        if (event.getKeyCode() == KeyEvent.KEYCODE_FORWARD_DEL && selection >= getBufferLength()) {
+                            return mCallback.onInputDeleteAfter(1, true);
+                        }
+                        if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
+                            mCallback.onInputEnter();
+                            return true;
+                        }
+                    }
+                    return super.sendKeyEvent(event);
+                }
+            };
+        }
+
+        @Override
+        protected void onSelectionChanged(int selectionStart, int selectionEnd) {
+            super.onSelectionChanged(selectionStart, selectionEnd);
+            if (mCallback != null) {
+                mCallback.onInputSelectionChanged(selectionStart, selectionEnd);
+            }
+        }
+
+        @Override
+        public boolean onKeyDown(int keyCode, KeyEvent event) {
+            if (mCallback != null) {
+                final int selection = Math.max(0, getSelectionStart());
+                if (keyCode == KeyEvent.KEYCODE_DEL && selection == 0) {
+                    return mCallback.onInputDeleteBefore(1, true);
+                }
+                if (keyCode == KeyEvent.KEYCODE_FORWARD_DEL && selection >= getBufferLength()) {
+                    return mCallback.onInputDeleteAfter(1, true);
+                }
+                if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                    mCallback.onInputEnter();
+                    return true;
+                }
+            }
+            return super.onKeyDown(keyCode, event);
+        }
+
+        private int getBufferLength() {
+            return getText() == null ? 0 : getText().length();
+        }
+
+        private boolean deleteSurroundingMainText(
+                int beforeLength, int afterLength, boolean inCodePoints) {
+            if (mCallback == null) {
+                return false;
+            }
+            final int bufferLength = getBufferLength();
+            final int selectionStart = Math.max(0, Math.min(getSelectionStart(), bufferLength));
+            final int selectionEnd = Math.max(selectionStart,
+                    Math.min(Math.max(0, getSelectionEnd()), bufferLength));
+            final int beforeInBuffer = getInputUnitCount(0, selectionStart, inCodePoints);
+            final int afterInBuffer = getInputUnitCount(selectionEnd, bufferLength, inCodePoints);
+            if (beforeLength <= beforeInBuffer && afterLength <= afterInBuffer
+                    && !deletesPartialInputUnit(
+                            beforeLength, afterLength, inCodePoints, selectionStart, selectionEnd)) {
+                return false;
+            }
+            // Resolve the whole requested range at once: the other side may still be in preedit text.
+            return mCallback.onInputDeleteSurrounding(
+                    beforeLength, afterLength, inCodePoints, selectionStart);
+        }
+
+        private int getInputUnitCount(int start, int end, boolean inCodePoints) {
+            if (!inCodePoints) {
+                return end - start;
+            }
+            final Editable text = getText();
+            return text == null ? 0 : Character.codePointCount(text, start, end);
+        }
+
+        private boolean deletesPartialInputUnit(int beforeLength, int afterLength,
+                boolean inCodePoints, int selectionStart, int selectionEnd) {
+            final Editable text = getText();
+            if (text == null) {
+                return false;
+            }
+            final int start = inCodePoints
+                    ? moveInputCodePoints(text, selectionStart, -beforeLength)
+                    : Math.max(0, selectionStart - beforeLength);
+            final int end = inCodePoints
+                    ? moveInputCodePoints(text, selectionEnd, afterLength)
+                    : Math.min(text.length(), selectionEnd + afterLength);
+            return isInsideInputEditableUnit(text, start) || isInsideInputEditableUnit(text, end);
+        }
+
+        private int moveInputCodePoints(CharSequence text, int offset, int count) {
+            int result = offset;
+            int remaining = count;
+            while (remaining < 0 && result > 0) {
+                result = Character.offsetByCodePoints(text, result, -1);
+                ++remaining;
+            }
+            while (remaining > 0 && result < text.length()) {
+                result = Character.offsetByCodePoints(text, result, 1);
+                --remaining;
+            }
+            return result;
+        }
+
+        private boolean isInsideInputEditableUnit(CharSequence text, int offset) {
+            if (offset <= 0 || offset >= text.length()) {
+                return false;
+            }
+            final char before = text.charAt(offset - 1);
+            final char after = text.charAt(offset);
+            return Character.isHighSurrogate(before) && Character.isLowSurrogate(after)
+                    || before == '\r' && after == '\n';
+        }
+    }
 
     OnGlobalLayoutListener mDoBoomAnimation = new OnGlobalLayoutListener() {
         @Override
@@ -117,6 +320,7 @@ public class BoomChipPage {
         mActivity = activity;
         mEnableLegacyMask = enableLegacyMask;
         mBoomPage = contentView;
+        mEditorOverlayHost = (FrameLayout) mBoomPage;
         mBoomTable = contentView.findViewById(R.id.boom_table);
         mBoomConent = (SwipeSelectView) contentView.findViewById(R.id.boom_content);
         mMask = contentView.findViewById(R.id.boom_mask);
@@ -153,6 +357,121 @@ public class BoomChipPage {
         mBoomConent.setOnClickListener(mDismissClickListener);
         mCancel.setOnClickListener(mDismissClickListener);
         mBoomActionHandler = new BoomActionHandler(this, mEnableLegacyMask);
+        mClipboard = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
+        mBigCursorView = new BigCursorView(mActivity);
+        mBigCursorView.setCallback(new BigCursorView.Callback() {
+            @Override
+            public void onCursorHandleDragStart() {
+                beginCursorDrag();
+            }
+
+            @Override
+            public void onCursorHandleDrag(float rawX, float rawY) {
+                moveEditCursorFromScreen(rawX, rawY, true);
+            }
+
+            @Override
+            public void onCursorHandleDragEnd() {
+                endCursorDrag();
+            }
+
+            @Override
+            public void onCursorSpace() {
+                insertEditText(" ");
+            }
+
+            @Override
+            public boolean onCursorBackspace() {
+                return deleteEditCodePointBefore();
+            }
+
+            @Override
+            public void onCursorEnter() {
+                insertEditText("\n");
+            }
+
+            @Override
+            public void onCursorPaste() {
+                pasteEditText();
+            }
+        });
+        mEditorOverlayHost.addView(mBigCursorView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        mEditInput = new EditorInputView(mActivity);
+        mEditInput.setBackgroundColor(Color.TRANSPARENT);
+        mEditInput.setTextColor(Color.TRANSPARENT);
+        mEditInput.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0f);
+        mEditInput.setCursorVisible(false);
+        mEditInput.setSingleLine(false);
+        mEditInput.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        mEditInput.setImeOptions(EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        mEditInput.setAlpha(0f);
+        mEditInput.setContentDescription("编辑输入");
+        mEditInput.setEditorInputCallback(new EditorInputCallback() {
+            @Override
+            public boolean onInputDeleteBefore(int count, boolean inCodePoints) {
+                return deleteEditBefore(count, inCodePoints);
+            }
+
+            @Override
+            public boolean onInputDeleteAfter(int count, boolean inCodePoints) {
+                return deleteEditAfter(count, inCodePoints);
+            }
+
+            @Override
+            public boolean onInputDeleteSurrounding(int beforeCount, int afterCount,
+                    boolean inCodePoints, int inputSelectionStart) {
+                return deleteEditSurrounding(
+                        beforeCount, afterCount, inCodePoints, inputSelectionStart);
+            }
+
+            @Override
+            public void onInputEnter() {
+                insertEditText("\n");
+            }
+
+            @Override
+            public void onInputSelectionChanged(int selectionStart, int selectionEnd) {
+                onEditInputSelectionChanged(selectionStart, selectionEnd);
+            }
+        });
+        mEditInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                onEditInputChanged(s, start, before, count);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+        mEditorOverlayHost.addView(mEditInput, new FrameLayout.LayoutParams(1, 1));
+        mClipboardListener = new ClipboardManager.OnPrimaryClipChangedListener() {
+            @Override
+            public void onPrimaryClipChanged() {
+                scheduleEditCursorUpdate(false);
+            }
+        };
+        mClipboard.addPrimaryClipChangedListener(mClipboardListener);
+        mCursorAutoScrollRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!mCursorDragActive || mCursorAutoScrollVelocity == 0) {
+                    return;
+                }
+                mScroller.scrollBy(0, mCursorAutoScrollVelocity);
+                moveEditCursorFromScreen(mCursorDragRawX, mCursorDragRawY, false);
+                mBigCursorView.postDelayed(this, 25L);
+            }
+        };
         mScroller.setOnScrollListener(mBoomActionHandler);
         mScroller.setOnEdgeDragListener(new CustomScrollView.OnEdgeDragListener() {
             @Override
@@ -209,6 +528,10 @@ public class BoomChipPage {
     }
 
     public boolean initWords(int[] segment, String text, int touchedIndex, int touchedX, int touchedY) {
+        endCursorDrag();
+        hideEditorKeyboard();
+        mBigCursorView.hideCursor();
+        resetEditInputBuffer(0);
         mEditSession = null;
         if (mLayout.layoutWords(segment, text, touchedIndex)) {
             mTouchedX = touchedX;
@@ -225,6 +548,10 @@ public class BoomChipPage {
      * the Activity receives a new Intent via {@code onNewIntent}).
      */
     public void prepareForReinit() {
+        endCursorDrag();
+        hideEditorKeyboard();
+        mBigCursorView.hideCursor();
+        resetEditInputBuffer(0);
         mEditSession = null;
         finishAdjacentPull();
         if (mBoomActionHandler != null) {
@@ -237,6 +564,749 @@ public class BoomChipPage {
         return mEditSession != null;
     }
 
+    /** Show the IME without exposing a second visual text field. */
+    public void showEditorKeyboard() {
+        if (!isEditMode()) {
+            return;
+        }
+        clearEditSelectionForCursor();
+        resetEditInputBuffer(getEditCursorOffset());
+        mEditInput.requestFocus();
+        mEditInput.post(new Runnable() {
+            @Override
+            public void run() {
+                InputMethodManager inputMethodManager = (InputMethodManager) mActivity
+                        .getSystemService(Context.INPUT_METHOD_SERVICE);
+                inputMethodManager.showSoftInput(mEditInput, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+    }
+
+    /** Called by {@link SwipeSelectView} for a short tap in editable content. */
+    public void moveEditCursorFromContentTap(float rawX, float rawY) {
+        moveEditCursorFromScreen(rawX, rawY, false);
+    }
+
+    /**
+     * The original editor keeps the insertion point on the trailing edge of
+     * the rightmost selected chip, including a selected whitespace chip.
+     */
+    void moveEditCursorToSelectionEnd() {
+        if (!isEditMode()) {
+            return;
+        }
+        if (!hasEditSelection()) {
+            scheduleEditCursorUpdate(true);
+            return;
+        }
+        updateEditCursorOffset(mLayout.getWordEnd(mBoomActionHandler.mSelectedId.last()), true);
+    }
+
+    /** Refreshes the overlay after ordinary ScrollView scrolling. */
+    public void onScrollerChanged() {
+        if (isEditMode()) {
+            scheduleEditCursorUpdate(false);
+        }
+    }
+
+    public void release() {
+        endCursorDrag();
+        hideEditorKeyboard();
+        mBigCursorView.hideCursor();
+        mClipboard.removePrimaryClipChangedListener(mClipboardListener);
+    }
+
+    private void onEditInputChanged(CharSequence text, int start, int before, int count) {
+        if (mSynchronizingEditInput) {
+            return;
+        }
+        if (!isEditMode()) {
+            mInputBuffer = text.toString();
+            return;
+        }
+        if (start < 0 || before < 0 || start + before > mInputBuffer.length()) {
+            Log.w(TAG, "Ignoring invalid editor input range");
+            return;
+        }
+        final int rangeStart = mInputBufferOffset + start;
+        final int rangeEnd = rangeStart + before;
+        final String replacement = text.subSequence(start, start + count).toString();
+        final int selection = mEditInput.getSelectionStart();
+        final int cursor = mInputBufferOffset + (selection < 0 ? start + count : selection);
+        if (replaceEditRange(rangeStart, rangeEnd, replacement, cursor, false)) {
+            mInputBuffer = text.toString();
+        }
+    }
+
+    private void onEditInputSelectionChanged(int selectionStart, int selectionEnd) {
+        if (mSynchronizingEditInput || !isEditMode()) {
+            return;
+        }
+        final int safeSelection = Math.max(0, Math.min(selectionStart, mInputBuffer.length()));
+        if (selectionStart != selectionEnd) {
+            mSynchronizingEditInput = true;
+            mEditInput.setSelection(safeSelection);
+            mSynchronizingEditInput = false;
+        }
+        updateEditCursorOffset(mInputBufferOffset + safeSelection, false);
+    }
+
+    private boolean insertEditText(String text) {
+        if (!isEditMode() || text == null || text.length() == 0) {
+            return false;
+        }
+        prepareForDirectEdit();
+        final int cursor = getEditCursorOffset();
+        return replaceEditRange(cursor, cursor, text, cursor + text.length(), true);
+    }
+
+    private boolean deleteEditCodePointBefore() {
+        return deleteEditBefore(1, true);
+    }
+
+    private boolean deleteEditBefore(int count, boolean inCodePoints) {
+        if (!isEditMode()) {
+            return false;
+        }
+        prepareForDirectEdit();
+        final String text = mEditSession.text;
+        final int cursor = getEditCursorOffset();
+        final int start = getEditDeleteStart(text, cursor, count, inCodePoints);
+        if (start == cursor) {
+            return false;
+        }
+        return replaceEditRange(start, cursor, "", start, true);
+    }
+
+    private boolean deleteEditCodePointAfter() {
+        return deleteEditAfter(1, true);
+    }
+
+    private boolean deleteEditAfter(int count, boolean inCodePoints) {
+        if (!isEditMode()) {
+            return false;
+        }
+        prepareForDirectEdit();
+        final String text = mEditSession.text;
+        final int cursor = getEditCursorOffset();
+        final int end = getEditDeleteEnd(text, cursor, count, inCodePoints);
+        if (end == cursor) {
+            return false;
+        }
+        return replaceEditRange(cursor, end, "", cursor, true);
+    }
+
+    private boolean deleteEditSurrounding(int beforeCount, int afterCount,
+            boolean inCodePoints, int inputSelectionStart) {
+        if (!isEditMode()) {
+            return false;
+        }
+        final String text = mEditSession.text;
+        final int cursor = clampEditOffset(text, mInputBufferOffset + inputSelectionStart);
+        // Flatten the affected preedit range into the document before resetting the hidden field.
+        prepareForDirectEdit();
+        final int start = getEditDeleteStart(text, cursor, beforeCount, inCodePoints);
+        final int end = getEditDeleteEnd(text, cursor, afterCount, inCodePoints);
+        if (start == cursor && end == cursor) {
+            return false;
+        }
+        return replaceEditRange(start, end, "", start, true);
+    }
+
+    private int getEditDeleteStart(String text, int cursor, int count, boolean inCodePoints) {
+        int start = cursor;
+        int remaining = Math.max(0, count);
+        while (remaining > 0) {
+            final int previous = previousEditableOffset(text, start);
+            if (previous == start) {
+                break;
+            }
+            final int length = inCodePoints ? 1 : start - previous;
+            // deleteSurroundingText reports UTF-16 units. Never split a surrogate pair or CRLF;
+            // after a complete unit, leave a partial following unit for the next request.
+            if (!inCodePoints && length > remaining && start != cursor) {
+                break;
+            }
+            start = previous;
+            remaining -= length;
+        }
+        return start;
+    }
+
+    private int getEditDeleteEnd(String text, int cursor, int count, boolean inCodePoints) {
+        int end = cursor;
+        int remaining = Math.max(0, count);
+        while (remaining > 0) {
+            final int next = nextEditableOffset(text, end);
+            if (next == end) {
+                break;
+            }
+            final int length = inCodePoints ? 1 : next - end;
+            // See getEditDeleteStart: the visible editor always keeps whole code points/CRLF pairs.
+            if (!inCodePoints && length > remaining && end != cursor) {
+                break;
+            }
+            end = next;
+            remaining -= length;
+        }
+        return end;
+    }
+
+    private void pasteEditText() {
+        if (!isEditMode() || hasEditSelection()) {
+            return;
+        }
+        final String clipboardText = getClipboardText();
+        if (clipboardText != null && clipboardText.length() > 0) {
+            insertEditText(clipboardText);
+        }
+    }
+
+    private void prepareForDirectEdit() {
+        clearEditSelectionForCursor();
+        resetEditInputBuffer(getEditCursorOffset());
+    }
+
+    private boolean replaceEditRange(int start, int end, String replacement, int cursorOffset,
+            boolean resetInputBuffer) {
+        if (!isEditMode()) {
+            return false;
+        }
+        final String oldText = mEditSession.text;
+        final int safeStart = clampEditOffset(oldText, start);
+        final int safeEnd = clampEditOffset(oldText, Math.max(safeStart, end));
+        final String newText = oldText.substring(0, safeStart) + replacement + oldText.substring(safeEnd);
+        return applyEditText(newText, cursorOffset, resetInputBuffer);
+    }
+
+    private boolean applyEditText(String text, int cursorOffset, boolean resetInputBuffer) {
+        if (!isEditMode() || !mLayout.layoutEditWords(text)) {
+            return false;
+        }
+        final int safeCursor = clampEditOffset(text, cursorOffset);
+        mEditSession = new EditSessionState(
+                mEditSession.originalText,
+                text,
+                safeCursor,
+                null,
+                mEditSession.undoHistory,
+                mEditSession.redoHistory
+        );
+        rebuildChips(null);
+        if (resetInputBuffer) {
+            resetEditInputBuffer(safeCursor);
+        }
+        scheduleEditCursorUpdate(true);
+        return true;
+    }
+
+    private void updateEditCursorOffset(int cursorOffset, boolean resetInputBuffer) {
+        if (!isEditMode()) {
+            return;
+        }
+        final int safeCursor = clampEditOffset(mEditSession.text, cursorOffset);
+        if (safeCursor == mEditSession.cursorOffset && !resetInputBuffer) {
+            return;
+        }
+        mEditSession = new EditSessionState(
+                mEditSession.originalText,
+                mEditSession.text,
+                safeCursor,
+                null,
+                mEditSession.undoHistory,
+                mEditSession.redoHistory
+        );
+        if (resetInputBuffer) {
+            resetEditInputBuffer(safeCursor);
+        }
+        scheduleEditCursorUpdate(true);
+    }
+
+    private int getEditCursorOffset() {
+        return mEditSession == null ? 0 : clampEditOffset(mEditSession.text, mEditSession.cursorOffset);
+    }
+
+    private int clampEditOffset(String text, int offset) {
+        int safeOffset = Math.max(0, Math.min(offset, text.length()));
+        if (safeOffset > 0 && safeOffset < text.length()
+                && Character.isHighSurrogate(text.charAt(safeOffset - 1))
+                && Character.isLowSurrogate(text.charAt(safeOffset))) {
+            --safeOffset;
+        }
+        if (safeOffset > 0 && safeOffset < text.length()
+                && text.charAt(safeOffset - 1) == '\r' && text.charAt(safeOffset) == '\n') {
+            --safeOffset;
+        }
+        return safeOffset;
+    }
+
+    private int previousEditableOffset(String text, int offset) {
+        final int safeOffset = clampEditOffset(text, offset);
+        if (safeOffset <= 0) {
+            return safeOffset;
+        }
+        if (safeOffset >= 2 && text.charAt(safeOffset - 2) == '\r'
+                && text.charAt(safeOffset - 1) == '\n') {
+            return safeOffset - 2;
+        }
+        return Character.offsetByCodePoints(text, safeOffset, -1);
+    }
+
+    private int nextEditableOffset(String text, int offset) {
+        final int safeOffset = clampEditOffset(text, offset);
+        if (safeOffset >= text.length()) {
+            return safeOffset;
+        }
+        if (safeOffset + 1 < text.length() && text.charAt(safeOffset) == '\r'
+                && text.charAt(safeOffset + 1) == '\n') {
+            return safeOffset + 2;
+        }
+        return Character.offsetByCodePoints(text, safeOffset, 1);
+    }
+
+    private void resetEditInputBuffer(int cursorOffset) {
+        mSynchronizingEditInput = true;
+        mEditInput.setText("");
+        mEditInput.setSelection(0);
+        mSynchronizingEditInput = false;
+        mInputBuffer = "";
+        mInputBufferOffset = cursorOffset;
+    }
+
+    private void clearEditSelectionForCursor() {
+        if (!hasEditSelection()) {
+            return;
+        }
+        mSavedData = null;
+        mBoomActionHandler.clearSelectionStateForRelayout();
+        resetChips();
+        mEditSession = new EditSessionState(
+                mEditSession.originalText,
+                mEditSession.text,
+                mEditSession.cursorOffset,
+                null,
+                mEditSession.undoHistory,
+                mEditSession.redoHistory
+        );
+    }
+
+    private boolean hasEditSelection() {
+        return mBoomActionHandler != null && mBoomActionHandler.hasSelection();
+    }
+
+    private String getClipboardText() {
+        if (!mClipboard.hasPrimaryClip()) {
+            return null;
+        }
+        final ClipData clip = mClipboard.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) {
+            return null;
+        }
+        final CharSequence text = clip.getItemAt(0).getText();
+        return text == null ? null : text.toString();
+    }
+
+    private void hideEditorKeyboard() {
+        InputMethodManager inputMethodManager = (InputMethodManager) mActivity
+                .getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.hideSoftInputFromWindow(mEditInput.getWindowToken(), 0);
+        mEditInput.clearFocus();
+    }
+
+    private void beginCursorDrag() {
+        if (!isEditMode()) {
+            return;
+        }
+        clearEditSelectionForCursor();
+        resetEditInputBuffer(getEditCursorOffset());
+        mCursorDragActive = true;
+    }
+
+    private void endCursorDrag() {
+        mCursorDragActive = false;
+        mCursorAutoScrollVelocity = 0;
+        if (mBigCursorView != null && mCursorAutoScrollRunnable != null) {
+            mBigCursorView.removeCallbacks(mCursorAutoScrollRunnable);
+        }
+        scheduleEditCursorUpdate(false);
+    }
+
+    private void moveEditCursorFromScreen(float rawX, float rawY, boolean updateAutoScroll) {
+        if (!isEditMode()) {
+            return;
+        }
+        clearEditSelectionForCursor();
+        updateEditCursorOffset(findEditOffsetForScreenPosition(rawX, rawY), true);
+        if (mCursorDragActive) {
+            mCursorDragRawX = rawX;
+            mCursorDragRawY = rawY;
+            if (updateAutoScroll) {
+                updateCursorAutoScroll(rawY);
+            }
+        }
+    }
+
+    private void updateCursorAutoScroll(float rawY) {
+        final int[] scrollerLocation = new int[2];
+        mScroller.getLocationOnScreen(scrollerLocation);
+        final int scrollerTop = scrollerLocation[1];
+        int scrollerBottom = scrollerTop + mScroller.getHeight();
+        final WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(mBoomPage);
+        if (rootInsets != null) {
+            scrollerBottom -= rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+        }
+        if (scrollerBottom <= scrollerTop) {
+            return;
+        }
+        final int visibleScrollerHeight = scrollerBottom - scrollerTop;
+        final int edgeInset = Math.min(
+                mActivity.getResources().getDimensionPixelSize(R.dimen.auto_scroll_top),
+                visibleScrollerHeight / 2
+        );
+        final int autoScrollTop = scrollerTop + edgeInset;
+        final int autoScrollBottom = scrollerBottom - Math.min(
+                mActivity.getResources().getDimensionPixelSize(R.dimen.auto_scroll_bottom),
+                visibleScrollerHeight / 2
+        );
+        int velocity = 0;
+        if (rawY < autoScrollTop) {
+            velocity = Math.round((rawY - autoScrollTop) / 2f);
+        } else if (rawY > autoScrollBottom) {
+            velocity = Math.round((rawY - autoScrollBottom) / 2f);
+        }
+        if (velocity == mCursorAutoScrollVelocity) {
+            return;
+        }
+        mCursorAutoScrollVelocity = velocity;
+        mBigCursorView.removeCallbacks(mCursorAutoScrollRunnable);
+        if (velocity != 0) {
+            mBigCursorView.postDelayed(mCursorAutoScrollRunnable, 25L);
+        }
+    }
+
+    private void scheduleEditCursorUpdate(boolean ensureVisible) {
+        if (!isEditMode()) {
+            mBigCursorView.hideCursor();
+            return;
+        }
+        mCursorUpdateNeedsVisibility |= ensureVisible;
+        if (mCursorUpdatePending) {
+            return;
+        }
+        mCursorUpdatePending = true;
+        mBoomPage.post(new Runnable() {
+            @Override
+            public void run() {
+                final boolean shouldEnsureVisible = mCursorUpdateNeedsVisibility;
+                mCursorUpdatePending = false;
+                mCursorUpdateNeedsVisibility = false;
+                updateEditCursor(shouldEnsureVisible);
+            }
+        });
+    }
+
+    private void updateEditCursor(boolean ensureVisible) {
+        if (!isEditMode()) {
+            mBigCursorView.hideCursor();
+            return;
+        }
+        final CursorAnchor cursorAnchor = findEditCursorAnchor();
+        if (ensureVisible && scrollEditCursorIntoView(cursorAnchor)) {
+            scheduleEditCursorUpdate(false);
+            return;
+        }
+        final String clipboardText = getClipboardText();
+        mBigCursorView.showCursor(
+                cursorAnchor.x,
+                cursorAnchor.top,
+                cursorAnchor.bottom,
+                !hasEditSelection() && clipboardText != null && clipboardText.length() > 0
+        );
+    }
+
+    private boolean scrollEditCursorIntoView(CursorAnchor cursorAnchor) {
+        final Rect viewport = new Rect();
+        if (!mScroller.getGlobalVisibleRect(viewport)) {
+            return false;
+        }
+        final WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(mBoomPage);
+        if (rootInsets != null) {
+            viewport.bottom -= rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+        }
+        if (viewport.bottom <= viewport.top) {
+            return false;
+        }
+        final int[] pageLocation = new int[2];
+        mBoomPage.getLocationOnScreen(pageLocation);
+        final int cursorTop = Math.round(cursorAnchor.top) + pageLocation[1];
+        final int cursorBottom = Math.round(cursorAnchor.bottom) + pageLocation[1];
+        final int margin = Math.round(24f * mActivity.getResources().getDisplayMetrics().density);
+        int delta = 0;
+        if (cursorTop < viewport.top + margin) {
+            delta = cursorTop - viewport.top - margin;
+        } else if (cursorBottom > viewport.bottom - margin) {
+            delta = cursorBottom - viewport.bottom + margin;
+        }
+        if (delta == 0) {
+            return false;
+        }
+        final int before = mScroller.getScrollY();
+        mScroller.scrollBy(0, delta);
+        return before != mScroller.getScrollY();
+    }
+
+    private CursorAnchor findEditCursorAnchor() {
+        final String text = mEditSession.text;
+        final int cursor = getEditCursorOffset();
+        int previousWord = -1;
+        int nextWord = -1;
+        for (int i = 0; i < mLayout.getWordCount(); ++i) {
+            final int wordStart = mLayout.getWordStart(i);
+            final int wordEnd = mLayout.getWordEnd(i);
+            if (wordEnd <= cursor) {
+                previousWord = i;
+            }
+            if (nextWord == -1 && wordStart >= cursor) {
+                nextWord = i;
+            }
+        }
+        final boolean beforeLineBreak = cursor < text.length() && isLineBreak(text.charAt(cursor));
+        final boolean afterLineBreak = cursor > 0 && isLineBreak(text.charAt(cursor - 1));
+        if (beforeLineBreak && afterLineBreak) {
+            // A cursor between consecutive line breaks belongs to the empty line, not either word row.
+            return getLineBreakAnchor(text, cursor);
+        }
+        if (beforeLineBreak && previousWord >= 0) {
+            return getChipAnchor(previousWord, true);
+        }
+        if (beforeLineBreak) {
+            return getLineBreakAnchor(text, cursor);
+        }
+        if (afterLineBreak && nextWord >= 0) {
+            return getChipAnchor(nextWord, false);
+        }
+        if (nextWord >= 0) {
+            return getChipAnchor(nextWord, false);
+        }
+        if (previousWord >= 0) {
+            if (afterLineBreak) {
+                return getLineBreakAnchor(text, cursor);
+            }
+            return getChipAnchor(previousWord, true);
+        }
+        if (afterLineBreak) {
+            return getLineBreakAnchor(text, cursor);
+        }
+        return getEmptyLineAnchor();
+    }
+
+    private boolean isLineBreak(char value) {
+        return value == '\r' || value == '\n';
+    }
+
+    private CursorAnchor getChipAnchor(int wordIndex, boolean trailingEdge) {
+        final BoomChip chip = findChipByIndex(wordIndex);
+        if (chip == null) {
+            return getEmptyLineAnchor();
+        }
+        final int[] wordLocation = new int[2];
+        final int[] pageLocation = new int[2];
+        chip.word.getLocationOnScreen(wordLocation);
+        mBoomPage.getLocationOnScreen(pageLocation);
+        final float x = wordLocation[0] - pageLocation[0]
+                + (trailingEdge ? chip.word.getWidth() : 0);
+        return new CursorAnchor(
+                x,
+                wordLocation[1] - pageLocation[1],
+                wordLocation[1] - pageLocation[1] + chip.word.getHeight()
+        );
+    }
+
+    private CursorAnchor getLineBreakAnchor(String text, int cursor) {
+        final int[] contentLocation = new int[2];
+        final int[] pageLocation = new int[2];
+        mBoomConent.getLocationOnScreen(contentLocation);
+        mBoomPage.getLocationOnScreen(pageLocation);
+        final int lineHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.chip_row_height);
+        float top = contentLocation[1] - pageLocation[1] + mBoomConent.getPaddingTop();
+        final int completedBreaks = countLineBreaksBefore(text, cursor);
+        if (completedBreaks > 0) {
+            int seenBreaks = 0;
+            for (int i = 0; i < mLayout.getRowCount(); ++i) {
+                if (!mLayout.isGapRow(i)) {
+                    continue;
+                }
+                ++seenBreaks;
+                if (seenBreaks == completedBreaks) {
+                    final View gapRow = mBoomConent.getChildAt(i);
+                    if (gapRow != null) {
+                        final int[] rowLocation = new int[2];
+                        gapRow.getLocationOnScreen(rowLocation);
+                        top = rowLocation[1] - pageLocation[1] + gapRow.getHeight();
+                    }
+                    break;
+                }
+            }
+        }
+        return new CursorAnchor(contentLocation[0] - pageLocation[0], top, top + lineHeight);
+    }
+
+    private int countLineBreaksBefore(String text, int cursor) {
+        int count = 0;
+        for (int offset = 0; offset < cursor; ++offset) {
+            final char value = text.charAt(offset);
+            if (value == '\n') {
+                ++count;
+            } else if (value == '\r' && (offset + 1 >= text.length() || text.charAt(offset + 1) != '\n')) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    private CursorAnchor getEmptyLineAnchor() {
+        final int[] contentLocation = new int[2];
+        final int[] pageLocation = new int[2];
+        mBoomConent.getLocationOnScreen(contentLocation);
+        mBoomPage.getLocationOnScreen(pageLocation);
+        final int lineHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.chip_row_height);
+        float top = contentLocation[1] - pageLocation[1] + mBoomConent.getPaddingTop();
+        if (mLayout.getRowCount() > 0) {
+            final View lastRow = mBoomConent.getChildAt(mLayout.getRowCount() - 1);
+            if (lastRow != null) {
+                final int[] rowLocation = new int[2];
+                lastRow.getLocationOnScreen(rowLocation);
+                top = rowLocation[1] - pageLocation[1] + lastRow.getHeight();
+            }
+        }
+        return new CursorAnchor(
+                contentLocation[0] - pageLocation[0],
+                top,
+                top + lineHeight
+        );
+    }
+
+    private int findEditOffsetForScreenPosition(float screenX, float screenY) {
+        View closestRow = null;
+        int closestRowIndex = -1;
+        float closestDistance = Float.MAX_VALUE;
+        for (int i = 0; i < mBoomConent.getChildCount(); ++i) {
+            final View row = mBoomConent.getChildAt(i);
+            if (row == null || (!mLayout.isGapRow(i)
+                    && (!(row instanceof LinearLayout) || ((LinearLayout) row).getChildCount() == 0))) {
+                continue;
+            }
+            final int[] rowLocation = new int[2];
+            row.getLocationOnScreen(rowLocation);
+            final float rowTop = rowLocation[1];
+            final float rowBottom = rowTop + row.getHeight();
+            final float distance = screenY < rowTop ? rowTop - screenY
+                    : screenY > rowBottom ? screenY - rowBottom : 0f;
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestRow = row;
+                closestRowIndex = i;
+            }
+        }
+        if (closestRow == null || closestRowIndex < 0) {
+            return getEditCursorOffset();
+        }
+        if (mLayout.isGapRow(closestRowIndex)) {
+            // Each gap row represents one source line break, including empty lines.
+            return getEditOffsetAfterLineBreak(mEditSession.text, countGapRowsThrough(closestRowIndex));
+        }
+        final LinearLayout chipRow = (LinearLayout) closestRow;
+        BoomChip firstChip = null;
+        BoomChip lastChip = null;
+        for (int i = 0; i < chipRow.getChildCount(); ++i) {
+            final View child = chipRow.getChildAt(i);
+            if (!(child.getTag() instanceof BoomChip)) {
+                continue;
+            }
+            final BoomChip chip = (BoomChip) child.getTag();
+            if (firstChip == null) {
+                firstChip = chip;
+            }
+            lastChip = chip;
+            final int[] chipLocation = new int[2];
+            child.getLocationOnScreen(chipLocation);
+            final float chipCenter = chipLocation[0] + child.getWidth() / 2f;
+            if (screenX <= chipLocation[0]) {
+                return mLayout.getWordStart(chip.index);
+            }
+            if (screenX <= chipLocation[0] + child.getWidth()) {
+                return screenX < chipCenter ? mLayout.getWordStart(chip.index)
+                        : mLayout.getWordEnd(chip.index);
+            }
+        }
+        if (lastChip != null) {
+            return mLayout.getWordEnd(lastChip.index);
+        }
+        return firstChip == null ? getEditCursorOffset() : mLayout.getWordStart(firstChip.index);
+    }
+
+    private int countGapRowsThrough(int rowIndex) {
+        int count = 0;
+        for (int i = 0; i <= rowIndex; ++i) {
+            if (mLayout.isGapRow(i)) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    private int getEditOffsetAfterLineBreak(String text, int targetBreak) {
+        int completedBreaks = 0;
+        for (int offset = 0; offset < text.length(); ++offset) {
+            final char value = text.charAt(offset);
+            if (value == '\r') {
+                if (offset + 1 < text.length() && text.charAt(offset + 1) == '\n') {
+                    ++completedBreaks;
+                    if (completedBreaks == targetBreak) {
+                        return offset + 2;
+                    }
+                    ++offset;
+                } else if (++completedBreaks == targetBreak) {
+                    return offset + 1;
+                }
+            } else if (value == '\n' && ++completedBreaks == targetBreak) {
+                return offset + 1;
+            }
+        }
+        return getEditCursorOffset();
+    }
+
+    private BoomChip findChipByIndex(int wordIndex) {
+        for (int i = 0; i < mBoomConent.getChildCount(); ++i) {
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
+            for (int j = 0; j < row.getChildCount(); ++j) {
+                final View child = row.getChildAt(j);
+                if (child.getTag() instanceof BoomChip) {
+                    final BoomChip chip = (BoomChip) child.getTag();
+                    if (chip.index == wordIndex) {
+                        return chip;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static final class CursorAnchor {
+        final float x;
+        final float top;
+        final float bottom;
+
+        CursorAnchor(float x, float top, float bottom) {
+            this.x = x;
+            this.top = top;
+            this.bottom = bottom;
+        }
+    }
+
     public boolean enterEditMode() {
         if (isEditMode()) {
             return true;
@@ -246,15 +1316,19 @@ public class BoomChipPage {
         if (!mLayout.layoutEditWords(text)) {
             return false;
         }
+        // Entering edit mode starts at the paragraph tail, matching the original BigBang editor.
+        final int initialCursorOffset = text.length();
         mEditSession = new EditSessionState(
                 text,
                 text,
-                0,
+                initialCursorOffset,
                 selectedState instanceof int[][] ? (int[][]) selectedState : null,
                 new String[] { text },
                 new String[0]
         );
         rebuildChips(selectedState);
+        resetEditInputBuffer(initialCursorOffset);
+        scheduleEditCursorUpdate(true);
         finishAdjacentPull();
         return true;
     }
@@ -284,6 +1358,8 @@ public class BoomChipPage {
         }
         mEditSession = state;
         rebuildChips(state.selectedRanges);
+        resetEditInputBuffer(getEditCursorOffset());
+        scheduleEditCursorUpdate(true);
         finishAdjacentPull();
         return true;
     }
@@ -294,6 +1370,10 @@ public class BoomChipPage {
         if (mEditSession == null || !mLayout.layoutWords(segment, mEditSession.text, -1)) {
             return false;
         }
+        endCursorDrag();
+        hideEditorKeyboard();
+        mBigCursorView.hideCursor();
+        resetEditInputBuffer(0);
         mEditSession = null;
         rebuildChips(selectedState);
         finishAdjacentPull();
@@ -304,6 +1384,10 @@ public class BoomChipPage {
         if (mEditSession == null || !mLayout.layoutWords(segment, text, -1)) {
             return false;
         }
+        endCursorDrag();
+        hideEditorKeyboard();
+        mBigCursorView.hideCursor();
+        resetEditInputBuffer(0);
         mEditSession = null;
         rebuildChips(null);
         finishAdjacentPull();
@@ -317,12 +1401,15 @@ public class BoomChipPage {
         mSavedData = selectedState;
         mBoomConent.removeAllViews();
         initChips(false);
-        if (selectedState != null) {
+        if (selectedState != null || isEditMode()) {
             mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
                 @Override
                 public void onGlobalLayout() {
                     mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                    restoreSelectedState();
+                    if (selectedState != null) {
+                        restoreSelectedState();
+                    }
+                    scheduleEditCursorUpdate(true);
                 }
             });
         }
@@ -365,7 +1452,12 @@ public class BoomChipPage {
     }
 
     public boolean handleClick() {
-        return mBoomActionHandler != null && mBoomActionHandler.handleClick();
+        final boolean handled = mBoomActionHandler != null && mBoomActionHandler.handleClick();
+        if (handled && isEditMode()) {
+            resetEditInputBuffer(getEditCursorOffset());
+            scheduleEditCursorUpdate(true);
+        }
+        return handled;
     }
 
     public Serializable captureSelectedState() {
@@ -426,6 +1518,9 @@ public class BoomChipPage {
             }
         }
         mBoomActionHandler.onSelect(0, wordCount - 1);
+        if (isEditMode()) {
+            moveEditCursorToSelectionEnd();
+        }
     }
 
     /**

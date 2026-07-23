@@ -74,6 +74,15 @@ public class BoomWordsLayout {
     }
 
     public boolean layoutWords(int[] segment, String text, int touchedIndex) {
+        if (TextUtils.isEmpty(text)) {
+            mEditLayout = false;
+            mOriText = "";
+            mWords.clear();
+            mHardBreaks.clear();
+            mTouchedIndex = -1;
+            generateLayout();
+            return true;
+        }
         int puncIndexStart = -1;
         for (int i = 0; i < segment.length; ++i) {
             if (segment[i] == -1) {
@@ -139,6 +148,13 @@ public class BoomWordsLayout {
                 newText.append(text.substring(segment[i], segment[i + 1] + 1));
             }
         }
+        if (wordIndexStart < text.length()) {
+            // Keep editable trailing spaces/newlines when returning to normal BigBang layout.
+            int removedDiff = appendFilteredGap(newText, text, wordIndexStart, text.length());
+            if (touchedIndex > wordIndexStart) {
+                touchIndexOffset += removedDiff;
+            }
+        }
         return layoutWordsAfterFilter(newSeg, newText.toString(), touchedIndex - touchIndexOffset);
     }
 
@@ -147,9 +163,6 @@ public class BoomWordsLayout {
      * unlike normal segmentation no non-whitespace characters are filtered.
      */
     public boolean layoutEditWords(String text) {
-        if (TextUtils.isEmpty(text)) {
-            return false;
-        }
         mEditLayout = true;
         mOriText = text;
         mWords.clear();
@@ -169,9 +182,6 @@ public class BoomWordsLayout {
                     && !Character.isSpaceChar(codePoint);
             mWords.add(new Word(text.substring(offset, next), offset, isPunctuation));
             offset = next;
-        }
-        if (mWords.isEmpty()) {
-            return false;
         }
         generateLayout();
         return true;
@@ -214,33 +224,36 @@ public class BoomWordsLayout {
         addGapIntoChips(prev, text.length());
 
         final int wordCount = mWords.size();
-        if (wordCount > 0) {
+        if (wordCount == 0) {
+            // An edited document may intentionally contain only spaces/newlines.
+            // It has no selectable chips in normal mode, but must still be committable.
             generateLayout();
-            final int rowCount = mRowCount.size();
-            if (rowCount > mMaxRowNumber) {
-                if (mTouchedIndex == -1) {
-                    start = 0;
-                    end = mRowStart.get(mMaxRowNumber);
-                } else {
-                    final int row = getRowForIndex(mTouchedIndex);
-                    if (row < mMaxRowNumber / 2) {
-                        start = 0;
-                        end = getRowStart(mMaxRowNumber);
-                    } else if (row >= rowCount - mMaxRowNumber / 2) {
-                        start = getRowStart(rowCount - mMaxRowNumber);
-                        end = wordCount;
-                    } else {
-                        start = getRowStart(row - mMaxRowNumber / 2);
-                        end = getRowStart(row + mMaxRowNumber / 2);
-                    }
-                }
-                mWords.remove(end, wordCount);
-                mWords.remove(0, start);
-                generateLayout();
-            }
             return true;
         }
-        return false;
+        generateLayout();
+        final int rowCount = mRowCount.size();
+        if (rowCount > mMaxRowNumber) {
+            if (mTouchedIndex == -1) {
+                start = 0;
+                end = mRowStart.get(mMaxRowNumber);
+            } else {
+                final int row = getRowForIndex(mTouchedIndex);
+                if (row < mMaxRowNumber / 2) {
+                    start = 0;
+                    end = getRowStart(mMaxRowNumber);
+                } else if (row >= rowCount - mMaxRowNumber / 2) {
+                    start = getRowStart(rowCount - mMaxRowNumber);
+                    end = wordCount;
+                } else {
+                    start = getRowStart(row - mMaxRowNumber / 2);
+                    end = getRowStart(row + mMaxRowNumber / 2);
+                }
+            }
+            mWords.remove(end, wordCount);
+            mWords.remove(0, start);
+            generateLayout();
+        }
+        return true;
     }
 
     private void addGapIntoChips(int start, int end) {
@@ -256,7 +269,8 @@ public class BoomWordsLayout {
 
     private void addHardBreak() {
         final int breakIndex = mWords.size();
-        if (mHardBreaks.size() > 0 && mHardBreaks.get(mHardBreaks.size() - 1) == breakIndex) {
+        if (!mEditLayout && mHardBreaks.size() > 0
+                && mHardBreaks.get(mHardBreaks.size() - 1) == breakIndex) {
             return;
         }
         mHardBreaks.add(breakIndex);
@@ -283,8 +297,10 @@ public class BoomWordsLayout {
         mRowStart.clear();
         mRowIsGap.clear();
         mIdToRow = new int[mWords.size()];
+        int hardBreakCursor = 0;
         for (int i = 0; i < mWords.size(); ++i) {
-            if (isHardBreakIndex(i)) {
+            while (hardBreakCursor < mHardBreaks.size()
+                    && mHardBreaks.get(hardBreakCursor) == i) {
                 if (count > 0) {
                     addRow(start, count, false);
                 }
@@ -292,6 +308,7 @@ public class BoomWordsLayout {
                 start = i;
                 count = 0;
                 remain = mBoomPageWidth;
+                ++hardBreakCursor;
             }
             final int chipWidth = measureChip(i);
             if (chipWidth > remain) {
@@ -314,6 +331,14 @@ public class BoomWordsLayout {
         }
         if (count > 0) {
             addRow(start, count, false);
+        }
+        if (mEditLayout) {
+            // A trailing or standalone newline is still an editable empty line.
+            while (hardBreakCursor < mHardBreaks.size()
+                    && mHardBreaks.get(hardBreakCursor) == mWords.size()) {
+                addRow(mWords.size(), 0, true);
+                ++hardBreakCursor;
+            }
         }
     }
 

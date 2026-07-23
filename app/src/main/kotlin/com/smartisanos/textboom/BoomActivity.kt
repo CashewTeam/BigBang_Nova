@@ -127,6 +127,7 @@ class BoomActivity : ComponentActivity() {
                 editTransitioning = editTransitioning,
                 onEditMode = { enterEditMode() },
                 onExitEditMode = { exitEditMode() },
+                onShowKeyboard = { boomChipPage?.showEditorKeyboard() },
                 onSelectAll = { selectAll() },
                 onShareAll = { shareAll() },
                 onMore = { showPlaceholder() },
@@ -154,6 +155,11 @@ class BoomActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         reinitializeFromIntent()
+    }
+
+    override fun onDestroy() {
+        boomChipPage?.release()
+        super.onDestroy()
     }
 
     /**
@@ -257,6 +263,18 @@ class BoomActivity : ComponentActivity() {
             return
         }
         editTransitioning = true
+        if (text.isBlank()) {
+            // cppjieba intentionally has no segment for whitespace-only text; keep the edit result.
+            if (page.commitEditMode(intArrayOf(-1))) {
+                currentText = text
+                currentSegment = intArrayOf(-1)
+                editMode = false
+            } else {
+                Toast.makeText(this, R.string.bigbang_edit_commit_failed, Toast.LENGTH_SHORT).show()
+            }
+            editTransitioning = false
+            return
+        }
         val request = ++editCommitRequest
         Thread {
             try {
@@ -609,6 +627,7 @@ private fun BigBangOverlayContent(
     editTransitioning: Boolean,
     onEditMode: () -> Unit,
     onExitEditMode: () -> Unit,
+    onShowKeyboard: () -> Unit,
     onSelectAll: () -> Unit,
     onShareAll: () -> Unit,
     onMore: () -> Unit,
@@ -844,9 +863,9 @@ private fun BigBangOverlayContent(
                             if (isEditMode) {
                                 OverlayIconAction(
                                     imageVector = Icons.Outlined.Keyboard,
-                                    tint = if (dark) Color(0x66F2F5F8) else Color(0x668D8983),
-                                    enabled = false,
-                                    onClick = {},
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                    enabled = !editTransitioning,
+                                    onClick = onShowKeyboard,
                                     contentDescription = stringResource(R.string.bigbang_action_keyboard),
                                 )
                             } else {

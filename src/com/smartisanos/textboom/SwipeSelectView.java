@@ -32,6 +32,13 @@ public class SwipeSelectView extends LinearLayout {
     private int mAutoScrollTopInset;
     private int mAutoScrollBottomInset;
     private int mAutoScrollVelocity;
+    private float mEditTouchDownX;
+    private float mEditTouchDownY;
+    private long mEditTouchDownTime;
+    private boolean mEditTapCandidate;
+
+    // Smartisan's editor reserves a brief chip tap for moving the insertion point.
+    private static final long EDIT_CURSOR_TAP_TIMEOUT_MS = 100L;
 
     private String mDragText;
     private Runnable mStartDrag = new Runnable() {
@@ -74,8 +81,13 @@ public class SwipeSelectView extends LinearLayout {
     public boolean onTouchEvent(MotionEvent ev) {
         final float x = ev.getX();
         final float y = ev.getY();
+        final boolean isEditing = mBoomPage != null && mBoomPage.isEditMode();
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                mEditTouchDownX = ev.getRawX();
+                mEditTouchDownY = ev.getRawY();
+                mEditTouchDownTime = ev.getEventTime();
+                mEditTapCandidate = isEditing;
                 mDeferInitialSelectionVisual = isAtScrollEdge();
                 mVisualSelectionApplied = false;
                 BoomChip touchedChip = findChip(x, y, false);
@@ -91,6 +103,13 @@ public class SwipeSelectView extends LinearLayout {
                 mAutoScrollVelocity = 0;
                 break;
             case MotionEvent.ACTION_MOVE:
+                if (isEditing && mEditTapCandidate) {
+                    final int touchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+                    if (Math.abs(ev.getRawX() - mEditTouchDownX) > touchSlop
+                            || Math.abs(ev.getRawY() - mEditTouchDownY) > touchSlop) {
+                        mEditTapCandidate = false;
+                    }
+                }
                 if (mLastTouchIndex != -1) {
                     scrollIfNeeded((int) ev.getRawY());
                     touchedChip = findChip(x, y, mSelEnd > mSelStart);
@@ -110,7 +129,15 @@ public class SwipeSelectView extends LinearLayout {
             case MotionEvent.ACTION_UP:
                 removeCallbacks(mStartDrag);
                 requestDisallowInterceptTouchEvent(false);
-                if (mSelStart != -1) {
+                final boolean isShortEditTap = isEditing
+                        && mEditTapCandidate
+                        && ev.getEventTime() - mEditTouchDownTime < EDIT_CURSOR_TAP_TIMEOUT_MS;
+                if (isShortEditTap && mSelStart != -1
+                        && !mBoomPage.mBoomActionHandler.hasSelection()) {
+                    // Undo the transient chip highlight before using this tap as a cursor move.
+                    performSelect(!mIsSelected);
+                    mBoomPage.moveEditCursorFromContentTap(ev.getRawX(), ev.getRawY());
+                } else if (mSelStart != -1) {
                     if (mSelStart == mSelEnd) {
                         performSelect(mIsSelected);
                     }
@@ -131,10 +158,17 @@ public class SwipeSelectView extends LinearLayout {
                         }
                         mBoomPage.mBoomActionHandler.deSelect(mSelStart, mSelEnd);
                     }
+                    if (isEditing) {
+                        mBoomPage.moveEditCursorToSelectionEnd();
+                    }
+                } else if (isShortEditTap) {
+                    // A tap in an edge or row gap positions the caret without creating a selection.
+                    mBoomPage.moveEditCursorFromContentTap(ev.getRawX(), ev.getRawY());
                 }
                 mAutoScrollVelocity = 0;
                 mDeferInitialSelectionVisual = false;
                 mVisualSelectionApplied = false;
+                mEditTapCandidate = false;
                 break;
             case MotionEvent.ACTION_CANCEL:
                 removeCallbacks(mStartDrag);
@@ -148,13 +182,15 @@ public class SwipeSelectView extends LinearLayout {
                 mAutoScrollVelocity = 0;
                 mDeferInitialSelectionVisual = false;
                 mVisualSelectionApplied = false;
+                mEditTapCandidate = false;
                 break;
             default:
                 removeCallbacks(mStartDrag);
                 mAutoScrollVelocity = 0;
+                mEditTapCandidate = false;
                 break;
         }
-        return mSelStart != -1 ? true : super.onTouchEvent(ev);
+        return mSelStart != -1 || isEditing ? true : super.onTouchEvent(ev);
     }
 
     private void scrollIfNeeded(int screenY) {

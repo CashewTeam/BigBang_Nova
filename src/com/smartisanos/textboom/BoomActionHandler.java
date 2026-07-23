@@ -126,6 +126,10 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         for (int i = stat; i <= end; ++i) {
             mSelectedId.remove(new Integer(i));
         }
+        if (mBoomPage.isEditMode()) {
+            // Edit mode retains chip visuals but must not show or animate the legacy select bar.
+            return;
+        }
         if (mSelectedId.size() > 0) {
             final int min = mBoomPage.mLayout.getRowForIndex(mSelectedId.first());
             final int max = mBoomPage.mLayout.getRowForIndex(mSelectedId.last());
@@ -396,6 +400,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
 
     @Override
     public void onScrollChanged() {
+        mBoomPage.onScrollerChanged();
         if (!hasSelection()) return;
         if (mSelectBar != null && mFakeSelectBar != null) {
             final View pinnedBarContainer = (View) mFakeSelectBar.getParent();
