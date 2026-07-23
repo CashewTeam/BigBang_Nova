@@ -68,6 +68,18 @@ public final class BigCursorView extends FrameLayout {
     private boolean mHandleDragging;
     private boolean mDeletePressed;
 
+    private final Runnable mStartDragRunnable = new Runnable() {
+        @Override
+        public void run() {
+            // hideCursor() cancels this callback, and this guard covers a
+            // callback that was already dequeued when the editor is frozen.
+            if (mCursorVisible && mCallback != null) {
+                mHandleDragging = true;
+                mCallback.onCursorHandleDragStart();
+            }
+        }
+    };
+
     private final Runnable mBlinkRunnable = new Runnable() {
         @Override
         public void run() {
@@ -111,16 +123,6 @@ public final class BigCursorView extends FrameLayout {
         mHandle.setContentDescription("拖动光标");
         addView(mHandle, new FrameLayout.LayoutParams(mHandleSize, mHandleSize));
         mHandle.setOnTouchListener(new OnTouchListener() {
-            private final Runnable mStartDragRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (mCallback != null) {
-                        mHandleDragging = true;
-                        mCallback.onCursorHandleDragStart();
-                    }
-                }
-            };
-
             @Override
             public boolean onTouch(View view, MotionEvent event) {
                 switch (event.getActionMasked()) {
@@ -241,6 +243,7 @@ public final class BigCursorView extends FrameLayout {
         mCursorVisible = false;
         mHandleDragging = false;
         mDeletePressed = false;
+        removeCallbacks(mStartDragRunnable);
         removeCallbacks(mBlinkRunnable);
         removeCallbacks(mDeleteRepeatRunnable);
         setVisibility(GONE);

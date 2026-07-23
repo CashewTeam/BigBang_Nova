@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.graphics.Rect;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.util.TypedValue;
@@ -26,6 +27,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -83,6 +85,8 @@ public class BoomChipPage {
 
     Serializable mSavedData;
     private EditSessionState mEditSession;
+    private boolean mEditCommitPending;
+    private OnEditUiStateListener mOnEditUiStateListener;
     private OnAdjacentRequestListener mOnAdjacentRequestListener;
     private boolean mAdjacentLoading;
     private float mAdjacentOffset;
@@ -458,13 +462,15 @@ public class BoomChipPage {
             @Override
             public void onPrimaryClipChanged() {
                 scheduleEditCursorUpdate(false);
+                mBoomActionHandler.refreshToolbarForCurrentMode();
             }
         };
         mClipboard.addPrimaryClipChangedListener(mClipboardListener);
         mCursorAutoScrollRunnable = new Runnable() {
             @Override
             public void run() {
-                if (!mCursorDragActive || mCursorAutoScrollVelocity == 0) {
+                if (!canModifyEditText() || !mCursorDragActive || mCursorAutoScrollVelocity == 0) {
+                    mCursorDragActive = false;
                     return;
                 }
                 mScroller.scrollBy(0, mCursorAutoScrollVelocity);
@@ -490,6 +496,49 @@ public class BoomChipPage {
 
     public interface OnAdjacentRequestListener {
         void onAdjacentRequest(String direction);
+    }
+
+    /** Keeps the Compose chrome in sync with legacy selection and history state. */
+    public interface OnEditUiStateListener {
+        void onEditUiStateChanged(
+                boolean allSelected,
+                boolean selectAllEnabled,
+                boolean canUndo,
+                boolean canRedo
+        );
+    }
+
+    public void setOnEditUiStateListener(OnEditUiStateListener listener) {
+        mOnEditUiStateListener = listener;
+        notifyEditUiStateChanged();
+    }
+
+    void notifyEditUiStateChanged() {
+        if (mOnEditUiStateListener == null) {
+            return;
+        }
+        mOnEditUiStateListener.onEditUiStateChanged(
+                isEditMode() && mBoomActionHandler != null && mBoomActionHandler.isAllSelected(),
+                isEditMode() && mLayout.getWordCount() > 0,
+                canUndoEdit(),
+                canRedoEdit()
+        );
+    }
+
+    /** Stores a user-driven chip selection for rotation and history snapshots. */
+    void syncEditSelectionStateFromHandler() {
+        if (!isEditMode()) {
+            return;
+        }
+        final Serializable selection = captureSelectedState();
+        mEditSession = new EditSessionState(
+                mEditSession.originalText,
+                mEditSession.text,
+                getEditCursorOffset(),
+                selection instanceof int[][] ? (int[][]) selection : null,
+                mEditSession.getUndoSnapshots(),
+                mEditSession.getRedoSnapshots()
+        );
     }
 
     private void removeLegacyChromeSpacing() {
@@ -532,6 +581,7 @@ public class BoomChipPage {
         hideEditorKeyboard();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
+        mEditCommitPending = false;
         mEditSession = null;
         if (mLayout.layoutWords(segment, text, touchedIndex)) {
             mTouchedX = touchedX;
@@ -552,6 +602,7 @@ public class BoomChipPage {
         hideEditorKeyboard();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
+        mEditCommitPending = false;
         mEditSession = null;
         finishAdjacentPull();
         if (mBoomActionHandler != null) {
@@ -564,9 +615,43 @@ public class BoomChipPage {
         return mEditSession != null;
     }
 
+    /** Blocks all text mutations while Activity re-segments a pending edit commit. */
+    boolean canModifyEditText() {
+        return isEditMode() && !mEditCommitPending;
+    }
+
+    /**
+     * Freezes the editable surface before background segmentation captures its
+     * text, preventing IME or legacy-toolbar changes from racing the commit.
+     */
+    public boolean beginEditCommit() {
+        if (!canModifyEditText()) {
+            return false;
+        }
+        mEditCommitPending = true;
+        endCursorDrag();
+        hideEditorKeyboard();
+        mBigCursorView.hideCursor();
+        mBoomActionHandler.refreshToolbarForCurrentMode();
+        notifyEditUiStateChanged();
+        return true;
+    }
+
+    /** Reopens editing after a failed background segmentation attempt. */
+    public void cancelEditCommit() {
+        if (!isEditMode() || !mEditCommitPending) {
+            return;
+        }
+        mEditCommitPending = false;
+        resetEditInputBuffer(getEditCursorOffset());
+        scheduleEditCursorUpdate(true);
+        mBoomActionHandler.refreshToolbarForCurrentMode();
+        notifyEditUiStateChanged();
+    }
+
     /** Show the IME without exposing a second visual text field. */
     public void showEditorKeyboard() {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return;
         }
         clearEditSelectionForCursor();
@@ -588,11 +673,106 @@ public class BoomChipPage {
     }
 
     /**
+     * Delete, cut and paste all use this page-level selection API so text,
+     * cursor placement and history cannot diverge from the visible chips.
+     */
+    public boolean deleteEditSelection() {
+        return replaceEditSelection("");
+    }
+
+    public boolean cutEditSelection() {
+        if (!canModifyEditText() || !hasEditSelection()) {
+            return false;
+        }
+        final String selectedText = mBoomActionHandler.getSelectedText();
+        if (!copyEditTextToClipboard(selectedText)) {
+            return false;
+        }
+        if (!replaceEditSelection("")) {
+            return false;
+        }
+        Toast.makeText(mActivity, R.string.bigbang_edit_cut_tips, Toast.LENGTH_SHORT).show();
+        return true;
+    }
+
+    /** Original BigBang keeps the selected chips visible after copy. */
+    public boolean copyEditSelection() {
+        if (!canModifyEditText() || !hasEditSelection()) {
+            return false;
+        }
+        if (!copyEditTextToClipboard(mBoomActionHandler.getSelectedText())) {
+            return false;
+        }
+        Toast.makeText(mActivity, R.string.copy_tips, Toast.LENGTH_SHORT).show();
+        return true;
+    }
+
+    public boolean pasteEditSelection() {
+        if (!canModifyEditText() || !hasEditSelection()) {
+            return false;
+        }
+        final String clipboardText = getClipboardText();
+        if (TextUtils.isEmpty(clipboardText)) {
+            Toast.makeText(mActivity, R.string.bigbang_edit_paste_empty, Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        return replaceEditSelection(clipboardText);
+    }
+
+    public void clearEditSelection() {
+        if (!canModifyEditText()) {
+            return;
+        }
+        if (clearEditSelectionForCursor()) {
+            resetEditInputBuffer(getEditCursorOffset());
+            scheduleEditCursorUpdate(true);
+        }
+    }
+
+    public boolean canUndoEdit() {
+        return canModifyEditText() && mEditSession.getUndoSnapshots().length > 0;
+    }
+
+    public boolean canRedoEdit() {
+        return canModifyEditText() && mEditSession.getRedoSnapshots().length > 0;
+    }
+
+    public boolean undoEdit() {
+        if (!canUndoEdit()) {
+            return false;
+        }
+        final EditHistorySnapshot[] undo = mEditSession.getUndoSnapshots();
+        final EditHistorySnapshot target = undo[undo.length - 1];
+        return restoreEditHistory(
+                target,
+                removeLastHistorySnapshot(undo),
+                appendHistorySnapshot(mEditSession.getRedoSnapshots(), captureEditSnapshot())
+        );
+    }
+
+    public boolean redoEdit() {
+        if (!canRedoEdit()) {
+            return false;
+        }
+        final EditHistorySnapshot[] redo = mEditSession.getRedoSnapshots();
+        final EditHistorySnapshot target = redo[redo.length - 1];
+        return restoreEditHistory(
+                target,
+                appendHistorySnapshot(mEditSession.getUndoSnapshots(), captureEditSnapshot()),
+                removeLastHistorySnapshot(redo)
+        );
+    }
+
+    boolean hasEditClipboardText() {
+        return !TextUtils.isEmpty(getClipboardText());
+    }
+
+    /**
      * The original editor keeps the insertion point on the trailing edge of
      * the rightmost selected chip, including a selected whitespace chip.
      */
     void moveEditCursorToSelectionEnd() {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return;
         }
         if (!hasEditSelection()) {
@@ -624,6 +804,9 @@ public class BoomChipPage {
             mInputBuffer = text.toString();
             return;
         }
+        if (mEditCommitPending) {
+            return;
+        }
         if (start < 0 || before < 0 || start + before > mInputBuffer.length()) {
             Log.w(TAG, "Ignoring invalid editor input range");
             return;
@@ -639,7 +822,7 @@ public class BoomChipPage {
     }
 
     private void onEditInputSelectionChanged(int selectionStart, int selectionEnd) {
-        if (mSynchronizingEditInput || !isEditMode()) {
+        if (mSynchronizingEditInput || !canModifyEditText()) {
             return;
         }
         final int safeSelection = Math.max(0, Math.min(selectionStart, mInputBuffer.length()));
@@ -652,7 +835,7 @@ public class BoomChipPage {
     }
 
     private boolean insertEditText(String text) {
-        if (!isEditMode() || text == null || text.length() == 0) {
+        if (!canModifyEditText() || text == null || text.length() == 0) {
             return false;
         }
         prepareForDirectEdit();
@@ -665,7 +848,7 @@ public class BoomChipPage {
     }
 
     private boolean deleteEditBefore(int count, boolean inCodePoints) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return false;
         }
         prepareForDirectEdit();
@@ -683,7 +866,7 @@ public class BoomChipPage {
     }
 
     private boolean deleteEditAfter(int count, boolean inCodePoints) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return false;
         }
         prepareForDirectEdit();
@@ -698,7 +881,7 @@ public class BoomChipPage {
 
     private boolean deleteEditSurrounding(int beforeCount, int afterCount,
             boolean inCodePoints, int inputSelectionStart) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return false;
         }
         final String text = mEditSession.text;
@@ -753,7 +936,11 @@ public class BoomChipPage {
     }
 
     private void pasteEditText() {
-        if (!isEditMode() || hasEditSelection()) {
+        if (!canModifyEditText()) {
+            return;
+        }
+        if (hasEditSelection()) {
+            pasteEditSelection();
             return;
         }
         final String clipboardText = getClipboardText();
@@ -769,7 +956,7 @@ public class BoomChipPage {
 
     private boolean replaceEditRange(int start, int end, String replacement, int cursorOffset,
             boolean resetInputBuffer) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return false;
         }
         final String oldText = mEditSession.text;
@@ -779,24 +966,152 @@ public class BoomChipPage {
         return applyEditText(newText, cursorOffset, resetInputBuffer);
     }
 
-    private boolean applyEditText(String text, int cursorOffset, boolean resetInputBuffer) {
-        if (!isEditMode() || !mLayout.layoutEditWords(text)) {
+    /**
+     * Replaces every selected character range in one transaction. For a
+     * discontinuous selection the replacement is inserted once at the first
+     * range, while every selected range is removed without shifting later ones.
+     */
+    private boolean replaceEditSelection(String replacement) {
+        if (!canModifyEditText() || !hasEditSelection()) {
             return false;
         }
+        final Serializable selection = captureSelectedState();
+        if (!(selection instanceof int[][])) {
+            return false;
+        }
+        final EditTextMutation mutation = replaceSelectedText(
+                mEditSession.text,
+                (int[][]) selection,
+                replacement == null ? "" : replacement
+        );
+        return mutation != null && applyEditText(mutation.text, mutation.cursorOffset, true);
+    }
+
+    /** Package-private for the JVM selection transaction tests. */
+    static EditTextMutation replaceSelectedText(String source, int[][] ranges, String replacement) {
+        if (source == null || ranges == null || ranges.length == 0 || replacement == null) {
+            return null;
+        }
+        final StringBuilder result = new StringBuilder(source.length() + replacement.length());
+        int sourceOffset = 0;
+        int replacementStart = -1;
+        for (int[] range : ranges) {
+            if (range == null || range.length < 2) {
+                continue;
+            }
+            final int start = Math.max(sourceOffset, Math.min(range[0], source.length()));
+            final int end = Math.max(start, Math.min(range[1], source.length()));
+            if (start == end) {
+                continue;
+            }
+            result.append(source, sourceOffset, start);
+            if (replacementStart < 0) {
+                replacementStart = result.length();
+                result.append(replacement);
+            }
+            sourceOffset = end;
+        }
+        if (replacementStart < 0) {
+            return null;
+        }
+        result.append(source, sourceOffset, source.length());
+        return new EditTextMutation(result.toString(), replacementStart + replacement.length());
+    }
+
+    private boolean copyEditTextToClipboard(String text) {
+        if (TextUtils.isEmpty(text)) {
+            return false;
+        }
+        mClipboard.setPrimaryClip(ClipData.newPlainText(null, text));
+        return true;
+    }
+
+    private EditHistorySnapshot captureEditSnapshot() {
+        if (!isEditMode()) {
+            return null;
+        }
+        final Serializable selection = captureSelectedState();
+        return new EditHistorySnapshot(
+                mEditSession.text,
+                getEditCursorOffset(),
+                // Rebuild restores selected chips asynchronously. While that
+                // pass is pending, retain the session snapshot so a quick
+                // redo cannot overwrite the restored selection with null.
+                selection instanceof int[][] ? (int[][]) selection : mEditSession.selectedRanges
+        );
+    }
+
+    private boolean restoreEditHistory(
+            EditHistorySnapshot snapshot,
+            EditHistorySnapshot[] undoHistory,
+            EditHistorySnapshot[] redoHistory
+    ) {
+        if (!isEditMode() || snapshot == null || !mLayout.layoutEditWords(snapshot.text)) {
+            return false;
+        }
+        mEditSession = new EditSessionState(
+                mEditSession.originalText,
+                snapshot.text,
+                clampEditOffset(snapshot.text, snapshot.cursorOffset),
+                snapshot.selectedRanges,
+                undoHistory,
+                redoHistory
+        );
+        rebuildChips(snapshot.selectedRanges);
+        resetEditInputBuffer(getEditCursorOffset());
+        scheduleEditCursorUpdate(true);
+        notifyEditUiStateChanged();
+        return true;
+    }
+
+    private static EditHistorySnapshot[] appendHistorySnapshot(
+            EditHistorySnapshot[] history, EditHistorySnapshot snapshot) {
+        if (snapshot == null) {
+            return history == null ? new EditHistorySnapshot[0] : history.clone();
+        }
+        final int historyLength = history == null ? 0 : history.length;
+        final EditHistorySnapshot[] result = new EditHistorySnapshot[historyLength + 1];
+        if (historyLength > 0) {
+            System.arraycopy(history, 0, result, 0, historyLength);
+        }
+        result[historyLength] = snapshot;
+        return result;
+    }
+
+    private static EditHistorySnapshot[] removeLastHistorySnapshot(EditHistorySnapshot[] history) {
+        if (history == null || history.length == 0) {
+            return new EditHistorySnapshot[0];
+        }
+        final EditHistorySnapshot[] result = new EditHistorySnapshot[history.length - 1];
+        if (result.length > 0) {
+            System.arraycopy(history, 0, result, 0, result.length);
+        }
+        return result;
+    }
+
+    private boolean applyEditText(String text, int cursorOffset, boolean resetInputBuffer) {
+        if (!canModifyEditText()) {
+            return false;
+        }
+        final EditHistorySnapshot beforeEdit = captureEditSnapshot();
         final int safeCursor = clampEditOffset(text, cursorOffset);
+        if (mEditSession.text.equals(text) || !mLayout.layoutEditWords(text)) {
+            return false;
+        }
         mEditSession = new EditSessionState(
                 mEditSession.originalText,
                 text,
                 safeCursor,
                 null,
-                mEditSession.undoHistory,
-                mEditSession.redoHistory
+                appendHistorySnapshot(mEditSession.getUndoSnapshots(), beforeEdit),
+                new EditHistorySnapshot[0]
         );
         rebuildChips(null);
         if (resetInputBuffer) {
             resetEditInputBuffer(safeCursor);
         }
         scheduleEditCursorUpdate(true);
+        notifyEditUiStateChanged();
         return true;
     }
 
@@ -812,9 +1127,9 @@ public class BoomChipPage {
                 mEditSession.originalText,
                 mEditSession.text,
                 safeCursor,
-                null,
-                mEditSession.undoHistory,
-                mEditSession.redoHistory
+                mEditSession.selectedRanges,
+                mEditSession.getUndoSnapshots(),
+                mEditSession.getRedoSnapshots()
         );
         if (resetInputBuffer) {
             resetEditInputBuffer(safeCursor);
@@ -873,9 +1188,9 @@ public class BoomChipPage {
         mInputBufferOffset = cursorOffset;
     }
 
-    private void clearEditSelectionForCursor() {
+    private boolean clearEditSelectionForCursor() {
         if (!hasEditSelection()) {
-            return;
+            return false;
         }
         mSavedData = null;
         mBoomActionHandler.clearSelectionStateForRelayout();
@@ -885,9 +1200,11 @@ public class BoomChipPage {
                 mEditSession.text,
                 mEditSession.cursorOffset,
                 null,
-                mEditSession.undoHistory,
-                mEditSession.redoHistory
+                mEditSession.getUndoSnapshots(),
+                mEditSession.getRedoSnapshots()
         );
+        notifyEditUiStateChanged();
+        return true;
     }
 
     private boolean hasEditSelection() {
@@ -914,7 +1231,7 @@ public class BoomChipPage {
     }
 
     private void beginCursorDrag() {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return;
         }
         clearEditSelectionForCursor();
@@ -932,7 +1249,7 @@ public class BoomChipPage {
     }
 
     private void moveEditCursorFromScreen(float rawX, float rawY, boolean updateAutoScroll) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             return;
         }
         clearEditSelectionForCursor();
@@ -985,7 +1302,7 @@ public class BoomChipPage {
     }
 
     private void scheduleEditCursorUpdate(boolean ensureVisible) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             mBigCursorView.hideCursor();
             return;
         }
@@ -1006,7 +1323,7 @@ public class BoomChipPage {
     }
 
     private void updateEditCursor(boolean ensureVisible) {
-        if (!isEditMode()) {
+        if (!canModifyEditText()) {
             mBigCursorView.hideCursor();
             return;
         }
@@ -1318,17 +1635,20 @@ public class BoomChipPage {
         }
         // Entering edit mode starts at the paragraph tail, matching the original BigBang editor.
         final int initialCursorOffset = text.length();
+        mEditCommitPending = false;
         mEditSession = new EditSessionState(
                 text,
                 text,
                 initialCursorOffset,
                 selectedState instanceof int[][] ? (int[][]) selectedState : null,
-                new String[] { text },
-                new String[0]
+                new EditHistorySnapshot[0],
+                new EditHistorySnapshot[0]
         );
         rebuildChips(selectedState);
         resetEditInputBuffer(initialCursorOffset);
         scheduleEditCursorUpdate(true);
+        mBoomActionHandler.refreshToolbarForCurrentMode();
+        notifyEditUiStateChanged();
         finishAdjacentPull();
         return true;
     }
@@ -1347,8 +1667,8 @@ public class BoomChipPage {
                 mEditSession.text,
                 mEditSession.cursorOffset,
                 selectedState instanceof int[][] ? (int[][]) selectedState : mEditSession.selectedRanges,
-                mEditSession.undoHistory,
-                mEditSession.redoHistory
+                mEditSession.getUndoSnapshots(),
+                mEditSession.getRedoSnapshots()
         );
     }
 
@@ -1356,10 +1676,13 @@ public class BoomChipPage {
         if (state == null || !mLayout.layoutEditWords(state.text)) {
             return false;
         }
+        mEditCommitPending = false;
         mEditSession = state;
         rebuildChips(state.selectedRanges);
         resetEditInputBuffer(getEditCursorOffset());
         scheduleEditCursorUpdate(true);
+        mBoomActionHandler.refreshToolbarForCurrentMode();
+        notifyEditUiStateChanged();
         finishAdjacentPull();
         return true;
     }
@@ -1374,8 +1697,11 @@ public class BoomChipPage {
         hideEditorKeyboard();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
+        mEditCommitPending = false;
         mEditSession = null;
         rebuildChips(selectedState);
+        mBoomActionHandler.refreshToolbarForCurrentMode();
+        notifyEditUiStateChanged();
         finishAdjacentPull();
         return true;
     }
@@ -1388,8 +1714,11 @@ public class BoomChipPage {
         hideEditorKeyboard();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
+        mEditCommitPending = false;
         mEditSession = null;
         rebuildChips(null);
+        mBoomActionHandler.refreshToolbarForCurrentMode();
+        notifyEditUiStateChanged();
         finishAdjacentPull();
         return true;
     }
@@ -1452,8 +1781,14 @@ public class BoomChipPage {
     }
 
     public boolean handleClick() {
+        if (isEditMode() && !canModifyEditText()) {
+            return false;
+        }
         final boolean handled = mBoomActionHandler != null && mBoomActionHandler.handleClick();
         if (handled && isEditMode()) {
+            // handleClick clears the legacy handler before this page can
+            // capture it, so explicitly clear the persisted edit selection.
+            syncEditSelectionStateFromHandler();
             resetEditInputBuffer(getEditCursorOffset());
             scheduleEditCursorUpdate(true);
         }
@@ -1496,6 +1831,9 @@ public class BoomChipPage {
     }
 
     public void selectAll() {
+        if (isEditMode() && !canModifyEditText()) {
+            return;
+        }
         final int wordCount = mLayout.getWordCount();
         if (wordCount <= 0) {
             return;
@@ -1929,6 +2267,34 @@ public class BoomChipPage {
         }
     }
 
+    static final class EditTextMutation {
+        final String text;
+        final int cursorOffset;
+
+        EditTextMutation(String text, int cursorOffset) {
+            this.text = text;
+            this.cursorOffset = cursorOffset;
+        }
+    }
+
+    private static final class EditHistorySnapshot implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        final String text;
+        final int cursorOffset;
+        final int[][] selectedRanges;
+
+        EditHistorySnapshot(String text, int cursorOffset, int[][] selectedRanges) {
+            this.text = text;
+            this.cursorOffset = cursorOffset;
+            this.selectedRanges = EditSessionState.copyRanges(selectedRanges);
+        }
+
+        EditHistorySnapshot copy() {
+            return new EditHistorySnapshot(text, cursorOffset, selectedRanges);
+        }
+    }
+
     public static final class EditSessionState implements Serializable {
         private static final long serialVersionUID = 1L;
 
@@ -1936,8 +2302,11 @@ public class BoomChipPage {
         public final String text;
         public final int cursorOffset;
         public final int[][] selectedRanges;
+        /** Kept for compatibility with sessions saved before structured snapshots were added. */
         public final String[] undoHistory;
         public final String[] redoHistory;
+        private final EditHistorySnapshot[] undoSnapshots;
+        private final EditHistorySnapshot[] redoSnapshots;
 
         EditSessionState(
                 String originalText,
@@ -1947,12 +2316,77 @@ public class BoomChipPage {
                 String[] undoHistory,
                 String[] redoHistory
         ) {
+            this(
+                    originalText,
+                    text,
+                    cursorOffset,
+                    selectedRanges,
+                    snapshotsFromTextHistory(undoHistory, cursorOffset),
+                    snapshotsFromTextHistory(redoHistory, cursorOffset)
+            );
+        }
+
+        EditSessionState(
+                String originalText,
+                String text,
+                int cursorOffset,
+                int[][] selectedRanges,
+                EditHistorySnapshot[] undoSnapshots,
+                EditHistorySnapshot[] redoSnapshots
+        ) {
             this.originalText = originalText;
             this.text = text;
             this.cursorOffset = cursorOffset;
             this.selectedRanges = copyRanges(selectedRanges);
-            this.undoHistory = undoHistory.clone();
-            this.redoHistory = redoHistory.clone();
+            this.undoSnapshots = copySnapshots(undoSnapshots);
+            this.redoSnapshots = copySnapshots(redoSnapshots);
+            this.undoHistory = snapshotTexts(this.undoSnapshots);
+            this.redoHistory = snapshotTexts(this.redoSnapshots);
+        }
+
+        EditHistorySnapshot[] getUndoSnapshots() {
+            return undoSnapshots == null
+                    ? snapshotsFromTextHistory(undoHistory, cursorOffset)
+                    : copySnapshots(undoSnapshots);
+        }
+
+        EditHistorySnapshot[] getRedoSnapshots() {
+            return redoSnapshots == null
+                    ? snapshotsFromTextHistory(redoHistory, cursorOffset)
+                    : copySnapshots(redoSnapshots);
+        }
+
+        private static EditHistorySnapshot[] snapshotsFromTextHistory(String[] history, int cursorOffset) {
+            if (history == null || history.length == 0) {
+                return new EditHistorySnapshot[0];
+            }
+            EditHistorySnapshot[] snapshots = new EditHistorySnapshot[history.length];
+            for (int i = 0; i < history.length; ++i) {
+                snapshots[i] = new EditHistorySnapshot(history[i], cursorOffset, null);
+            }
+            return snapshots;
+        }
+
+        private static String[] snapshotTexts(EditHistorySnapshot[] snapshots) {
+            if (snapshots == null || snapshots.length == 0) {
+                return new String[0];
+            }
+            String[] texts = new String[snapshots.length];
+            for (int i = 0; i < snapshots.length; ++i) {
+                texts[i] = snapshots[i].text;
+            }
+            return texts;
+        }
+
+        private static EditHistorySnapshot[] copySnapshots(EditHistorySnapshot[] snapshots) {
+            if (snapshots == null || snapshots.length == 0) {
+                return new EditHistorySnapshot[0];
+            }
+            EditHistorySnapshot[] copy = new EditHistorySnapshot[snapshots.length];
+            for (int i = 0; i < snapshots.length; ++i) {
+                copy[i] = snapshots[i] == null ? null : snapshots[i].copy();
+            }
+            return copy;
         }
 
         private static int[][] copyRanges(int[][] ranges) {

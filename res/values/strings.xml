@@ -155,6 +155,7 @@
     <string name="bigbang_action_exit_edit">退出编辑</string>
     <string name="bigbang_action_close">关闭</string>
     <string name="bigbang_action_select_all">全选</string>
+    <string name="bigbang_action_cancel_select_all">取消全选</string>
     <string name="bigbang_action_share_all">分享全部</string>
     <string name="bigbang_action_undo">撤销</string>
     <string name="bigbang_action_redo">重做</string>
@@ -164,6 +165,13 @@
     <string name="bigbang_action_language">语言</string>
     <string name="bigbang_action_placeholder">功能建设中</string>
     <string name="bigbang_edit_commit_failed">无法完成编辑模式切换，请重试</string>
+    <string name="bigbang_edit_selection_delete">删除所选文字</string>
+    <string name="bigbang_edit_selection_cancel">取消选择</string>
+    <string name="bigbang_edit_selection_cut">剪切所选文字</string>
+    <string name="bigbang_edit_selection_copy">复制所选文字</string>
+    <string name="bigbang_edit_selection_paste">粘贴并替换选择</string>
+    <string name="bigbang_edit_cut_tips">所选文字已剪切到剪贴板</string>
+    <string name="bigbang_edit_paste_empty">剪贴板中没有可粘贴的文字</string>
     <string name="bigbang_pull_previous">松手后获取上一段文本</string>
     <string name="bigbang_pull_next">松手后获取下一段文本</string>
     <string name="about_title">关于</string>

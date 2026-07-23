@@ -79,6 +79,11 @@ public class SwipeSelectView extends LinearLayout {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        // Text is frozen while the Activity re-segments an edit commit. Do not
+        // let a late chip gesture change its persisted selection meanwhile.
+        if (mBoomPage != null && mBoomPage.isEditMode() && !mBoomPage.canModifyEditText()) {
+            return true;
+        }
         final float x = ev.getX();
         final float y = ev.getY();
         final boolean isEditing = mBoomPage != null && mBoomPage.isEditMode();

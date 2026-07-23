@@ -88,9 +88,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     private void onSelectInternal(int start, int end) {
-        if (mBoomPage.isEditMode()) {
-            return;
-        }
+        refreshToolbarForCurrentMode();
         final int topRow = mBoomPage.mLayout.getRowForIndex(start);
         final int bottomRow = mBoomPage.mLayout.getRowForIndex(end);
 
@@ -110,6 +108,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         }
 
         moveChipRows();
+        mBoomPage.syncEditSelectionStateFromHandler();
 
         mSelectBar.post(new Runnable() {
             @Override
@@ -120,15 +119,12 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
                 }
             }
         });
+        notifyEditUiStateChanged();
     }
 
     public void deSelect(int stat, int end) {
         for (int i = stat; i <= end; ++i) {
             mSelectedId.remove(new Integer(i));
-        }
-        if (mBoomPage.isEditMode()) {
-            // Edit mode retains chip visuals but must not show or animate the legacy select bar.
-            return;
         }
         if (mSelectedId.size() > 0) {
             final int min = mBoomPage.mLayout.getRowForIndex(mSelectedId.first());
@@ -147,6 +143,8 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             mBoomPage.resetChips();
         }
         moveChipRows();
+        mBoomPage.syncEditSelectionStateFromHandler();
+        notifyEditUiStateChanged();
     }
 
     public boolean handleClick() {
@@ -154,6 +152,8 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             mSelectedId.clear();
             mBoomPage.resetChips();
             hideSelectBarAndRect();
+            mBoomPage.syncEditSelectionStateFromHandler();
+            notifyEditUiStateChanged();
             return true;
         }
         return false;
@@ -175,6 +175,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
             mFakeSelectBar.setVisibility(View.INVISIBLE);
         }
+        notifyEditUiStateChanged();
     }
 
     private boolean isChineseWord(char c) {
@@ -234,80 +235,139 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
                 onScrollChanged();
             }
         });
-        ImageView searchView = (ImageView) mSelectBar.findViewById(R.id.all_search);
-        ImageView resegmentView = (ImageView) mSelectBar.findViewById(R.id.all_cut);
-        resegmentView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mBoomPage.splitSelectedWordsToChars();
-            }
-        });
-        searchView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getWebSearchType());
-            }
-        });
-        ImageView dictView = (ImageView) mSelectBar.findViewById(R.id.all_dict);
-        dictView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getDictSearchType());
-            }
-        });
-        ImageView shareView = (ImageView) mSelectBar.findViewById(R.id.all_share);
-        shareView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                share();
-            }
-        });
-        ImageView copyView = (ImageView) mSelectBar.findViewById(R.id.all_copy);
-        copyView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                copy(getSelectedText());
-            }
-        });
+        bindToolbarActions(mSelectBar);
     }
 
     private void initFakeViews(View contentView) {
         mFakeSelectBar = (RelativeLayout) contentView.findViewById(R.id.fake_multi_selected_bar);
-        ImageView topResegmentView = (ImageView) mFakeSelectBar.findViewById(R.id.all_cut);
-        topResegmentView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mBoomPage.splitSelectedWordsToChars();
+        bindToolbarActions(mFakeSelectBar);
+        refreshToolbarForCurrentMode();
+    }
+
+    private void bindToolbarActions(RelativeLayout toolbar) {
+        final int[] actionIds = {
+                R.id.all_search,
+                R.id.all_dict,
+                R.id.all_cut,
+                R.id.all_share,
+                R.id.all_copy
+        };
+        for (int actionId : actionIds) {
+            final View actionView = toolbar.findViewById(actionId);
+            actionView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    dispatchToolbarAction(v.getId());
+                }
+            });
+        }
+    }
+
+    private void dispatchToolbarAction(int actionId) {
+        if (mBoomPage.isEditMode()) {
+            if (!mBoomPage.canModifyEditText()) {
+                return;
             }
-        });
-        ImageView topSearchView = (ImageView) mFakeSelectBar.findViewById(R.id.all_search);
-        topSearchView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getWebSearchType());
+            if (actionId == R.id.all_search) {
+                mBoomPage.deleteEditSelection();
+            } else if (actionId == R.id.all_dict) {
+                mBoomPage.clearEditSelection();
+            } else if (actionId == R.id.all_cut) {
+                mBoomPage.cutEditSelection();
+            } else if (actionId == R.id.all_share) {
+                mBoomPage.copyEditSelection();
+            } else if (actionId == R.id.all_copy) {
+                mBoomPage.pasteEditSelection();
             }
-        });
-        ImageView topDictView = (ImageView) mFakeSelectBar.findViewById(R.id.all_dict);
-        topDictView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getDictSearchType());
-            }
-        });
-        ImageView topShareView = (ImageView) mFakeSelectBar.findViewById(R.id.all_share);
-        topShareView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                share();
-            }
-        });
-        ImageView topCopyView = (ImageView) mFakeSelectBar.findViewById(R.id.all_copy);
-        topCopyView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                copy(getSelectedText());
-            }
-        });
+            return;
+        }
+        if (actionId == R.id.all_search) {
+            search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getWebSearchType());
+        } else if (actionId == R.id.all_dict) {
+            search(getSelectedText(), BigBangSettings.get(mBoomPage.mActivity).getDictSearchType());
+        } else if (actionId == R.id.all_cut) {
+            mBoomPage.splitSelectedWordsToChars();
+        } else if (actionId == R.id.all_share) {
+            share();
+        } else if (actionId == R.id.all_copy) {
+            copy(getSelectedText());
+        }
+    }
+
+    /** Reuses the same five slots while preventing normal-mode actions from leaking into edit mode. */
+    public void refreshToolbarForCurrentMode() {
+        updateFakeToolbarContainerForCurrentMode();
+        configureToolbar(mSelectBar);
+        configureToolbar(mFakeSelectBar);
+    }
+
+    private void updateFakeToolbarContainerForCurrentMode() {
+        if (mFakeSelectBar == null || !(mFakeSelectBar.getParent() instanceof View)) {
+            return;
+        }
+        final View container = (View) mFakeSelectBar.getParent();
+        final ViewGroup.LayoutParams layoutParams = container.getLayoutParams();
+        if (!(layoutParams instanceof ViewGroup.MarginLayoutParams)) {
+            return;
+        }
+        final ViewGroup.MarginLayoutParams marginParams =
+                (ViewGroup.MarginLayoutParams) layoutParams;
+        final int expectedTopMargin = mBoomPage.isEditMode()
+                ? 0
+                : mBoomPage.mActivity.getResources().getDimensionPixelOffset(
+                        R.dimen.fake_select_bar_margin_top);
+        if (marginParams.topMargin == expectedTopMargin) {
+            return;
+        }
+        // A pinned edit toolbar belongs in the header gap. The normal toolbar
+        // retains its legacy inset, while this prevents it covering row one.
+        marginParams.topMargin = expectedTopMargin;
+        container.setLayoutParams(marginParams);
+    }
+
+    private void configureToolbar(RelativeLayout toolbar) {
+        if (toolbar == null) {
+            return;
+        }
+        final ImageView first = (ImageView) toolbar.findViewById(R.id.all_search);
+        final ImageView second = (ImageView) toolbar.findViewById(R.id.all_dict);
+        final ImageView third = (ImageView) toolbar.findViewById(R.id.all_cut);
+        final ImageView fourth = (ImageView) toolbar.findViewById(R.id.all_share);
+        final ImageView fifth = (ImageView) toolbar.findViewById(R.id.all_copy);
+        if (mBoomPage.isEditMode()) {
+            final boolean editActionsEnabled = mBoomPage.canModifyEditText();
+            setToolbarButton(first, R.drawable.boom_edit_selection_delete,
+                    R.string.bigbang_edit_selection_delete, editActionsEnabled);
+            setToolbarButton(second, R.drawable.boom_edit_selection_cancel,
+                    R.string.bigbang_edit_selection_cancel, editActionsEnabled);
+            setToolbarButton(third, R.drawable.boom_edit_selection_cut,
+                    R.string.bigbang_edit_selection_cut, editActionsEnabled);
+            setToolbarButton(fourth, R.drawable.boom_edit_selection_copy,
+                    R.string.bigbang_edit_selection_copy, editActionsEnabled);
+            setToolbarButton(fifth, R.drawable.boom_edit_selection_paste,
+                    R.string.bigbang_edit_selection_paste,
+                    editActionsEnabled && mBoomPage.hasEditClipboardText());
+            return;
+        }
+        setToolbarButton(first, R.drawable.boom_chips_all_search, 0, true);
+        setToolbarButton(second, R.drawable.boom_chips_all_dict, 0, true);
+        setToolbarButton(third, R.drawable.boom_chips_all_cut, 0, true);
+        setToolbarButton(fourth, R.drawable.boom_chips_all_share, 0, true);
+        setToolbarButton(fifth, R.drawable.boom_chips_all_copy, 0, true);
+    }
+
+    private void setToolbarButton(ImageView button, int drawableRes, int descriptionRes, boolean enabled) {
+        button.setImageResource(drawableRes);
+        button.setContentDescription(descriptionRes == 0
+                ? null : mBoomPage.mActivity.getString(descriptionRes));
+        button.setEnabled(enabled);
+        button.setAlpha(enabled ? 1f : 0.38f);
+    }
+
+    private void notifyEditUiStateChanged() {
+        if (mBoomPage.isEditMode()) {
+            mBoomPage.notifyEditUiStateChanged();
+        }
     }
 
     public boolean hasSelection() {
@@ -349,6 +409,11 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     private int getSelectBarY(int row) {
+        if (mBoomPage.isEditMode() && mSelectBar.getHeight() > 0) {
+            // In edit mode the action row belongs in the gap immediately
+            // above the selection, never on top of selected word chips.
+            return mBoomPage.getRowTop(row) - mSelectBar.getHeight();
+        }
         return mBoomPage.getRowTop(row) + mSelectBarYOffset;
     }
 
@@ -379,6 +444,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
 
     private void moveChipRows() {
         final int rowCount = mBoomPage.mLayout.getRowCount();
+        final int editToolbarHeight = mBoomPage.isEditMode() ? mSelectBar.getHeight() : 0;
         if (mSelectedTopRow == -1 || mSelectedBottomRow == -1) {
             for (int i = 0; i < rowCount; ++i) {
                 mBoomPage.moveChipRow(i, 0);
@@ -387,9 +453,9 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             for (int i = 0; i < rowCount; ++i) {
                 float end;
                 if (i < mSelectedTopRow) {
-                    end = mRowMoveUpOffset;
+                    end = editToolbarHeight > 0 ? -editToolbarHeight : mRowMoveUpOffset;
                 } else if (i > mSelectedBottomRow) {
-                    end = mRowMoveDownOffset;
+                    end = editToolbarHeight > 0 ? editToolbarHeight : mRowMoveDownOffset;
                 } else {
                     end = 0;
                 }
@@ -416,17 +482,42 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
                     selectBarLocation[0] + mSelectBar.getWidth(),
                     selectBarLocation[1] + mSelectBar.getHeight()
             );
-            if (mSelectBarRect.top <= pinnedBarRect.top && mFakeSelectBar.getVisibility() != View.VISIBLE) {
-                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mFakeSelectBar.getLayoutParams();
-                params.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-                params.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-                mFakeSelectBar.setLayoutParams(params);
-                mSelectBar.setVisibility(View.INVISIBLE);
-                mFakeSelectBar.setVisibility(View.VISIBLE);
-            } else if (mSelectBarRect.top > pinnedBarRect.top) {
+            if (mSelectBarRect.top <= pinnedBarRect.top) {
+                showFakeSelectBar(true);
+            } else if (mSelectBarRect.bottom >= pinnedBarRect.bottom) {
+                showFakeSelectBar(false);
+            } else {
                 mFakeSelectBar.setVisibility(View.INVISIBLE);
                 mSelectBar.setVisibility(View.VISIBLE);
             }
         }
+    }
+
+    private void showFakeSelectBar(boolean alignTop) {
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mFakeSelectBar.getLayoutParams();
+        final int expectedRule = alignTop
+                ? RelativeLayout.ALIGN_PARENT_TOP : RelativeLayout.ALIGN_PARENT_BOTTOM;
+        final int oppositeRule = alignTop
+                ? RelativeLayout.ALIGN_PARENT_BOTTOM : RelativeLayout.ALIGN_PARENT_TOP;
+        // This method runs from scroll and global-layout callbacks. Reapplying
+        // identical rules would schedule another layout and make an off-screen
+        // selection bar continually relayout, so only move it when needed.
+        if (mFakeSelectBar.getVisibility() == View.VISIBLE
+                && mSelectBar.getVisibility() == View.INVISIBLE
+                && params.getRule(expectedRule) != 0
+                && params.getRule(oppositeRule) == 0) {
+            return;
+        }
+        if (alignTop) {
+            params.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            params.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        } else {
+            params.removeRule(RelativeLayout.ALIGN_PARENT_TOP);
+            params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        }
+        mFakeSelectBar.setLayoutParams(params);
+        refreshToolbarForCurrentMode();
+        mSelectBar.setVisibility(View.INVISIBLE);
+        mFakeSelectBar.setVisibility(View.VISIBLE);
     }
 }

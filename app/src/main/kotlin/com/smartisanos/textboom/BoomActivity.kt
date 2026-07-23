@@ -76,6 +76,10 @@ class BoomActivity : ComponentActivity() {
     private var animatedDismissRequester: (() -> Unit)? = null
     private var editMode by mutableStateOf(false)
     private var editTransitioning by mutableStateOf(false)
+    private var editAllSelected by mutableStateOf(false)
+    private var editSelectAllEnabled by mutableStateOf(false)
+    private var editCanUndo by mutableStateOf(false)
+    private var editCanRedo by mutableStateOf(false)
     private var editCommitRequest = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,6 +112,12 @@ class BoomActivity : ComponentActivity() {
                     loadAdjacent(direction)
                 }
             })
+            page.setOnEditUiStateListener { allSelected, selectAllEnabled, canUndo, canRedo ->
+                editAllSelected = allSelected
+                editSelectAllEnabled = selectAllEnabled
+                editCanUndo = canUndo
+                editCanRedo = canRedo
+            }
         }
 
         setContent {
@@ -125,10 +135,16 @@ class BoomActivity : ComponentActivity() {
                 onLanguageSelected = { rerunOcrWithLanguage(it) },
                 isEditMode = editMode,
                 editTransitioning = editTransitioning,
+                editAllSelected = editAllSelected,
+                editSelectAllEnabled = editSelectAllEnabled,
+                editCanUndo = editCanUndo,
+                editCanRedo = editCanRedo,
                 onEditMode = { enterEditMode() },
                 onExitEditMode = { exitEditMode() },
                 onShowKeyboard = { boomChipPage?.showEditorKeyboard() },
                 onSelectAll = { selectAll() },
+                onUndo = { boomChipPage?.undoEdit() },
+                onRedo = { boomChipPage?.redoEdit() },
                 onShareAll = { shareAll() },
                 onMore = { showPlaceholder() },
             )
@@ -258,11 +274,19 @@ class BoomActivity : ComponentActivity() {
 
     private fun exitEditMode() {
         val page = boomChipPage ?: return
-        val text = page.editText ?: return
         if (!editMode || editTransitioning) {
             return
         }
         editTransitioning = true
+        if (!page.beginEditCommit()) {
+            editTransitioning = false
+            return
+        }
+        val text = page.editText ?: run {
+            page.cancelEditCommit()
+            editTransitioning = false
+            return
+        }
         if (text.isBlank()) {
             // cppjieba intentionally has no segment for whitespace-only text; keep the edit result.
             if (page.commitEditMode(intArrayOf(-1))) {
@@ -270,6 +294,7 @@ class BoomActivity : ComponentActivity() {
                 currentSegment = intArrayOf(-1)
                 editMode = false
             } else {
+                page.cancelEditCommit()
                 Toast.makeText(this, R.string.bigbang_edit_commit_failed, Toast.LENGTH_SHORT).show()
             }
             editTransitioning = false
@@ -284,6 +309,7 @@ class BoomActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     if (segment == null || segment.isEmpty() || !page.commitEditMode(segment)) {
+                        page.cancelEditCommit()
                         Toast.makeText(this, R.string.bigbang_edit_commit_failed, Toast.LENGTH_SHORT).show()
                     } else {
                         currentText = text
@@ -297,6 +323,7 @@ class BoomActivity : ComponentActivity() {
                 LogUtils.e(e.message, e)
                 runOnUiThread {
                     if (!isFinishing && request == editCommitRequest && page.isEditMode) {
+                        page.cancelEditCommit()
                         Toast.makeText(this, R.string.bigbang_edit_commit_failed, Toast.LENGTH_SHORT).show()
                         editTransitioning = false
                     }
@@ -625,10 +652,16 @@ private fun BigBangOverlayContent(
     onLanguageSelected: (String) -> Unit,
     isEditMode: Boolean,
     editTransitioning: Boolean,
+    editAllSelected: Boolean,
+    editSelectAllEnabled: Boolean,
+    editCanUndo: Boolean,
+    editCanRedo: Boolean,
     onEditMode: () -> Unit,
     onExitEditMode: () -> Unit,
     onShowKeyboard: () -> Unit,
     onSelectAll: () -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
     onShareAll: () -> Unit,
     onMore: () -> Unit,
 ) {
@@ -788,9 +821,15 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     imageVector = Icons.Outlined.SelectAll,
                                     tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
-                                    enabled = !editTransitioning,
+                                    enabled = editSelectAllEnabled && !editTransitioning,
                                     onClick = onSelectAll,
-                                    contentDescription = stringResource(R.string.bigbang_action_select_all),
+                                    contentDescription = stringResource(
+                                        if (editAllSelected) {
+                                            R.string.bigbang_action_cancel_select_all
+                                        } else {
+                                            R.string.bigbang_action_select_all
+                                        },
+                                    ),
                                 )
                             }
                             OverlayIconAction(
@@ -822,16 +861,28 @@ private fun BigBangOverlayContent(
                                 Row {
                                     OverlayIconAction(
                                         imageVector = Icons.AutoMirrored.Outlined.Undo,
-                                        tint = if (dark) Color(0x66F2F5F8) else Color(0x668D8983),
-                                        enabled = false,
-                                        onClick = {},
+                                        tint = if (editCanUndo) {
+                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                        } else if (dark) {
+                                            Color(0x66F2F5F8)
+                                        } else {
+                                            Color(0x668D8983)
+                                        },
+                                        enabled = editCanUndo && !editTransitioning,
+                                        onClick = onUndo,
                                         contentDescription = stringResource(R.string.bigbang_action_undo),
                                     )
                                     OverlayIconAction(
                                         imageVector = Icons.AutoMirrored.Outlined.Redo,
-                                        tint = if (dark) Color(0x66F2F5F8) else Color(0x668D8983),
-                                        enabled = false,
-                                        onClick = {},
+                                        tint = if (editCanRedo) {
+                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                        } else if (dark) {
+                                            Color(0x66F2F5F8)
+                                        } else {
+                                            Color(0x668D8983)
+                                        },
+                                        enabled = editCanRedo && !editTransitioning,
+                                        onClick = onRedo,
                                         contentDescription = stringResource(R.string.bigbang_action_redo),
                                     )
                                 }

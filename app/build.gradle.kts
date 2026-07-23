@@ -20,8 +20,8 @@ android {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 24
         targetSdk = 36
-        versionCode = 316
-        versionName = "1.16.0"
+        versionCode = 315
+        versionName = "1.15.0"
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -96,4 +96,5 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation(files("libs/DeviceCompat-2.6.aar"))
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }
