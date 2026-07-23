@@ -289,11 +289,13 @@ public class BoomChipPage {
     }
 
     public boolean commitEditMode(int[] segment) {
+        // Keep edit-mode character ranges through re-segmentation, including spaces between selected words.
+        final Serializable selectedState = captureSelectedState();
         if (mEditSession == null || !mLayout.layoutWords(segment, mEditSession.text, -1)) {
             return false;
         }
         mEditSession = null;
-        rebuildChips(null);
+        rebuildChips(selectedState);
         finishAdjacentPull();
         return true;
     }
@@ -370,13 +372,25 @@ public class BoomChipPage {
         if (mBoomActionHandler != null && mBoomActionHandler.hasSelection()) {
             TreeSet<Integer> wordSet = mBoomActionHandler.mSelectedId;
             int[][] ranges = new int[wordSet.size()][2];
-            int idx = 0;
+            int rangeCount = 0;
+            int previousWordIndex = -2;
             for (Integer wordIdx : wordSet) {
-                ranges[idx][0] = mLayout.getWordStart(wordIdx);
-                ranges[idx][1] = mLayout.getWordEnd(wordIdx);
-                idx++;
+                if (wordIdx != previousWordIndex + 1) {
+                    ranges[rangeCount][0] = mLayout.getWordStart(wordIdx);
+                    ranges[rangeCount][1] = mLayout.getWordEnd(wordIdx);
+                    rangeCount++;
+                } else {
+                    // Normal layout omits whitespace; preserve the source gap when adjacent chips are selected.
+                    ranges[rangeCount - 1][1] = mLayout.getWordEnd(wordIdx);
+                }
+                previousWordIndex = wordIdx;
             }
-            return ranges;
+            if (rangeCount == ranges.length) {
+                return ranges;
+            }
+            int[][] compactRanges = new int[rangeCount][2];
+            System.arraycopy(ranges, 0, compactRanges, 0, rangeCount);
+            return compactRanges;
         }
         return null;
     }
