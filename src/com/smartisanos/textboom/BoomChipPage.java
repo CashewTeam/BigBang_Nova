@@ -48,6 +48,7 @@ public class BoomChipPage {
     private final int mTableBasePaddingBottom;
 
     Serializable mSavedData;
+    private EditSessionState mEditSession;
     private OnAdjacentRequestListener mOnAdjacentRequestListener;
     private boolean mAdjacentLoading;
     private float mAdjacentOffset;
@@ -137,7 +138,7 @@ public class BoomChipPage {
         mDismissClickListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!handleClick()) {
+                if (!handleClick() && !isEditMode()) {
                     if (mActivity instanceof BoomActivity) {
                         ((BoomActivity) mActivity).requestAnimatedDismissFromLegacy();
                     } else {
@@ -208,6 +209,7 @@ public class BoomChipPage {
     }
 
     public boolean initWords(int[] segment, String text, int touchedIndex, int touchedX, int touchedY) {
+        mEditSession = null;
         if (mLayout.layoutWords(segment, text, touchedIndex)) {
             mTouchedX = touchedX;
             mTouchedY = touchedY;
@@ -223,10 +225,105 @@ public class BoomChipPage {
      * the Activity receives a new Intent via {@code onNewIntent}).
      */
     public void prepareForReinit() {
+        mEditSession = null;
+        finishAdjacentPull();
         if (mBoomActionHandler != null) {
             mBoomActionHandler.clearSelectionStateForRelayout();
         }
         mBoomConent.removeAllViews();
+    }
+
+    public boolean isEditMode() {
+        return mEditSession != null;
+    }
+
+    public boolean enterEditMode() {
+        if (isEditMode()) {
+            return true;
+        }
+        final String text = mLayout.getOriText();
+        final Serializable selectedState = captureSelectedState();
+        if (!mLayout.layoutEditWords(text)) {
+            return false;
+        }
+        mEditSession = new EditSessionState(
+                text,
+                text,
+                0,
+                selectedState instanceof int[][] ? (int[][]) selectedState : null,
+                new String[] { text },
+                new String[0]
+        );
+        rebuildChips(selectedState);
+        finishAdjacentPull();
+        return true;
+    }
+
+    public String getEditText() {
+        return mEditSession == null ? null : mEditSession.text;
+    }
+
+    public EditSessionState captureEditSession() {
+        if (mEditSession == null) {
+            return null;
+        }
+        final Serializable selectedState = captureSelectedState();
+        return new EditSessionState(
+                mEditSession.originalText,
+                mEditSession.text,
+                mEditSession.cursorOffset,
+                selectedState instanceof int[][] ? (int[][]) selectedState : mEditSession.selectedRanges,
+                mEditSession.undoHistory,
+                mEditSession.redoHistory
+        );
+    }
+
+    public boolean restoreEditSession(EditSessionState state) {
+        if (state == null || !mLayout.layoutEditWords(state.text)) {
+            return false;
+        }
+        mEditSession = state;
+        rebuildChips(state.selectedRanges);
+        finishAdjacentPull();
+        return true;
+    }
+
+    public boolean commitEditMode(int[] segment) {
+        if (mEditSession == null || !mLayout.layoutWords(segment, mEditSession.text, -1)) {
+            return false;
+        }
+        mEditSession = null;
+        rebuildChips(null);
+        finishAdjacentPull();
+        return true;
+    }
+
+    public boolean discardEditMode(int[] segment, String text) {
+        if (mEditSession == null || !mLayout.layoutWords(segment, text, -1)) {
+            return false;
+        }
+        mEditSession = null;
+        rebuildChips(null);
+        finishAdjacentPull();
+        return true;
+    }
+
+    private void rebuildChips(Serializable selectedState) {
+        if (mBoomActionHandler != null) {
+            mBoomActionHandler.clearSelectionStateForRelayout();
+        }
+        mSavedData = selectedState;
+        mBoomConent.removeAllViews();
+        initChips(false);
+        if (selectedState != null) {
+            mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+                @Override
+                public void onGlobalLayout() {
+                    mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                    restoreSelectedState();
+                }
+            });
+        }
     }
 
     public void resetChips() {
@@ -391,6 +488,9 @@ public class BoomChipPage {
     }
 
     public boolean replaceWords(int[] segment, String text, int targetWordIndex, int charOffset) {
+        if (isEditMode()) {
+            return false;
+        }
         // Save selection as char ranges before it gets cleared
         Serializable savedSelection = null;
         if (mBoomActionHandler != null && mBoomActionHandler.hasSelection()) {
@@ -449,7 +549,7 @@ public class BoomChipPage {
 
     public void finishAdjacentPull() {
         mAdjacentLoading = false;
-        mScroller.setEdgeDragEnabled(true);
+        mScroller.setEdgeDragEnabled(!isEditMode());
         animateContentOffset(0f);
         hideAdjacentHint(mAdjacentTopHint);
         hideAdjacentHint(mAdjacentBottomHint);
@@ -479,9 +579,18 @@ public class BoomChipPage {
                 boolean isPunc = mLayout.isPunc(start + j);
                 View chipView = mActivity.getLayoutInflater().inflate(
                         isPunc ? R.layout.boom_punc_layout : R.layout.boom_chip_layout, null);
-                BoomChip chip = new BoomChip(start + j, chipView);
+                final int wordIndex = start + j;
+                BoomChip chip = new BoomChip(wordIndex, chipView);
                 chipView.setTag(chip);
-                row.addView(chipView);
+                if (mLayout.isEditHalfWidth(wordIndex)) {
+                    // Constrain the root as well: its 9-patch background can otherwise widen the chip.
+                    row.addView(chipView, new LinearLayout.LayoutParams(
+                            mLayout.getEditHalfWidthChipWidth(),
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                    ));
+                } else {
+                    row.addView(chipView);
+                }
             }
             mBoomConent.addView(row);
         }
@@ -562,7 +671,7 @@ public class BoomChipPage {
     }
 
     private void updateAdjacentPull(float offset) {
-        if (mAdjacentLoading) {
+        if (isEditMode() || mAdjacentLoading) {
             return;
         }
         mAdjacentOffset = offset;
@@ -580,7 +689,7 @@ public class BoomChipPage {
     }
 
     private void releaseAdjacentPull(float offset, boolean triggered) {
-        if (mAdjacentLoading) {
+        if (isEditMode() || mAdjacentLoading) {
             return;
         }
         final String direction = offset > 0f ? "before" : offset < 0f ? "after" : null;
@@ -665,7 +774,7 @@ public class BoomChipPage {
         }
         int symmetricBaseInset = Math.max(mTableBasePaddingTop, mTableBasePaddingBottom);
         int availableHeight = viewportHeight - (mScrollerBaseInset * 2) - (symmetricBaseInset * 2);
-        int extraInset = Math.max(0, (availableHeight - contentHeight) / 2);
+        int extraInset = isEditMode() ? 0 : Math.max(0, (availableHeight - contentHeight) / 2);
         int targetTableTop = symmetricBaseInset + extraInset;
         int targetTableBottom = symmetricBaseInset + extraInset;
         if (mBoomTable.getPaddingTop() == targetTableTop && mBoomTable.getPaddingBottom() == targetTableBottom) {
@@ -694,11 +803,58 @@ public class BoomChipPage {
                 word = (TextView) chipView.findViewById(R.id.word);
             }
             word.setText(mLayout.getWord(id));
+            if (mLayout.isEditHalfWidth(id)) {
+                final int width = mLayout.getEditHalfWidthChipWidth();
+                // Preserve vertical inset only so the compact chip still has room to render its glyph.
+                word.setPadding(0, word.getPaddingTop(), 0, word.getPaddingBottom());
+                final ViewGroup.LayoutParams params = word.getLayoutParams();
+                params.width = width;
+                word.setLayoutParams(params);
+                word.setWidth(width);
+            }
         }
 
         public void setSelected(boolean selected) {
             word.setShadowLayer(selected ? 1.0f : 0, 0, -3.0f, 0x1f000000);
             word.setSelected(selected);
+        }
+    }
+
+    public static final class EditSessionState implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        public final String originalText;
+        public final String text;
+        public final int cursorOffset;
+        public final int[][] selectedRanges;
+        public final String[] undoHistory;
+        public final String[] redoHistory;
+
+        EditSessionState(
+                String originalText,
+                String text,
+                int cursorOffset,
+                int[][] selectedRanges,
+                String[] undoHistory,
+                String[] redoHistory
+        ) {
+            this.originalText = originalText;
+            this.text = text;
+            this.cursorOffset = cursorOffset;
+            this.selectedRanges = copyRanges(selectedRanges);
+            this.undoHistory = undoHistory.clone();
+            this.redoHistory = redoHistory.clone();
+        }
+
+        private static int[][] copyRanges(int[][] ranges) {
+            if (ranges == null) {
+                return null;
+            }
+            int[][] copy = new int[ranges.length][];
+            for (int i = 0; i < ranges.length; ++i) {
+                copy[i] = ranges[i] == null ? null : ranges[i].clone();
+            }
+            return copy;
         }
     }
 }

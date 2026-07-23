@@ -11,16 +11,22 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.Redo
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,6 +74,9 @@ class BoomActivity : ComponentActivity() {
     private var manualOcrSourceToken: String? = null
     private var floatingBallHideToken: Int? = null
     private var animatedDismissRequester: (() -> Unit)? = null
+    private var editMode by mutableStateOf(false)
+    private var editTransitioning by mutableStateOf(false)
+    private var editCommitRequest = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,8 +98,11 @@ class BoomActivity : ComponentActivity() {
                 BoomAnimator.makeFadeIn(this, BoomAnimator.BOOM_DURATION)
             }
         }
+        val savedEditSession = savedInstanceState?.getSerializable(EDIT_SESSION) as? BoomChipPage.EditSessionState
         boomChipPage = BoomChipPage(this, legacyContentView, false).also { page ->
-            page.restoreSelectedState(savedInstanceState?.getSerializable(SELECTED_STATE))
+            if (savedEditSession == null) {
+                page.restoreSelectedState(savedInstanceState?.getSerializable(SELECTED_STATE))
+            }
             page.setOnAdjacentRequestListener(object : BoomChipPage.OnAdjacentRequestListener {
                 override fun onAdjacentRequest(direction: String) {
                     loadAdjacent(direction)
@@ -111,17 +123,25 @@ class BoomActivity : ComponentActivity() {
                 onDismissFinished = { finish() },
                 onOcr = { reopenManualOcr() },
                 onLanguageSelected = { rerunOcrWithLanguage(it) },
-                onEditMode = { showPlaceholder() },
+                isEditMode = editMode,
+                editTransitioning = editTransitioning,
+                onEditMode = { enterEditMode() },
+                onExitEditMode = { exitEditMode() },
                 onSelectAll = { selectAll() },
                 onShareAll = { shareAll() },
                 onMore = { showPlaceholder() },
             )
         }
 
-        // Restore adjacent-pulled text across rotation
+        // Restore adjacent-pulled text across rotation. An edit session owns
+        // its editable layout and must be restored before intent input wins.
         val savedText = savedInstanceState?.getString(SAVED_TEXT)
         val savedSegment = savedInstanceState?.getIntArray(SAVED_SEGMENT)
-        if (savedText != null && savedSegment != null) {
+        if (savedEditSession != null && boomChipPage?.restoreEditSession(savedEditSession) == true) {
+            currentText = savedText ?: savedEditSession.originalText
+            currentSegment = savedSegment
+            editMode = true
+        } else if (savedText != null && savedSegment != null) {
             currentText = savedText
             currentSegment = savedSegment
             handleInitialSegmentResult(savedText, savedSegment, fromSavedState = true)
@@ -142,6 +162,9 @@ class BoomActivity : ComponentActivity() {
      * delivered to an existing instance when launchMode is singleTop).
      */
     private fun reinitializeFromIntent() {
+        editCommitRequest++
+        editTransitioning = false
+        editMode = false
         val previewText = intent.getStringExtra(EXTRA_DEBUG_PREVIEW_TEXT)
         val inputText = previewText
             ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
@@ -218,6 +241,50 @@ class BoomActivity : ComponentActivity() {
 
     private fun showPlaceholder() {
         Toast.makeText(this, R.string.bigbang_action_placeholder, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun enterEditMode() {
+        if (editTransitioning || boomChipPage?.enterEditMode() != true) {
+            return
+        }
+        editMode = true
+    }
+
+    private fun exitEditMode() {
+        val page = boomChipPage ?: return
+        val text = page.editText ?: return
+        if (!editMode || editTransitioning) {
+            return
+        }
+        editTransitioning = true
+        val request = ++editCommitRequest
+        Thread {
+            try {
+                val segment = CppJiebaTokenizer.get(this).segment(text)
+                runOnUiThread {
+                    if (isFinishing || request != editCommitRequest || !page.isEditMode) {
+                        return@runOnUiThread
+                    }
+                    if (segment == null || segment.isEmpty() || !page.commitEditMode(segment)) {
+                        Toast.makeText(this, R.string.bigbang_edit_commit_failed, Toast.LENGTH_SHORT).show()
+                    } else {
+                        currentText = text
+                        currentSegment = segment
+                        editMode = false
+                    }
+                    editTransitioning = false
+                }
+            } catch (e: RuntimeException) {
+                LogUtils.e(TAG, "edit segmentation failed")
+                LogUtils.e(e.message, e)
+                runOnUiThread {
+                    if (!isFinishing && request == editCommitRequest && page.isEditMode) {
+                        Toast.makeText(this, R.string.bigbang_edit_commit_failed, Toast.LENGTH_SHORT).show()
+                        editTransitioning = false
+                    }
+                }
+            }
+        }.start()
     }
 
     private fun reopenManualOcr() {
@@ -364,6 +431,10 @@ class BoomActivity : ComponentActivity() {
     }
 
     private fun loadAdjacent(direction: String) {
+        if (editMode || boomChipPage?.isEditMode == true) {
+            boomChipPage?.finishAdjacentPull()
+            return
+        }
         val adjacentText = TextSessionCoordinator.peekAdjacentText(direction)?.trim().orEmpty()
         val baseSegment = currentSegment
         if (adjacentText.isEmpty() || baseSegment == null || currentText.isEmpty()) {
@@ -374,7 +445,8 @@ class BoomActivity : ComponentActivity() {
             try {
                 val adjacentSegment = CppJiebaTokenizer.get(this).segment(adjacentText)
                 runOnUiThread {
-                    if (isFinishing) {
+                    if (isFinishing || editMode || boomChipPage?.isEditMode == true) {
+                        boomChipPage?.finishAdjacentPull()
                         return@runOnUiThread
                     }
                     if (adjacentSegment == null || adjacentSegment.isEmpty()) {
@@ -493,9 +565,8 @@ class BoomActivity : ComponentActivity() {
     )
 
     override fun onSaveInstanceState(outState: Bundle) {
-        boomChipPage?.captureSelectedState()?.let {
-            outState.putSerializable(SELECTED_STATE, it)
-        }
+        boomChipPage?.captureEditSession()?.let { outState.putSerializable(EDIT_SESSION, it) }
+            ?: boomChipPage?.captureSelectedState()?.let { outState.putSerializable(SELECTED_STATE, it) }
         if (currentSegment != null) {
             outState.putString(SAVED_TEXT, currentText)
             outState.putIntArray(SAVED_SEGMENT, currentSegment)
@@ -515,6 +586,7 @@ class BoomActivity : ComponentActivity() {
 
         private const val TAG = "BoomActivity"
         private const val SELECTED_STATE = "selected_state"
+        private const val EDIT_SESSION = "edit_session"
         private const val SAVED_TEXT = "saved_text"
         private const val SAVED_SEGMENT = "saved_segment"
     }
@@ -533,13 +605,18 @@ private fun BigBangOverlayContent(
     onDismissFinished: () -> Unit,
     onOcr: () -> Unit,
     onLanguageSelected: (String) -> Unit,
+    isEditMode: Boolean,
+    editTransitioning: Boolean,
     onEditMode: () -> Unit,
+    onExitEditMode: () -> Unit,
     onSelectAll: () -> Unit,
     onShareAll: () -> Unit,
     onMore: () -> Unit,
 ) {
     val dark = isSystemInDarkTheme()
-    val panelMetrics = rememberOverlayPanelMetrics(forceFullscreen = classicOverlayStyleEnabled)
+    val panelMetrics = rememberOverlayPanelMetrics(
+        forceFullscreen = classicOverlayStyleEnabled || isEditMode,
+    )
     val panelBackground = if (dark) Color(0xFF171B20) else Color(0xFFF3F3F4)
     val panelBorder = if (dark) Color(0xFF2E353E) else Color(0xFFD7D7DA)
     val topBarColor = if (dark) Color(0xFF1D2126) else Color.White
@@ -599,6 +676,12 @@ private fun BigBangOverlayContent(
         }
     }
 
+    LaunchedEffect(isEditMode) {
+        if (isEditMode) {
+            languageMenuExpanded = false
+        }
+    }
+
     DisposableEffect(requestDismiss) {
         onDismissRequesterChanged(requestDismiss)
         onDispose {
@@ -644,18 +727,34 @@ private fun BigBangOverlayContent(
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
                         leading = {
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.Edit,
-                                tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
-                                onClick = onEditMode,
-                                contentDescription = stringResource(R.string.bigbang_action_edit),
-                            )
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.SelectAll,
-                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
-                                onClick = onSelectAll,
-                                contentDescription = stringResource(R.string.bigbang_action_select_all),
-                            )
+                            if (isEditMode) {
+                                OverlayIconAction(
+                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                    enabled = !editTransitioning,
+                                    onClick = onExitEditMode,
+                                    contentDescription = stringResource(R.string.bigbang_action_exit_edit),
+                                )
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.Close,
+                                    tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                    onClick = requestDismiss,
+                                    contentDescription = stringResource(R.string.bigbang_action_close),
+                                )
+                            } else {
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.Edit,
+                                    tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                    onClick = onEditMode,
+                                    contentDescription = stringResource(R.string.bigbang_action_edit),
+                                )
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.SelectAll,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                    onClick = onSelectAll,
+                                    contentDescription = stringResource(R.string.bigbang_action_select_all),
+                                )
+                            }
                         },
                         center = {
                             androidx.compose.material3.Text(
@@ -666,18 +765,30 @@ private fun BigBangOverlayContent(
                             )
                         },
                         trailing = {
+                            if (isEditMode) {
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.SelectAll,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                    enabled = !editTransitioning,
+                                    onClick = onSelectAll,
+                                    contentDescription = stringResource(R.string.bigbang_action_select_all),
+                                )
+                            }
                             OverlayIconAction(
                                 imageVector = Icons.Outlined.Share,
                                 tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                enabled = !editTransitioning,
                                 onClick = onShareAll,
                                 contentDescription = stringResource(R.string.bigbang_action_share_all),
                             )
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.MoreHoriz,
-                                tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
-                                onClick = onMore,
-                                contentDescription = stringResource(R.string.bigbang_action_more),
-                            )
+                            if (!isEditMode) {
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.MoreHoriz,
+                                    tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                    onClick = onMore,
+                                    contentDescription = stringResource(R.string.bigbang_action_more),
+                                )
+                            }
                         },
                     )
                 },
@@ -688,58 +799,89 @@ private fun BigBangOverlayContent(
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
                         leading = {
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.DocumentScanner,
-                                tint = if (ocrEnabled) {
-                                    if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                } else {
-                                    if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
-                                },
-                                enabled = ocrEnabled,
-                                onClick = onOcr,
-                                contentDescription = stringResource(R.string.bigbang_action_ocr),
-                            )
-                        },
-                        center = {
-                            OverlayIconAction(
-                                iconRes = R.drawable.boom_cancel,
-                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                                onClick = requestDismiss,
-                                contentDescription = stringResource(R.string.search_overlay_close),
-                            )
-                        },
-                        trailing = {
-                            Box {
+                            if (isEditMode) {
+                                Row {
+                                    OverlayIconAction(
+                                        imageVector = Icons.AutoMirrored.Outlined.Undo,
+                                        tint = if (dark) Color(0x66F2F5F8) else Color(0x668D8983),
+                                        enabled = false,
+                                        onClick = {},
+                                        contentDescription = stringResource(R.string.bigbang_action_undo),
+                                    )
+                                    OverlayIconAction(
+                                        imageVector = Icons.AutoMirrored.Outlined.Redo,
+                                        tint = if (dark) Color(0x66F2F5F8) else Color(0x668D8983),
+                                        enabled = false,
+                                        onClick = {},
+                                        contentDescription = stringResource(R.string.bigbang_action_redo),
+                                    )
+                                }
+                            } else {
                                 OverlayIconAction(
-                                    imageVector = Icons.Outlined.Language,
-                                    tint = if (languageEnabled) {
+                                    imageVector = Icons.Outlined.DocumentScanner,
+                                    tint = if (ocrEnabled) {
                                         if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
                                     } else {
                                         if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
                                     },
-                                    enabled = languageEnabled,
-                                    onClick = { languageMenuExpanded = true },
-                                    contentDescription = stringResource(R.string.bigbang_action_language),
+                                    enabled = ocrEnabled,
+                                    onClick = onOcr,
+                                    contentDescription = stringResource(R.string.bigbang_action_ocr),
                                 )
-                                DropdownMenu(
-                                    expanded = languageMenuExpanded,
-                                    onDismissRequest = { languageMenuExpanded = false },
-                                    containerColor = if (dark) Color(0xFF20252B) else Color.White,
-                                ) {
-                                    languageOptions.forEach { (title, value) ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                androidx.compose.material3.Text(
-                                                    text = title,
-                                                    color = if (dark) Color(0xFFF2F5F8) else Color(0xFF3B3B3B),
-                                                )
-                                            },
-                                            onClick = {
-                                                languageMenuExpanded = false
-                                                onLanguageSelected(value)
-                                            },
-                                            enabled = value != activeOcrMode,
-                                        )
+                            }
+                        },
+                        center = {
+                            if (!isEditMode) {
+                                OverlayIconAction(
+                                    iconRes = R.drawable.boom_cancel,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                    onClick = requestDismiss,
+                                    contentDescription = stringResource(R.string.search_overlay_close),
+                                )
+                            }
+                        },
+                        trailing = {
+                            if (isEditMode) {
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.Keyboard,
+                                    tint = if (dark) Color(0x66F2F5F8) else Color(0x668D8983),
+                                    enabled = false,
+                                    onClick = {},
+                                    contentDescription = stringResource(R.string.bigbang_action_keyboard),
+                                )
+                            } else {
+                                Box {
+                                    OverlayIconAction(
+                                        imageVector = Icons.Outlined.Language,
+                                        tint = if (languageEnabled) {
+                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                        } else {
+                                            if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                        },
+                                        enabled = languageEnabled,
+                                        onClick = { languageMenuExpanded = true },
+                                        contentDescription = stringResource(R.string.bigbang_action_language),
+                                    )
+                                    DropdownMenu(
+                                        expanded = languageMenuExpanded,
+                                        onDismissRequest = { languageMenuExpanded = false },
+                                        containerColor = if (dark) Color(0xFF20252B) else Color.White,
+                                    ) {
+                                        languageOptions.forEach { (title, value) ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    androidx.compose.material3.Text(
+                                                        text = title,
+                                                        color = if (dark) Color(0xFFF2F5F8) else Color(0xFF3B3B3B),
+                                                    )
+                                                },
+                                                onClick = {
+                                                    languageMenuExpanded = false
+                                                    onLanguageSelected(value)
+                                                },
+                                                enabled = value != activeOcrMode,
+                                            )
+                                        }
                                     }
                                 }
                             }

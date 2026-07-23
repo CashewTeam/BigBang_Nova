@@ -88,6 +88,9 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     private void onSelectInternal(int start, int end) {
+        if (mBoomPage.isEditMode()) {
+            return;
+        }
         final int topRow = mBoomPage.mLayout.getRowForIndex(start);
         final int bottomRow = mBoomPage.mLayout.getRowForIndex(end);
 

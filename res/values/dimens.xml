@@ -19,6 +19,8 @@
     <dimen name="word_base_width">18dp</dimen>
     <dimen name="punc_min_width">21dp</dimen>
     <dimen name="punc_base_width">8dp</dimen>
+    <!-- 编辑态单码点半角词块的固定宽度；布局测量与实际 View 宽度必须保持一致，避免换行计算与渲染脱节。 -->
+    <dimen name="edit_half_width_chip_width">18dp</dimen>
 
     <dimen name="auto_scroll_top">100dp</dimen>
     <dimen name="auto_scroll_bottom">165dp</dimen>

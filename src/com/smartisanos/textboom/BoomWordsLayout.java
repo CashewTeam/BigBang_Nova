@@ -21,6 +21,7 @@ public class BoomWordsLayout {
     private final int mWordBaseWidth;
     private final int mPuncMinWidth;
     private final int mPuncBaseWidth;
+    private final int mEditHalfWidthChipWidth;
     private final TextPaint mWordPaint;
     private final TextPaint mPuncPaint;
 
@@ -32,6 +33,7 @@ public class BoomWordsLayout {
     private int[] mIdToRow;
     private int mTouchedIndex;
     private String mOriText;
+    private boolean mEditLayout;
 
     private class RangeList<E> extends ArrayList<E> {
         public void remove(int fromIndex, int toIndex) {
@@ -64,6 +66,7 @@ public class BoomWordsLayout {
         mWordBaseWidth = res.getDimensionPixelSize(R.dimen.word_base_width);
         mPuncMinWidth = res.getDimensionPixelSize(R.dimen.punc_min_width);
         mPuncBaseWidth = res.getDimensionPixelSize(R.dimen.punc_base_width);
+        mEditHalfWidthChipWidth = res.getDimensionPixelSize(R.dimen.edit_half_width_chip_width);
         mWordPaint = ((TextView) View.inflate(context, R.layout.boom_chip_layout, null)
                 .findViewById(R.id.word)).getPaint();
         mPuncPaint = ((TextView) View.inflate(context, R.layout.boom_punc_layout, null)
@@ -139,6 +142,41 @@ public class BoomWordsLayout {
         return layoutWordsAfterFilter(newSeg, newText.toString(), touchedIndex - touchIndexOffset);
     }
 
+    /**
+     * Rebuild the layout as editable units. The editor owns the full text, so
+     * unlike normal segmentation no non-whitespace characters are filtered.
+     */
+    public boolean layoutEditWords(String text) {
+        if (TextUtils.isEmpty(text)) {
+            return false;
+        }
+        mEditLayout = true;
+        mOriText = text;
+        mWords.clear();
+        mHardBreaks.clear();
+        mTouchedIndex = -1;
+        for (int offset = 0; offset < text.length();) {
+            final int codePoint = text.codePointAt(offset);
+            final int next = offset + Character.charCount(codePoint);
+            if (codePoint == '\r' || codePoint == '\n') {
+                addHardBreak();
+                offset = codePoint == '\r' && next < text.length() && text.charAt(next) == '\n'
+                        ? next + 1 : next;
+                continue;
+            }
+            final boolean isPunctuation = !Character.isLetterOrDigit(codePoint)
+                    && !Character.isWhitespace(codePoint)
+                    && !Character.isSpaceChar(codePoint);
+            mWords.add(new Word(text.substring(offset, next), offset, isPunctuation));
+            offset = next;
+        }
+        if (mWords.isEmpty()) {
+            return false;
+        }
+        generateLayout();
+        return true;
+    }
+
     private int appendFilteredGap(StringBuilder newText, String text, int start, int end) {
         int preserved = 0;
         for (int i = start; i < end; ++i) {
@@ -152,6 +190,7 @@ public class BoomWordsLayout {
     }
 
     private boolean layoutWordsAfterFilter(int[] segment, String text, int touchedIndex) {
+        mEditLayout = false;
         mOriText = text;
         mWords.clear();
         mHardBreaks.clear();
@@ -225,6 +264,10 @@ public class BoomWordsLayout {
 
     private int measureChip(int index) {
         final Word word = mWords.get(index);
+        if (isEditHalfWidth(index)) {
+            // Keep row calculation aligned with the compact chip's rendered width.
+            return mEditHalfWidthChipWidth;
+        }
         if (word.punc) {
             return Math.max(mPuncMinWidth, mPuncBaseWidth + (int)mPuncPaint.measureText(word.word));
         } else {
@@ -309,6 +352,26 @@ public class BoomWordsLayout {
 
     public boolean isPunc(int index) {
         return mWords.get(index).punc;
+    }
+
+    /**
+     * Returns whether an editable unit is one ASCII printable character
+     * (including space/punctuation) or one half-width Katakana code point.
+     */
+    public boolean isEditHalfWidth(int index) {
+        if (!mEditLayout || index < 0 || index >= mWords.size()) {
+            return false;
+        }
+        final Word word = mWords.get(index);
+        final String text = word.word;
+        final int codePoint = text.codePointAt(0);
+        return text.length() == Character.charCount(codePoint)
+                && ((codePoint >= 0x20 && codePoint <= 0x7e)
+                || (codePoint >= 0xff61 && codePoint <= 0xff9f));
+    }
+
+    public int getEditHalfWidthChipWidth() {
+        return mEditHalfWidthChipWidth;
     }
 
     public String getWord(int index) {

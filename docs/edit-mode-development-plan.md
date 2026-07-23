@@ -344,15 +344,15 @@ Nova Text 无权修改 OCR 或无障碍捕获来源的第三方界面，所以�
 
 目标：打通进入、退出和状态恢复，不先做全部按钮。
 
-- [ ] 在 `BoomChipPage` 增加编辑会话和只读状态查询。
-- [ ] 将当前全文从 `BoomWordsLayout` 导入编辑会话。
-- [ ] 增加编辑单元布局，复用现有 `BoomChip`、行容器和 `SwipeSelectView`。
-- [ ] 增加 `enterEditMode()`、`commitEditMode()`、`discardEditMode()`。
-- [ ] `commitEditMode()` 调用 `CppJiebaTokenizer` 重新分词后刷新普通态。
-- [ ] `BoomActivity` 用真实回调替换 `showPlaceholder()`。
-- [ ] Compose 顶栏切换为返回编辑、关闭、分享、全选；底栏切换为撤销、重做、键盘。
-- [ ] 编辑态禁用 OCR、语言切换和相邻段落拉取。
-- [ ] `onSaveInstanceState` 保存模式、文本、光标、选区和历史。
+- [x] 在 `BoomChipPage` 增加编辑会话和只读状态查询。
+- [x] 将当前全文从 `BoomWordsLayout` 导入编辑会话。
+- [x] 增加编辑单元布局，复用现有 `BoomChip`、行容器和 `SwipeSelectView`。
+- [x] 增加 `enterEditMode()`、`commitEditMode()`、`discardEditMode()`。
+- [x] `commitEditMode()` 经 `BoomActivity` 调用 `CppJiebaTokenizer` 重新分词后刷新普通态。
+- [x] `BoomActivity` 用真实回调替换 `showPlaceholder()`。
+- [x] Compose 顶栏切换为返回编辑、关闭、分享、全选；底栏切换为撤销、重做、键盘。
+- [x] 编辑态禁用 OCR、语言切换和相邻段落拉取。
+- [x] `onSaveInstanceState` 保存模式、文本、光标、选区和历史。
 
 验收：进入后能看到明显编辑态；不改文字直接退出可无损回到普通态；旋转不丢模式和内容。
 
