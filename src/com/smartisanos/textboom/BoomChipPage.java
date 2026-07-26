@@ -414,7 +414,7 @@ public class BoomChipPage {
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         mEditInput.setImeOptions(EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         mEditInput.setAlpha(0f);
-        mEditInput.setContentDescription("编辑输入");
+        mEditInput.setContentDescription(mActivity.getString(R.string.bigbang_edit_input_description));
         mEditInput.setEditorInputCallback(new EditorInputCallback() {
             @Override
             public boolean onInputDeleteBefore(int count, boolean inCodePoints) {
@@ -615,6 +615,15 @@ public class BoomChipPage {
         return mEditSession != null;
     }
 
+    /** Selection and cursor movement are not edits; only changed text needs a discard prompt. */
+    public boolean isEditDirty() {
+        return isEditMode() && hasEditTextChanged(mEditSession.originalText, mEditSession.text);
+    }
+
+    static boolean hasEditTextChanged(String originalText, String currentText) {
+        return originalText == null ? currentText != null : !originalText.equals(currentText);
+    }
+
     /** Blocks all text mutations while Activity re-segments a pending edit commit. */
     boolean canModifyEditText() {
         return isEditMode() && !mEditCommitPending;
@@ -717,6 +726,18 @@ public class BoomChipPage {
             return false;
         }
         return replaceEditSelection(clipboardText);
+    }
+
+    /** Shared by the big cursor and hardware Ctrl/Cmd+V. */
+    public boolean pasteEditClipboard() {
+        if (!canModifyEditText()) {
+            return false;
+        }
+        if (hasEditSelection()) {
+            return pasteEditSelection();
+        }
+        final String clipboardText = getClipboardText();
+        return !TextUtils.isEmpty(clipboardText) && insertEditText(clipboardText);
     }
 
     public void clearEditSelection() {
@@ -936,17 +957,7 @@ public class BoomChipPage {
     }
 
     private void pasteEditText() {
-        if (!canModifyEditText()) {
-            return;
-        }
-        if (hasEditSelection()) {
-            pasteEditSelection();
-            return;
-        }
-        final String clipboardText = getClipboardText();
-        if (clipboardText != null && clipboardText.length() > 0) {
-            insertEditText(clipboardText);
-        }
+        pasteEditClipboard();
     }
 
     private void prepareForDirectEdit() {
@@ -1859,6 +1870,17 @@ public class BoomChipPage {
         if (isEditMode()) {
             moveEditCursorToSelectionEnd();
         }
+    }
+
+    /** Ctrl/Cmd+A follows platform convention: selecting again does not cancel the selection. */
+    public boolean selectAllForEditShortcut() {
+        if (!canModifyEditText() || mLayout.getWordCount() <= 0) {
+            return false;
+        }
+        if (!mBoomActionHandler.isAllSelected()) {
+            selectAll();
+        }
+        return true;
     }
 
     /**

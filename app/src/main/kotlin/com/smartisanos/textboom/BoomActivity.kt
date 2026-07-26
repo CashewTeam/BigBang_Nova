@@ -3,6 +3,7 @@ package com.cashewteam.novatext.android
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -54,6 +55,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.CppJiebaTokenizer
@@ -64,6 +67,11 @@ import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
+    private enum class PendingDiscardAction {
+        DISMISS,
+        NEW_INTENT,
+    }
+
     private var boomChipPage: BoomChipPage? = null
     private lateinit var legacyContentView: View
     private lateinit var settings: BigBangSettings
@@ -81,6 +89,9 @@ class BoomActivity : ComponentActivity() {
     private var editCanUndo by mutableStateOf(false)
     private var editCanRedo by mutableStateOf(false)
     private var editCommitRequest = 0
+    private var pendingDiscardAction by mutableStateOf<PendingDiscardAction?>(null)
+    private var pendingIncomingIntent: Intent? = null
+    private var discardDismissAuthorized = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,6 +142,9 @@ class BoomActivity : ComponentActivity() {
                 onDismissRequesterChanged = { animatedDismissRequester = it },
                 onDismissRequest = { shouldDismissPage() },
                 onDismissFinished = { finish() },
+                showDiscardConfirmation = pendingDiscardAction != null,
+                onConfirmDiscard = { confirmDiscard() },
+                onCancelDiscard = { cancelDiscard() },
                 onOcr = { reopenManualOcr() },
                 onLanguageSelected = { rerunOcrWithLanguage(it) },
                 isEditMode = editMode,
@@ -169,8 +183,10 @@ class BoomActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
-        reinitializeFromIntent()
+        if (!requestDiscardConfirmation(PendingDiscardAction.NEW_INTENT, intent)) {
+            return
+        }
+        acceptNewIntent(intent)
     }
 
     override fun onDestroy() {
@@ -239,11 +255,104 @@ class BoomActivity : ComponentActivity() {
     }
 
     private fun shouldDismissPage(): Boolean {
-        return boomChipPage?.handleClick() != true
+        if (discardDismissAuthorized) {
+            discardDismissAuthorized = false
+            return true
+        }
+        if (boomChipPage?.handleClick() == true) {
+            return false
+        }
+        return requestDiscardConfirmation(PendingDiscardAction.DISMISS)
     }
 
     fun requestAnimatedDismissFromLegacy() {
-        animatedDismissRequester?.invoke() ?: finish()
+        if (requestDiscardConfirmation(PendingDiscardAction.DISMISS)) {
+            animatedDismissRequester?.invoke() ?: finish()
+        }
+    }
+
+    /** New capture text never overwrites an unsaved editor without an explicit choice. */
+    private fun acceptNewIntent(nextIntent: Intent) {
+        setIntent(nextIntent)
+        reinitializeFromIntent()
+    }
+
+    private fun requestDiscardConfirmation(
+        action: PendingDiscardAction,
+        incomingIntent: Intent? = null,
+    ): Boolean {
+        if (boomChipPage?.isEditDirty != true) {
+            return true
+        }
+        pendingDiscardAction = action
+        pendingIncomingIntent = incomingIntent
+        return false
+    }
+
+    private fun confirmDiscard() {
+        when (pendingDiscardAction) {
+            PendingDiscardAction.DISMISS -> {
+                pendingDiscardAction = null
+                pendingIncomingIntent = null
+                // The animation callback asks shouldDismissPage once more. Keep
+                // this single-use permit so the dialog is not shown twice.
+                discardDismissAuthorized = true
+                animatedDismissRequester?.invoke() ?: finish()
+            }
+
+            PendingDiscardAction.NEW_INTENT -> {
+                val nextIntent = pendingIncomingIntent
+                pendingDiscardAction = null
+                pendingIncomingIntent = null
+                if (nextIntent != null) {
+                    acceptNewIntent(nextIntent)
+                }
+            }
+
+            null -> Unit
+        }
+    }
+
+    private fun cancelDiscard() {
+        pendingDiscardAction = null
+        pendingIncomingIntent = null
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN
+            && event.repeatCount == 0
+            && editMode
+            && !editTransitioning
+            && (event.isCtrlPressed || event.isMetaPressed)
+        ) {
+            val page = boomChipPage
+            val handled = when (event.keyCode) {
+                KeyEvent.KEYCODE_A -> page?.selectAllForEditShortcut() ?: false
+                KeyEvent.KEYCODE_C -> page?.copyEditSelection() ?: false
+                KeyEvent.KEYCODE_X -> page?.cutEditSelection() ?: false
+                KeyEvent.KEYCODE_V -> page?.pasteEditClipboard() ?: false
+                KeyEvent.KEYCODE_Z -> if (event.isShiftPressed) {
+                    page?.redoEdit() ?: false
+                } else {
+                    page?.undoEdit() ?: false
+                }
+                KeyEvent.KEYCODE_Y -> page?.redoEdit() ?: false
+                else -> false
+            }
+            if (handled || isEditShortcutKey(event.keyCode)) {
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun isEditShortcutKey(keyCode: Int): Boolean {
+        return keyCode == KeyEvent.KEYCODE_A
+            || keyCode == KeyEvent.KEYCODE_C
+            || keyCode == KeyEvent.KEYCODE_X
+            || keyCode == KeyEvent.KEYCODE_V
+            || keyCode == KeyEvent.KEYCODE_Y
+            || keyCode == KeyEvent.KEYCODE_Z
     }
 
     private fun selectAll() {
@@ -648,6 +757,9 @@ private fun BigBangOverlayContent(
     onDismissRequesterChanged: ((() -> Unit)?) -> Unit,
     onDismissRequest: () -> Boolean,
     onDismissFinished: () -> Unit,
+    showDiscardConfirmation: Boolean,
+    onConfirmDiscard: () -> Unit,
+    onCancelDiscard: () -> Unit,
     onOcr: () -> Unit,
     onLanguageSelected: (String) -> Unit,
     isEditMode: Boolean,
@@ -790,6 +902,7 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     imageVector = Icons.Outlined.Close,
                                     tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                    enabled = !editTransitioning,
                                     onClick = requestDismiss,
                                     contentDescription = stringResource(R.string.bigbang_action_close),
                                 )
@@ -973,5 +1086,34 @@ private fun BigBangOverlayContent(
                 }
             }
         }
+    }
+    if (showDiscardConfirmation) {
+        AlertDialog(
+            onDismissRequest = onCancelDiscard,
+            title = {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.bigbang_edit_discard_title),
+                )
+            },
+            text = {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.bigbang_edit_discard_message),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmDiscard) {
+                    androidx.compose.material3.Text(
+                        text = stringResource(R.string.bigbang_edit_discard_confirm),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelDiscard) {
+                    androidx.compose.material3.Text(
+                        text = stringResource(R.string.bigbang_edit_discard_cancel),
+                    )
+                }
+            },
+        )
     }
 }

@@ -172,6 +172,11 @@
     <string name="bigbang_edit_selection_paste">粘贴并替换选择</string>
     <string name="bigbang_edit_cut_tips">所选文字已剪切到剪贴板</string>
     <string name="bigbang_edit_paste_empty">剪贴板中没有可粘贴的文字</string>
+    <string name="bigbang_edit_input_description">编辑输入，支持 Ctrl 加 A 全选、C 复制、X 剪切、V 粘贴、Z 撤销和 Y 重做</string>
+    <string name="bigbang_edit_discard_title">舍弃未保存的编辑？</string>
+    <string name="bigbang_edit_discard_message">返回或打开新文本会丢弃本次编辑内容。</string>
+    <string name="bigbang_edit_discard_confirm">舍弃</string>
+    <string name="bigbang_edit_discard_cancel">继续编辑</string>
     <string name="bigbang_pull_previous">松手后获取上一段文本</string>
     <string name="bigbang_pull_next">松手后获取下一段文本</string>
     <string name="about_title">关于</string>

@@ -3,9 +3,11 @@ package com.cashewteam.novatext.android;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
-/** Tests the text transaction shared by delete, cut, and paste selection actions. */
+/** Tests selection transactions plus the persisted edit-session decisions used by Stage C/D. */
 public class BoomChipPageEditSelectionTest {
 
     @Test
@@ -56,5 +58,27 @@ public class BoomChipPageEditSelectionTest {
     @Test
     public void emptySelectionDoesNotCreateTransaction() {
         assertNull(BoomChipPage.replaceSelectedText("甲乙", new int[][]{{1, 1}}, "X"));
+    }
+
+    @Test
+    public void dirtyStateDependsOnlyOnCurrentTextAndClearsAfterUndo() {
+        assertFalse(BoomChipPage.hasEditTextChanged("原文", "原文"));
+        assertTrue(BoomChipPage.hasEditTextChanged("原文", "原文已编辑"));
+        // An undo that restores the original text must also remove the discard prompt.
+        assertFalse(BoomChipPage.hasEditTextChanged("原文", "原文"));
+    }
+
+    @Test
+    public void savedEditSessionKeepsTextAndHistoryForRotationRestore() {
+        final BoomChipPage.EditSessionState state = new BoomChipPage.EditSessionState(
+                "初始文本", "初始文本A", 5, null,
+                new String[]{"初始文本"}, new String[]{"初始文本AB"});
+
+        assertEquals("初始文本", state.originalText);
+        assertEquals("初始文本A", state.text);
+        assertEquals(1, state.undoHistory.length);
+        assertEquals("初始文本", state.undoHistory[0]);
+        assertEquals(1, state.redoHistory.length);
+        assertEquals("初始文本AB", state.redoHistory[0]);
     }
 }
