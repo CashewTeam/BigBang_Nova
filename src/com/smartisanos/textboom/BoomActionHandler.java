@@ -382,9 +382,12 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
                     R.string.bigbang_edit_selection_cut, editActionsEnabled);
             setToolbarButton(fourth, R.drawable.boom_edit_selection_copy,
                     R.string.bigbang_edit_selection_copy, editActionsEnabled);
+            // Original BigBang keeps selection-paste actionable whenever the
+            // edit session is actionable. Clipboard contents are read on click,
+            // avoiding a disabled button caused by clipboard callback timing.
             setToolbarButton(fifth, R.drawable.boom_edit_selection_paste,
                     R.string.bigbang_edit_selection_paste,
-                    editActionsEnabled && mBoomPage.hasEditClipboardText());
+                    editActionsEnabled);
             return;
         }
         restoreNormalToolbarLayout(first, second, third, fourth, fifth);

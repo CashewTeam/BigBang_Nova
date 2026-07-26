@@ -507,7 +507,6 @@ public class BoomChipPage {
             @Override
             public void onPrimaryClipChanged() {
                 scheduleEditCursorUpdate(false);
-                mBoomActionHandler.refreshToolbarForCurrentMode();
             }
         };
         mClipboard.addPrimaryClipChangedListener(mClipboardListener);
@@ -842,10 +841,6 @@ public class BoomChipPage {
                 appendHistorySnapshot(mEditSession.getUndoSnapshots(), captureEditSnapshot()),
                 removeLastHistorySnapshot(redo)
         );
-    }
-
-    boolean hasEditClipboardText() {
-        return !TextUtils.isEmpty(getClipboardText());
     }
 
     /**
@@ -1460,9 +1455,11 @@ public class BoomChipPage {
             return;
         }
         // Click-to-position remains immediate and does not discard selection.
+        // Reset the hidden IME buffer as well: its offset is the authoritative
+        // insertion base used by TextWatcher after the visible cursor moves.
         updateEditCursorOffset(
                 findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY),
-                false,
+                true,
                 true
         );
     }
