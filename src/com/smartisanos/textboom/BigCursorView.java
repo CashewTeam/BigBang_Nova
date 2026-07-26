@@ -1,5 +1,8 @@
 package com.cashewteam.novatext.android;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
@@ -7,6 +10,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -96,6 +100,7 @@ public final class BigCursorView extends FrameLayout {
     private float mHandleLastRawY;
     private float mCursorDownScreenX;
     private float mCursorDownScreenY;
+    private ValueAnimator mCursorMoveAnimator;
 
     private final Runnable mStartDragRunnable = new Runnable() {
         @Override
@@ -209,6 +214,7 @@ public final class BigCursorView extends FrameLayout {
             public boolean onTouch(View view, MotionEvent event) {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
+                        cancelCursorMoveAnimation();
                         animatePress(view, true);
                         view.setPressed(true);
                         mHandleDragging = false;
@@ -370,6 +376,7 @@ public final class BigCursorView extends FrameLayout {
     }
 
     public void showCursor(float x, float top, float bottom, boolean pasteAvailable) {
+        cancelCursorMoveAnimation();
         mCursorVisible = true;
         mCursorX = x;
         mCursorTop = top;
@@ -389,10 +396,80 @@ public final class BigCursorView extends FrameLayout {
         } else {
             showSolidBlinkCursor();
         }
-        requestLayout();
+        updateCursorChildLayout();
+    }
+
+    /**
+     * Text mutations keep the existing cursor on screen and glide it to the
+     * rebuilt insertion anchor instead of snapping after the chip animation.
+     */
+    public void showCursorAnimated(float x, float top, float bottom,
+            boolean pasteAvailable, long duration) {
+        final float targetBottom = Math.max(top + 1f, bottom);
+        if (!mCursorVisible || mHandleDragging || duration <= 0L) {
+            showCursor(x, top, targetBottom, pasteAvailable);
+            return;
+        }
+        cancelCursorMoveAnimation();
+        mPasteAvailable = pasteAvailable;
+        if (!mPasteAvailable) {
+            mPasteShown = false;
+        }
+        updatePasteVisibility();
+        final float startX = mCursorX;
+        final float startTop = mCursorTop;
+        final float startBottom = mCursorBottom;
+        showSolidBlinkCursor();
+        mCursorMoveAnimator = ValueAnimator.ofFloat(0f, 1f);
+        mCursorMoveAnimator.setDuration(duration);
+        mCursorMoveAnimator.setInterpolator(new DecelerateInterpolator(1.5f));
+        mCursorMoveAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                final float fraction = (Float) animation.getAnimatedValue();
+                mCursorX = startX + (x - startX) * fraction;
+                mCursorTop = startTop + (top - startTop) * fraction;
+                mCursorBottom = startBottom + (targetBottom - startBottom) * fraction;
+                updateCursorChildLayout();
+            }
+        });
+        mCursorMoveAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (animation != mCursorMoveAnimator) {
+                    return;
+                }
+                mCursorMoveAnimator = null;
+                mCursorX = x;
+                mCursorTop = top;
+                mCursorBottom = targetBottom;
+                updateCursorChildLayout();
+                if (mCursorVisible && !mHandleDragging) {
+                    showOriginalFlickerCursor();
+                }
+            }
+        });
+        mCursorMoveAnimator.start();
+    }
+
+    /**
+     * During a manual drag the cursor follows the mapped pointer freely over
+     * chip faces. BoomChipPage commits the nearest text offset only on release.
+     */
+    public void showDragPreview(float x, float top, float bottom) {
+        cancelCursorMoveAnimation();
+        if (!mCursorVisible) {
+            return;
+        }
+        mCursorX = x;
+        mCursorTop = top;
+        mCursorBottom = Math.max(top + 1f, bottom);
+        showSolidBlinkCursor();
+        updateCursorChildLayout();
     }
 
     public void hideCursor() {
+        cancelCursorMoveAnimation();
         mCursorVisible = false;
         mHandleDragging = false;
         mHandleMovedBeyondSlop = false;
@@ -427,7 +504,7 @@ public final class BigCursorView extends FrameLayout {
     private void setPasteShown(boolean shown) {
         mPasteShown = shown && mPasteAvailable;
         updatePasteVisibility();
-        requestLayout();
+        updateCursorChildLayout();
     }
 
     private void updatePasteVisibility() {
@@ -458,6 +535,10 @@ public final class BigCursorView extends FrameLayout {
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        layoutCursorChildren();
+    }
+
+    private void layoutCursorChildren() {
         if (!mCursorVisible) {
             return;
         }
@@ -531,6 +612,25 @@ public final class BigCursorView extends FrameLayout {
             mPaste.layout(pasteLeft, pasteTop,
                     pasteLeft + mActionWidth, pasteTop + mActionHeight);
         }
+    }
+
+    private void updateCursorChildLayout() {
+        if (ViewCompat.isLaidOut(this)) {
+            layoutCursorChildren();
+            invalidate();
+        } else {
+            requestLayout();
+        }
+    }
+
+    private void cancelCursorMoveAnimation() {
+        if (mCursorMoveAnimator == null) {
+            return;
+        }
+        final ValueAnimator animator = mCursorMoveAnimator;
+        mCursorMoveAnimator = null;
+        animator.removeAllListeners();
+        animator.cancel();
     }
 
     @Override

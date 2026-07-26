@@ -89,6 +89,8 @@ public class BoomChipPage {
     private float mCursorDragCaretX;
     private float mCursorDragCaretY;
     private float mCursorDragFingerY;
+    private int mCursorDragPendingOffset;
+    private boolean mCursorDragHasPendingOffset;
     private boolean mCursorUpdatePending;
     private boolean mCursorUpdateNeedsVisibility;
     private Runnable mCursorAutoScrollRunnable;
@@ -98,6 +100,7 @@ public class BoomChipPage {
 
     private static final long EDIT_MUTATION_TRANSITION_DURATION_MS = 300L;
     private static final long EDIT_INSERT_TRANSITION_DURATION_MS = 200L;
+    private static final long EDIT_CURSOR_MOVE_DURATION_MS = 300L;
 
     Serializable mSavedData;
     private EditSessionState mEditSession;
@@ -900,8 +903,11 @@ public class BoomChipPage {
             replaceEditSelection(replacement);
             return;
         }
-        final int selection = mEditInput.getSelectionStart();
-        final int cursor = mInputBufferOffset + (selection < 0 ? start + count : selection);
+        // TextWatcher runs before some IMEs publish their new selection. Using
+        // getSelectionStart() here can therefore animate the cursor toward the
+        // pre-edit offset (often the first chip). The changed range itself is
+        // authoritative: after insert/replace/delete, the caret is at its end.
+        final int cursor = rangeStart + count;
         if (replaceEditRange(rangeStart, rangeEnd, replacement, cursor, false)) {
             mInputBuffer = text.toString();
         }
@@ -1398,16 +1404,26 @@ public class BoomChipPage {
         // while the insertion handle is repositioned.
         resetEditInputBuffer(getEditCursorOffset());
         mCursorDragActive = true;
+        mCursorDragPendingOffset = getEditCursorOffset();
+        mCursorDragHasPendingOffset = true;
     }
 
     private void endCursorDrag() {
+        final boolean commitPendingOffset = mCursorDragActive && mCursorDragHasPendingOffset;
+        final int pendingOffset = mCursorDragPendingOffset;
         mCursorDragActive = false;
+        mCursorDragHasPendingOffset = false;
         mCursorAutoScrollVelocity = 0;
         if (mBigCursorView != null && mCursorAutoScrollRunnable != null) {
             mBigCursorView.removeCallbacks(mCursorAutoScrollRunnable);
         }
-        // Once the handle is released, ordinary visibility correction can
-        // resume without competing with the drag's edge-scroll loop.
+        if (commitPendingOffset) {
+            // Dragging is a visual preview. Commit the nearest text boundary
+            // only after release, then restore the anchored blinking cursor.
+            updateEditCursorOffset(pendingOffset, true, true);
+        }
+        // Also covers a release onto the current offset, where the state setter
+        // intentionally performs no mutation but the floating preview must snap.
         scheduleEditCursorUpdate(true);
     }
 
@@ -1420,20 +1436,35 @@ public class BoomChipPage {
         if (!canModifyEditText()) {
             return;
         }
-        // Moving a caret is not a text edit and must not discard selection.
-        updateEditCursorOffset(
-                findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY),
-                false,
-                !mCursorDragActive
-        );
         if (mCursorDragActive) {
+            // Keep the cursor visually under the mapped pointer, including on
+            // top of a chip. The text offset remains unchanged until release.
+            mCursorDragPendingOffset =
+                    findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY);
+            mCursorDragHasPendingOffset = true;
+            final int[] pageLocation = new int[2];
+            mBoomPage.getLocationOnScreen(pageLocation);
+            final float previewCenterY = cursorScreenY - pageLocation[1];
+            final float previewTop = previewCenterY - getActiveChipRowHeight() / 2f;
+            mBigCursorView.showDragPreview(
+                    cursorScreenX - pageLocation[0],
+                    previewTop,
+                    previewTop + getActiveChipRowHeight()
+            );
             mCursorDragCaretX = cursorScreenX;
             mCursorDragCaretY = cursorScreenY;
             mCursorDragFingerY = fingerScreenY;
             if (updateAutoScroll) {
                 updateCursorAutoScroll(fingerScreenY);
             }
+            return;
         }
+        // Click-to-position remains immediate and does not discard selection.
+        updateEditCursorOffset(
+                findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY),
+                false,
+                true
+        );
     }
 
     private void updateCursorAutoScroll(float fingerScreenY) {
@@ -1585,6 +1616,10 @@ public class BoomChipPage {
     }
 
     private CursorAnchor findEditCursorAnchor() {
+        return findEditCursorAnchor(false);
+    }
+
+    private CursorAnchor findEditCursorAnchor(boolean useFinalLayoutGeometry) {
         final String text = mEditSession.text;
         final int cursor = getEditCursorOffset();
         int previousWord = -1;
@@ -1606,22 +1641,22 @@ public class BoomChipPage {
             return getLineBreakAnchor(text, cursor);
         }
         if (beforeLineBreak && previousWord >= 0) {
-            return getChipAnchor(previousWord, true);
+            return getChipAnchor(previousWord, true, useFinalLayoutGeometry);
         }
         if (beforeLineBreak) {
             return getLineBreakAnchor(text, cursor);
         }
         if (afterLineBreak && nextWord >= 0) {
-            return getChipAnchor(nextWord, false);
+            return getChipAnchor(nextWord, false, useFinalLayoutGeometry);
         }
         if (nextWord >= 0) {
-            return getChipAnchor(nextWord, false);
+            return getChipAnchor(nextWord, false, useFinalLayoutGeometry);
         }
         if (previousWord >= 0) {
             if (afterLineBreak) {
                 return getLineBreakAnchor(text, cursor);
             }
-            return getChipAnchor(previousWord, true);
+            return getChipAnchor(previousWord, true, useFinalLayoutGeometry);
         }
         if (afterLineBreak) {
             return getLineBreakAnchor(text, cursor);
@@ -1633,22 +1668,61 @@ public class BoomChipPage {
         return value == '\r' || value == '\n';
     }
 
-    private CursorAnchor getChipAnchor(int wordIndex, boolean trailingEdge) {
+    private CursorAnchor getChipAnchor(
+            int wordIndex,
+            boolean trailingEdge,
+            boolean useFinalLayoutGeometry
+    ) {
         final BoomChip chip = findChipByIndex(wordIndex);
         if (chip == null) {
-            return getEmptyLineAnchor();
+            return useFinalLayoutGeometry ? null : getEmptyLineAnchor();
         }
-        final int[] wordLocation = new int[2];
-        final int[] pageLocation = new int[2];
-        chip.word.getLocationOnScreen(wordLocation);
-        mBoomPage.getLocationOnScreen(pageLocation);
-        final float x = wordLocation[0] - pageLocation[0]
-                + (trailingEdge ? chip.word.getWidth() : 0);
+        final float[] wordPosition;
+        if (useFinalLayoutGeometry) {
+            wordPosition = getFinalLayoutPositionInPage(chip.word);
+        } else {
+            final int[] wordLocation = new int[2];
+            final int[] pageLocation = new int[2];
+            chip.word.getLocationOnScreen(wordLocation);
+            mBoomPage.getLocationOnScreen(pageLocation);
+            wordPosition = new float[] {
+                    wordLocation[0] - pageLocation[0],
+                    wordLocation[1] - pageLocation[1]
+            };
+        }
+        if (wordPosition == null || chip.word.getWidth() <= 0 || chip.word.getHeight() <= 0) {
+            return useFinalLayoutGeometry ? null : getEmptyLineAnchor();
+        }
+        final float x = wordPosition[0] + (trailingEdge ? chip.word.getWidth() : 0);
         return new CursorAnchor(
                 x,
-                wordLocation[1] - pageLocation[1],
-                wordLocation[1] - pageLocation[1] + chip.word.getHeight()
+                wordPosition[1],
+                wordPosition[1] + chip.word.getHeight()
         );
+    }
+
+    /**
+     * Returns the post-layout position without applying scale/translation
+     * matrices from chip animations. Parent scroll offsets remain part of the
+     * final visible position.
+     */
+    private float[] getFinalLayoutPositionInPage(View descendant) {
+        float x = 0f;
+        float y = 0f;
+        View current = descendant;
+        while (current != mBoomPage) {
+            x += current.getLeft();
+            y += current.getTop();
+            final ViewParent parent = current.getParent();
+            if (!(parent instanceof View)) {
+                return null;
+            }
+            final View parentView = (View) parent;
+            x -= parentView.getScrollX();
+            y -= parentView.getScrollY();
+            current = parentView;
+        }
+        return new float[] {x, y};
     }
 
     private CursorAnchor getLineBreakAnchor(String text, int cursor) {
@@ -2084,6 +2158,25 @@ public class BoomChipPage {
             mBoomConent.suppressLayout(false);
         }
         if (transition != null) {
+            // The stock editor resolves the caret only after the rebuilt word
+            // rows have completed global layout. Resolving it in pre-draw can
+            // still observe retained chip sizes with every new row at top=0,
+            // which either drops an insertion animation or moves deletion Y to
+            // the first row.
+            mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(
+                    new OnGlobalLayoutListener() {
+                        @Override
+                        public void onGlobalLayout() {
+                            mBoomConent.getViewTreeObserver()
+                                    .removeOnGlobalLayoutListener(this);
+                            if (transition.generation != mEditMutationGeneration
+                                    || !isEditMode()) {
+                                return;
+                            }
+                            animateEditCursorToCurrentAnchor(
+                                    EDIT_CURSOR_MOVE_DURATION_MS);
+                        }
+                    });
             // Global-layout can run after a traversal already prepared a draw
             // on some devices. Prepare the old-position translations in the
             // pre-draw phase so the new target layout never flashes for a frame.
@@ -2138,6 +2231,9 @@ public class BoomChipPage {
         if (transition.generation != mEditMutationGeneration || !isEditMode()) {
             return;
         }
+        final long transitionDuration = transition.deletedChips.isEmpty()
+                ? EDIT_INSERT_TRANSITION_DURATION_MS
+                : EDIT_MUTATION_TRANSITION_DURATION_MS;
         // Rebuilt retained chips must always start from a fully rendered state.
         // Only chips overlapping the newly inserted source range are animated.
         for (int index = 0; index < mLayout.getWordCount(); ++index) {
@@ -2187,9 +2283,6 @@ public class BoomChipPage {
                     - deletedChip.height / 2f;
             BoomAnimator.makeEditDeleteChipAnimation(ghost, targetX, targetY);
         }
-        final long transitionDuration = transition.deletedChips.isEmpty()
-                ? EDIT_INSERT_TRANSITION_DURATION_MS
-                : EDIT_MUTATION_TRANSITION_DURATION_MS;
         mBoomPage.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -2200,7 +2293,36 @@ public class BoomChipPage {
                 mEditMutationTransitionRunning = false;
                 scheduleEditCursorUpdate(true);
             }
-        }, transitionDuration);
+        }, Math.max(transitionDuration, EDIT_CURSOR_MOVE_DURATION_MS) + 16L);
+    }
+
+    private void animateEditCursorToCurrentAnchor(long duration) {
+        if (!canModifyEditText() || mCursorDragActive) {
+            return;
+        }
+        CursorAnchor cursorAnchor = findEditCursorAnchor(true);
+        if (cursorAnchor == null) {
+            // A normal text offset must never animate to the empty-line
+            // fallback while its target chip is still awaiting layout.
+            return;
+        }
+        if (scrollEditCursorIntoView(cursorAnchor)) {
+            // ScrollView updates scrollY synchronously. Re-read screen
+            // coordinates so a wrapped insertion/deletion animates to the
+            // post-scroll anchor instead of snapping there after completion.
+            cursorAnchor = findEditCursorAnchor(true);
+            if (cursorAnchor == null) {
+                return;
+            }
+        }
+        final String clipboardText = getClipboardText();
+        mBigCursorView.showCursorAnimated(
+                cursorAnchor.x,
+                cursorAnchor.top,
+                cursorAnchor.bottom,
+                !hasEditSelection() && !TextUtils.isEmpty(clipboardText),
+                duration
+        );
     }
 
     private void clearEditMutationOverlay() {
