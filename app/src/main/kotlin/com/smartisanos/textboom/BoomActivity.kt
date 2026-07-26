@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -890,18 +891,22 @@ private fun BigBangOverlayContent(
                         topInset = panelMetrics.topSystemInset,
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
+                        contentHeight = if (isEditMode) 48.dp else 52.dp,
+                        horizontalPadding = if (isEditMode) 12.dp else 14.dp,
+                        leadingItemSpacing = if (isEditMode) 12.dp else 8.dp,
+                        trailingItemSpacing = if (isEditMode) 11.dp else 8.dp,
                         leading = {
                             if (isEditMode) {
                                 OverlayIconAction(
-                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                    iconRes = R.drawable.action_bar_back_selector,
+                                    tint = null,
                                     enabled = !editTransitioning,
                                     onClick = onExitEditMode,
                                     contentDescription = stringResource(R.string.bigbang_action_exit_edit),
                                 )
                                 OverlayIconAction(
-                                    imageVector = Icons.Outlined.Close,
-                                    tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                    iconRes = R.drawable.action_bar_close_selector,
+                                    tint = null,
                                     enabled = !editTransitioning,
                                     onClick = requestDismiss,
                                     contentDescription = stringResource(R.string.bigbang_action_close),
@@ -925,15 +930,15 @@ private fun BigBangOverlayContent(
                             androidx.compose.material3.Text(
                                 text = stringResource(R.string.bigbang_overlay_title),
                                 color = if (dark) Color(0xFFF2F5F8) else Color(0xFFD1CCC6),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontSize = if (isEditMode) 18.sp else 20.sp,
+                                fontWeight = if (isEditMode) FontWeight.Bold else FontWeight.SemiBold,
                             )
                         },
                         trailing = {
                             if (isEditMode) {
                                 OverlayIconAction(
-                                    imageVector = Icons.Outlined.SelectAll,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                    iconRes = R.drawable.action_bar_choosetext_selector,
+                                    tint = null,
                                     enabled = editSelectAllEnabled && !editTransitioning,
                                     onClick = onSelectAll,
                                     contentDescription = stringResource(
@@ -945,13 +950,23 @@ private fun BigBangOverlayContent(
                                     ),
                                 )
                             }
-                            OverlayIconAction(
-                                imageVector = Icons.Outlined.Share,
-                                tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
-                                enabled = !editTransitioning,
-                                onClick = onShareAll,
-                                contentDescription = stringResource(R.string.bigbang_action_share_all),
-                            )
+                            if (isEditMode) {
+                                OverlayIconAction(
+                                    iconRes = R.drawable.action_bar_share_selector,
+                                    tint = null,
+                                    enabled = !editTransitioning,
+                                    onClick = onShareAll,
+                                    contentDescription = stringResource(R.string.bigbang_action_share_all),
+                                )
+                            } else {
+                                OverlayIconAction(
+                                    imageVector = Icons.Outlined.Share,
+                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                    enabled = !editTransitioning,
+                                    onClick = onShareAll,
+                                    contentDescription = stringResource(R.string.bigbang_action_share_all),
+                                )
+                            }
                             if (!isEditMode) {
                                 OverlayIconAction(
                                     imageVector = Icons.Outlined.MoreHoriz,
@@ -969,37 +984,10 @@ private fun BigBangOverlayContent(
                         bottomInset = panelMetrics.bottomSystemInset,
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
+                        contentHeight = if (isEditMode) 48.dp else 52.dp,
+                        horizontalPadding = if (isEditMode) 12.dp else 14.dp,
                         leading = {
-                            if (isEditMode) {
-                                Row {
-                                    OverlayIconAction(
-                                        imageVector = Icons.AutoMirrored.Outlined.Undo,
-                                        tint = if (editCanUndo) {
-                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                        } else if (dark) {
-                                            Color(0x66F2F5F8)
-                                        } else {
-                                            Color(0x668D8983)
-                                        },
-                                        enabled = editCanUndo && !editTransitioning,
-                                        onClick = onUndo,
-                                        contentDescription = stringResource(R.string.bigbang_action_undo),
-                                    )
-                                    OverlayIconAction(
-                                        imageVector = Icons.AutoMirrored.Outlined.Redo,
-                                        tint = if (editCanRedo) {
-                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                        } else if (dark) {
-                                            Color(0x66F2F5F8)
-                                        } else {
-                                            Color(0x668D8983)
-                                        },
-                                        enabled = editCanRedo && !editTransitioning,
-                                        onClick = onRedo,
-                                        contentDescription = stringResource(R.string.bigbang_action_redo),
-                                    )
-                                }
-                            } else {
+                            if (!isEditMode) {
                                 OverlayIconAction(
                                     imageVector = Icons.Outlined.DocumentScanner,
                                     tint = if (ocrEnabled) {
@@ -1014,7 +1002,24 @@ private fun BigBangOverlayContent(
                             }
                         },
                         center = {
-                            if (!isEditMode) {
+                            if (isEditMode) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.action_bar_undo_selector,
+                                        tint = null,
+                                        enabled = editCanUndo && !editTransitioning,
+                                        onClick = onUndo,
+                                        contentDescription = stringResource(R.string.bigbang_action_undo),
+                                    )
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.action_bar_revoke_selector,
+                                        tint = null,
+                                        enabled = editCanRedo && !editTransitioning,
+                                        onClick = onRedo,
+                                        contentDescription = stringResource(R.string.bigbang_action_redo),
+                                    )
+                                }
+                            } else {
                                 OverlayIconAction(
                                     iconRes = R.drawable.boom_cancel,
                                     tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
@@ -1026,8 +1031,8 @@ private fun BigBangOverlayContent(
                         trailing = {
                             if (isEditMode) {
                                 OverlayIconAction(
-                                    imageVector = Icons.Outlined.Keyboard,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                    iconRes = R.drawable.action_bar_keyboard_selector,
+                                    tint = null,
                                     enabled = !editTransitioning,
                                     onClick = onShowKeyboard,
                                     contentDescription = stringResource(R.string.bigbang_action_keyboard),

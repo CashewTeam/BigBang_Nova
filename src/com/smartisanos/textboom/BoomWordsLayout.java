@@ -22,6 +22,8 @@ public class BoomWordsLayout {
     private final int mPuncMinWidth;
     private final int mPuncBaseWidth;
     private final int mEditHalfWidthChipWidth;
+    private final int mEditWordMinWidth;
+    private final int mEditWordBaseWidth;
     private final TextPaint mWordPaint;
     private final TextPaint mPuncPaint;
 
@@ -67,6 +69,8 @@ public class BoomWordsLayout {
         mPuncMinWidth = res.getDimensionPixelSize(R.dimen.punc_min_width);
         mPuncBaseWidth = res.getDimensionPixelSize(R.dimen.punc_base_width);
         mEditHalfWidthChipWidth = res.getDimensionPixelSize(R.dimen.edit_half_width_chip_width);
+        mEditWordMinWidth = res.getDimensionPixelSize(R.dimen.edit_word_min_width);
+        mEditWordBaseWidth = res.getDimensionPixelSize(R.dimen.edit_word_base_width);
         mWordPaint = ((TextView) View.inflate(context, R.layout.boom_chip_layout, null)
                 .findViewById(R.id.word)).getPaint();
         mPuncPaint = ((TextView) View.inflate(context, R.layout.boom_punc_layout, null)
@@ -282,6 +286,11 @@ public class BoomWordsLayout {
             // Keep row calculation aligned with the compact chip's rendered width.
             return mEditHalfWidthChipWidth;
         }
+        if (mEditLayout) {
+            // The original editor uses a tighter 24dp minimum than normal-mode's 33dp chips.
+            return Math.max(mEditWordMinWidth,
+                    mEditWordBaseWidth + (int) mWordPaint.measureText(word.word));
+        }
         if (word.punc) {
             return Math.max(mPuncMinWidth, mPuncBaseWidth + (int)mPuncPaint.measureText(word.word));
         } else {
@@ -380,23 +389,55 @@ public class BoomWordsLayout {
     }
 
     /**
-     * Returns whether an editable unit is one ASCII printable character
-     * (including space/punctuation) or one half-width Katakana code point.
+     * Returns whether an editable unit is compact: ASCII, whitespace or a
+     * punctuation code point. Chinese ideographs and emoji keep word width.
      */
     public boolean isEditHalfWidth(int index) {
         if (!mEditLayout || index < 0 || index >= mWords.size()) {
             return false;
         }
-        final Word word = mWords.get(index);
-        final String text = word.word;
+        return isEditHalfWidthUnit(mWords.get(index).word);
+    }
+
+    /** Package-private so the editor's compact ASCII/space policy stays unit-testable. */
+    static boolean isEditHalfWidthUnit(String text) {
+        if (text == null || text.length() == 0) {
+            return false;
+        }
         final int codePoint = text.codePointAt(0);
-        return text.length() == Character.charCount(codePoint)
-                && ((codePoint >= 0x20 && codePoint <= 0x7e)
-                || (codePoint >= 0xff61 && codePoint <= 0xff9f));
+        if (text.length() != Character.charCount(codePoint)) {
+            return false;
+        }
+        if ((codePoint >= 0x20 && codePoint <= 0x7e)
+                || (codePoint >= 0xff61 && codePoint <= 0xff9f)
+                || Character.isWhitespace(codePoint)
+                || Character.isSpaceChar(codePoint)) {
+            return true;
+        }
+        switch (Character.getType(codePoint)) {
+            case Character.CONNECTOR_PUNCTUATION:
+            case Character.DASH_PUNCTUATION:
+            case Character.START_PUNCTUATION:
+            case Character.END_PUNCTUATION:
+            case Character.INITIAL_QUOTE_PUNCTUATION:
+            case Character.FINAL_QUOTE_PUNCTUATION:
+            case Character.OTHER_PUNCTUATION:
+                return true;
+            default:
+                return false;
+        }
     }
 
     public int getEditHalfWidthChipWidth() {
         return mEditHalfWidthChipWidth;
+    }
+
+    public int getEditWordMinWidth() {
+        return mEditWordMinWidth;
+    }
+
+    public boolean isEditLayout() {
+        return mEditLayout;
     }
 
     public String getWord(int index) {

@@ -12,18 +12,24 @@
     <dimen name="chip_text_size">15dp</dimen>
     <dimen name="chip_row_padding_top">5dp</dimen>
     <dimen name="chip_row_height">54dp</dimen>
+    <!-- 原版编辑态使用更紧凑的 40dp 行高；普通模式继续使用 54dp。 -->
+    <dimen name="chip_row_height_edit">40dp</dimen>
     <dimen name="chip_row_move_up_offset">-30dp</dimen>
     <dimen name="chip_row_move_down_offset">18dp</dimen>
 
     <dimen name="word_min_width">33dp</dimen>
     <dimen name="word_base_width">18dp</dimen>
+    <!-- 原版编辑词块独立于普通态：中文等全宽单元最小 24dp，基准留白 9dp。 -->
+    <dimen name="edit_word_min_width">24dp</dimen>
+    <dimen name="edit_word_base_width">9dp</dimen>
     <dimen name="punc_min_width">21dp</dimen>
     <dimen name="punc_base_width">8dp</dimen>
     <!-- 编辑态单码点半角词块的固定宽度；布局测量与实际 View 宽度必须保持一致，避免换行计算与渲染脱节。 -->
     <dimen name="edit_half_width_chip_width">18dp</dimen>
 
-    <dimen name="auto_scroll_top">100dp</dimen>
-    <dimen name="auto_scroll_bottom">165dp</dimen>
+    <!-- Original edit drag uses a symmetric 90dp edge zone. -->
+    <dimen name="auto_scroll_top">90dp</dimen>
+    <dimen name="auto_scroll_bottom">90dp</dimen>
 
     <dimen name="fake_select_bar_margin_top">33dp</dimen>
     <dimen name="fake_select_bar_margin_bottom">55dp</dimen>

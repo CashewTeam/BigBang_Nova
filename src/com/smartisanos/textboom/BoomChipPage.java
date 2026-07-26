@@ -71,14 +71,16 @@ public class BoomChipPage {
     private final EditorInputView mEditInput;
     private final ClipboardManager mClipboard;
     private final ClipboardManager.OnPrimaryClipChangedListener mClipboardListener;
+    private SymbolPanelPopup mSymbolPanelPopup;
 
     private boolean mSynchronizingEditInput;
     private String mInputBuffer = "";
     private int mInputBufferOffset;
     private boolean mCursorDragActive;
     private int mCursorAutoScrollVelocity;
-    private float mCursorDragRawX;
-    private float mCursorDragRawY;
+    private float mCursorDragCaretX;
+    private float mCursorDragCaretY;
+    private float mCursorDragFingerY;
     private boolean mCursorUpdatePending;
     private boolean mCursorUpdateNeedsVisibility;
     private Runnable mCursorAutoScrollRunnable;
@@ -370,13 +372,24 @@ public class BoomChipPage {
             }
 
             @Override
-            public void onCursorHandleDrag(float rawX, float rawY) {
-                moveEditCursorFromScreen(rawX, rawY, true);
+            public void onCursorHandleDrag(
+                    float cursorScreenX,
+                    float cursorScreenY,
+                    float fingerScreenY
+            ) {
+                moveEditCursorFromScreen(cursorScreenX, cursorScreenY, fingerScreenY, true);
             }
 
             @Override
             public void onCursorHandleDragEnd() {
                 endCursorDrag();
+            }
+
+            @Override
+            public void onCursorHandleTap() {
+                // Clipboard content does not reveal paste by itself; the
+                // original editor exposes it only after tapping the handle.
+                mBigCursorView.togglePaste();
             }
 
             @Override
@@ -397,6 +410,11 @@ public class BoomChipPage {
             @Override
             public void onCursorPaste() {
                 pasteEditText();
+            }
+
+            @Override
+            public void onCursorSymbol(float cursorX, float cursorTop, float cursorBottom) {
+                toggleSymbolPanel(cursorX, cursorTop, cursorBottom, true);
             }
         });
         mEditorOverlayHost.addView(mBigCursorView, new FrameLayout.LayoutParams(
@@ -470,11 +488,22 @@ public class BoomChipPage {
             @Override
             public void run() {
                 if (!canModifyEditText() || !mCursorDragActive || mCursorAutoScrollVelocity == 0) {
-                    mCursorDragActive = false;
                     return;
                 }
+                final int scrollBefore = mScroller.getScrollY();
                 mScroller.scrollBy(0, mCursorAutoScrollVelocity);
-                moveEditCursorFromScreen(mCursorDragRawX, mCursorDragRawY, false);
+                if (scrollBefore == mScroller.getScrollY()) {
+                    // The content edge has been reached; do not keep polling
+                    // an already-stopped ScrollView for the rest of this drag.
+                    mCursorAutoScrollVelocity = 0;
+                    return;
+                }
+                moveEditCursorFromScreen(
+                        mCursorDragCaretX,
+                        mCursorDragCaretY,
+                        mCursorDragFingerY,
+                        false
+                );
                 mBigCursorView.postDelayed(this, 25L);
             }
         };
@@ -579,6 +608,7 @@ public class BoomChipPage {
     public boolean initWords(int[] segment, String text, int touchedIndex, int touchedX, int touchedY) {
         endCursorDrag();
         hideEditorKeyboard();
+        dismissSymbolPanel();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
         mEditCommitPending = false;
@@ -600,6 +630,7 @@ public class BoomChipPage {
     public void prepareForReinit() {
         endCursorDrag();
         hideEditorKeyboard();
+        dismissSymbolPanel();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
         mEditCommitPending = false;
@@ -640,6 +671,7 @@ public class BoomChipPage {
         mEditCommitPending = true;
         endCursorDrag();
         hideEditorKeyboard();
+        dismissSymbolPanel();
         mBigCursorView.hideCursor();
         mBoomActionHandler.refreshToolbarForCurrentMode();
         notifyEditUiStateChanged();
@@ -678,7 +710,7 @@ public class BoomChipPage {
 
     /** Called by {@link SwipeSelectView} for a short tap in editable content. */
     public void moveEditCursorFromContentTap(float rawX, float rawY) {
-        moveEditCursorFromScreen(rawX, rawY, false);
+        moveEditCursorFromScreen(rawX, rawY, rawY, false);
     }
 
     /**
@@ -813,6 +845,7 @@ public class BoomChipPage {
     public void release() {
         endCursorDrag();
         hideEditorKeyboard();
+        dismissSymbolPanel();
         mBigCursorView.hideCursor();
         mClipboard.removePrimaryClipChangedListener(mClipboardListener);
     }
@@ -958,6 +991,60 @@ public class BoomChipPage {
 
     private void pasteEditText() {
         pasteEditClipboard();
+    }
+
+    private void toggleSymbolPanel(float cursorX, float cursorTop, float cursorBottom,
+            boolean allowScroll) {
+        if (!canModifyEditText()) {
+            return;
+        }
+        if (mSymbolPanelPopup == null) {
+            mSymbolPanelPopup = new SymbolPanelPopup(mActivity, new SymbolPanelPopup.Callback() {
+                @Override
+                public void onSymbolSelected(String symbol) {
+                    // Symbols share the direct edit path so they get the same history and cursor rules.
+                    insertEditText(symbol);
+                }
+            });
+        }
+        if (mSymbolPanelPopup.isShowing()) {
+            mSymbolPanelPopup.dismiss();
+            return;
+        }
+        final int visibleBottom = mBigCursorView.getVisibleBottomForEditor();
+        final int overflow = Math.round(cursorBottom) + mSymbolPanelPopup.getTotalHeight()
+                - visibleBottom;
+        if (allowScroll && overflow > 0) {
+            final int scrollBefore = mScroller.getScrollY();
+            mScroller.scrollBy(0, overflow);
+            if (scrollBefore != mScroller.getScrollY()) {
+                mBigCursorView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!canModifyEditText() || mSymbolPanelPopup == null
+                                || mSymbolPanelPopup.isShowing()) {
+                            return;
+                        }
+                        final CursorAnchor anchor = findEditCursorAnchor();
+                        toggleSymbolPanel(anchor.x, anchor.top, anchor.bottom, false);
+                    }
+                }, 120L);
+                return;
+            }
+        }
+        mSymbolPanelPopup.show(
+                mEditorOverlayHost,
+                cursorX,
+                cursorTop,
+                cursorBottom,
+                visibleBottom
+        );
+    }
+
+    private void dismissSymbolPanel() {
+        if (mSymbolPanelPopup != null) {
+            mSymbolPanelPopup.dismiss();
+        }
     }
 
     private void prepareForDirectEdit() {
@@ -1109,6 +1196,10 @@ public class BoomChipPage {
         if (mEditSession.text.equals(text) || !mLayout.layoutEditWords(text)) {
             return false;
         }
+        // A text mutation closes the optional paste affordance.  Cursor-only
+        // layout refreshes deliberately do not: otherwise a tap can flash it
+        // for one frame before the next anchor update arrives.
+        mBigCursorView.hidePaste();
         mEditSession = new EditSessionState(
                 mEditSession.originalText,
                 text,
@@ -1127,6 +1218,18 @@ public class BoomChipPage {
     }
 
     private void updateEditCursorOffset(int cursorOffset, boolean resetInputBuffer) {
+        updateEditCursorOffset(cursorOffset, resetInputBuffer, true);
+    }
+
+    /**
+     * A handle drag owns scroll position through its edge-scrolling loop.  It
+     * must not also invoke the ordinary cursor-visibility scroll on every move.
+     */
+    private void updateEditCursorOffset(
+            int cursorOffset,
+            boolean resetInputBuffer,
+            boolean ensureVisible
+    ) {
         if (!isEditMode()) {
             return;
         }
@@ -1145,7 +1248,7 @@ public class BoomChipPage {
         if (resetInputBuffer) {
             resetEditInputBuffer(safeCursor);
         }
-        scheduleEditCursorUpdate(true);
+        scheduleEditCursorUpdate(ensureVisible);
     }
 
     private int getEditCursorOffset() {
@@ -1256,25 +1359,37 @@ public class BoomChipPage {
         if (mBigCursorView != null && mCursorAutoScrollRunnable != null) {
             mBigCursorView.removeCallbacks(mCursorAutoScrollRunnable);
         }
-        scheduleEditCursorUpdate(false);
+        // Once the handle is released, ordinary visibility correction can
+        // resume without competing with the drag's edge-scroll loop.
+        scheduleEditCursorUpdate(true);
     }
 
-    private void moveEditCursorFromScreen(float rawX, float rawY, boolean updateAutoScroll) {
+    private void moveEditCursorFromScreen(
+            float cursorScreenX,
+            float cursorScreenY,
+            float fingerScreenY,
+            boolean updateAutoScroll
+    ) {
         if (!canModifyEditText()) {
             return;
         }
         clearEditSelectionForCursor();
-        updateEditCursorOffset(findEditOffsetForScreenPosition(rawX, rawY), true);
+        updateEditCursorOffset(
+                findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY),
+                false,
+                !mCursorDragActive
+        );
         if (mCursorDragActive) {
-            mCursorDragRawX = rawX;
-            mCursorDragRawY = rawY;
+            mCursorDragCaretX = cursorScreenX;
+            mCursorDragCaretY = cursorScreenY;
+            mCursorDragFingerY = fingerScreenY;
             if (updateAutoScroll) {
-                updateCursorAutoScroll(rawY);
+                updateCursorAutoScroll(fingerScreenY);
             }
         }
     }
 
-    private void updateCursorAutoScroll(float rawY) {
+    private void updateCursorAutoScroll(float fingerScreenY) {
         final int[] scrollerLocation = new int[2];
         mScroller.getLocationOnScreen(scrollerLocation);
         final int scrollerTop = scrollerLocation[1];
@@ -1284,6 +1399,7 @@ public class BoomChipPage {
             scrollerBottom -= rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
         }
         if (scrollerBottom <= scrollerTop) {
+            mCursorAutoScrollVelocity = 0;
             return;
         }
         final int visibleScrollerHeight = scrollerBottom - scrollerTop;
@@ -1296,11 +1412,17 @@ public class BoomChipPage {
                 mActivity.getResources().getDimensionPixelSize(R.dimen.auto_scroll_bottom),
                 visibleScrollerHeight / 2
         );
-        int velocity = 0;
-        if (rawY < autoScrollTop) {
-            velocity = Math.round((rawY - autoScrollTop) / 2f);
-        } else if (rawY > autoScrollBottom) {
-            velocity = Math.round((rawY - autoScrollBottom) / 2f);
+        int velocity = getOriginalAutoScrollVelocity(
+                fingerScreenY,
+                autoScrollTop,
+                autoScrollBottom
+        );
+        if (shouldStopAutoScrollAtContentEdge(
+                velocity,
+                mScroller.canScrollVertically(-1),
+                mScroller.canScrollVertically(1)
+        )) {
+            velocity = 0;
         }
         if (velocity == mCursorAutoScrollVelocity) {
             return;
@@ -1310,6 +1432,32 @@ public class BoomChipPage {
         if (velocity != 0) {
             mBigCursorView.postDelayed(mCursorAutoScrollRunnable, 25L);
         }
+    }
+
+    /** Original BigBang's quadratic 25ms edge-scroll velocity curve. */
+    static int getOriginalAutoScrollVelocity(float fingerScreenY, int autoScrollTop,
+            int autoScrollBottom) {
+        final int fingerY = Math.round(fingerScreenY);
+        if (fingerY < autoScrollTop) {
+            return -getOriginalAutoScrollSpeed(autoScrollTop - fingerY);
+        }
+        if (fingerY > autoScrollBottom) {
+            return getOriginalAutoScrollSpeed(fingerY - autoScrollBottom);
+        }
+        return 0;
+    }
+
+    /** Stops the 25ms loop as soon as its direction reaches a content edge. */
+    static boolean shouldStopAutoScrollAtContentEdge(
+            int velocity,
+            boolean canScrollUp,
+            boolean canScrollDown
+    ) {
+        return (velocity < 0 && !canScrollUp) || (velocity > 0 && !canScrollDown);
+    }
+
+    private static int getOriginalAutoScrollSpeed(int depth) {
+        return depth * depth / (1000 - depth / 2);
     }
 
     private void scheduleEditCursorUpdate(boolean ensureVisible) {
@@ -1455,7 +1603,7 @@ public class BoomChipPage {
         final int[] pageLocation = new int[2];
         mBoomConent.getLocationOnScreen(contentLocation);
         mBoomPage.getLocationOnScreen(pageLocation);
-        final int lineHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.chip_row_height);
+        final int lineHeight = getActiveChipRowHeight();
         float top = contentLocation[1] - pageLocation[1] + mBoomConent.getPaddingTop();
         final int completedBreaks = countLineBreaksBefore(text, cursor);
         if (completedBreaks > 0) {
@@ -1479,7 +1627,8 @@ public class BoomChipPage {
         return new CursorAnchor(contentLocation[0] - pageLocation[0], top, top + lineHeight);
     }
 
-    private int countLineBreaksBefore(String text, int cursor) {
+    /** Pure offset helper: gap-row cursor anchors must count empty and trailing lines too. */
+    static int countLineBreaksBefore(String text, int cursor) {
         int count = 0;
         for (int offset = 0; offset < cursor; ++offset) {
             final char value = text.charAt(offset);
@@ -1497,7 +1646,7 @@ public class BoomChipPage {
         final int[] pageLocation = new int[2];
         mBoomConent.getLocationOnScreen(contentLocation);
         mBoomPage.getLocationOnScreen(pageLocation);
-        final int lineHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.chip_row_height);
+        final int lineHeight = getActiveChipRowHeight();
         float top = contentLocation[1] - pageLocation[1] + mBoomConent.getPaddingTop();
         if (mLayout.getRowCount() > 0) {
             final View lastRow = mBoomConent.getChildAt(mLayout.getRowCount() - 1);
@@ -1656,6 +1805,7 @@ public class BoomChipPage {
                 new EditHistorySnapshot[0]
         );
         rebuildChips(selectedState);
+        animateEditEntry();
         resetEditInputBuffer(initialCursorOffset);
         scheduleEditCursorUpdate(true);
         mBoomActionHandler.refreshToolbarForCurrentMode();
@@ -1706,6 +1856,7 @@ public class BoomChipPage {
         }
         endCursorDrag();
         hideEditorKeyboard();
+        dismissSymbolPanel();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
         mEditCommitPending = false;
@@ -1723,6 +1874,7 @@ public class BoomChipPage {
         }
         endCursorDrag();
         hideEditorKeyboard();
+        dismissSymbolPanel();
         mBigCursorView.hideCursor();
         resetEditInputBuffer(0);
         mEditCommitPending = false;
@@ -1753,6 +1905,41 @@ public class BoomChipPage {
                 }
             });
         }
+    }
+
+    /**
+     * The original editor lets its rebuilt chips softly emerge instead of
+     * replacing the normal-mode grid in a single frame.  Mutations intentionally
+     * skip this animation so typing remains immediate.
+     */
+    private void animateEditEntry() {
+        mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                final int rows = Math.min(mBoomConent.getChildCount(), 12);
+                for (int rowIndex = 0; rowIndex < rows; ++rowIndex) {
+                    final View row = mBoomConent.getChildAt(rowIndex);
+                    if (!(row instanceof LinearLayout)) {
+                        continue;
+                    }
+                    for (int childIndex = 0; childIndex < ((LinearLayout) row).getChildCount(); ++childIndex) {
+                        final View chip = ((LinearLayout) row).getChildAt(childIndex);
+                        final long delay = Math.min(96L, rowIndex * 12L);
+                        chip.setScaleX(0.92f);
+                        chip.setScaleY(0.92f);
+                        chip.setAlpha(0f);
+                        chip.setTranslationY(6f * mActivity.getResources().getDisplayMetrics().density);
+                        chip.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                BoomAnimator.makeBoomAnimation(chip);
+                            }
+                        }, delay);
+                    }
+                }
+            }
+        });
     }
 
     public void resetChips() {
@@ -2029,7 +2216,7 @@ public class BoomChipPage {
             final int start = mLayout.getRowStart(i);
             final int count = mLayout.getColumnCount(i);
             if (mLayout.isGapRow(i)) {
-                final int rowHeight = mActivity.getResources().getDimensionPixelOffset(R.dimen.chip_row_height);
+                final int rowHeight = getActiveChipRowHeight();
                 final int gapHeight = Math.round(
                         rowHeight * BigBangSettings.get(mActivity).getGapRowHeightPercent() / 100f
                 );
@@ -2073,6 +2260,12 @@ public class BoomChipPage {
         if (animate) {
             mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(mDoBoomAnimation);
         }
+    }
+
+    private int getActiveChipRowHeight() {
+        return mActivity.getResources().getDimensionPixelSize(isEditMode()
+                ? R.dimen.chip_row_height_edit
+                : R.dimen.chip_row_height);
     }
 
     private boolean restoreSelectedState() {
@@ -2272,6 +2465,28 @@ public class BoomChipPage {
                 word = (TextView) chipView.findViewById(R.id.word);
             }
             word.setText(mLayout.getWord(id));
+            if (mLayout.isEditLayout()) {
+                // The original edit 9-patch is exactly 40dp high.  Remove the
+                // normal-mode row padding instead of shrinking that bitmap to 30dp.
+                chipView.setPadding(
+                        chipView.getPaddingLeft(),
+                        0,
+                        chipView.getPaddingRight(),
+                        0
+                );
+                word.setBackgroundResource(mLayout.isEditHalfWidth(id)
+                        ? R.drawable.boom_edit_chips_punctuate_space
+                        : R.drawable.boom_edit_chips_bg);
+                word.setTextColor(mActivity.getResources().getColorStateList(
+                        R.color.boom_chip_text_color));
+                final ViewGroup.LayoutParams editParams = word.getLayoutParams();
+                editParams.height = getActiveChipRowHeight();
+                word.setLayoutParams(editParams);
+                if (!mLayout.isEditHalfWidth(id)) {
+                    // Keep CJK/emoji at the original editor's 24dp minimum.
+                    word.setMinWidth(mLayout.getEditWordMinWidth());
+                }
+            }
             if (mLayout.isEditHalfWidth(id)) {
                 final int width = mLayout.getEditHalfWidthChipWidth();
                 // Preserve vertical inset only so the compact chip still has room to render its glyph.

@@ -10,6 +10,7 @@ import android.graphics.PorterDuffXfermode
 import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -240,6 +242,10 @@ internal fun OverlayHeaderBar(
     topInset: Dp = 0.dp,
     leftInset: Dp = 0.dp,
     rightInset: Dp = 0.dp,
+    contentHeight: Dp = 52.dp,
+    horizontalPadding: Dp = 14.dp,
+    leadingItemSpacing: Dp = 8.dp,
+    trailingItemSpacing: Dp = 8.dp,
     leading: @Composable RowScope.() -> Unit,
     center: @Composable BoxScope.() -> Unit,
     trailing: @Composable RowScope.() -> Unit,
@@ -247,18 +253,18 @@ internal fun OverlayHeaderBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp + topInset)
+            .height(contentHeight + topInset)
             .background(backgroundColor)
             .absolutePadding(
-                left = 14.dp + leftInset,
+                left = horizontalPadding + leftInset,
                 top = topInset,
-                right = 14.dp + rightInset,
+                right = horizontalPadding + rightInset,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(leadingItemSpacing),
             verticalAlignment = Alignment.CenterVertically,
             content = leading,
         )
@@ -269,7 +275,7 @@ internal fun OverlayHeaderBar(
         )
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            horizontalArrangement = Arrangement.spacedBy(trailingItemSpacing, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
             content = trailing,
         )
@@ -282,6 +288,8 @@ internal fun OverlayBottomBar(
     bottomInset: Dp = 0.dp,
     leftInset: Dp = 0.dp,
     rightInset: Dp = 0.dp,
+    contentHeight: Dp = 52.dp,
+    horizontalPadding: Dp = 14.dp,
     leading: @Composable BoxScope.() -> Unit = {},
     center: @Composable BoxScope.() -> Unit = {},
     trailing: @Composable BoxScope.() -> Unit = {},
@@ -289,11 +297,11 @@ internal fun OverlayBottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp + bottomInset)
+            .height(contentHeight + bottomInset)
             .background(backgroundColor)
             .absolutePadding(
-                left = 14.dp + leftInset,
-                right = 14.dp + rightInset,
+                left = horizontalPadding + leftInset,
+                right = horizontalPadding + rightInset,
                 bottom = bottomInset,
             ),
         verticalAlignment = Alignment.CenterVertically,
@@ -325,17 +333,23 @@ internal fun OverlayBottomBar(
 @Composable
 internal fun OverlayIconAction(
     iconRes: Int,
-    tint: Color,
+    tint: Color?,
     enabled: Boolean = true,
     onClick: () -> Unit,
     contentDescription: String,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed = interactionSource.collectIsPressedAsState().value
     Box(
         modifier = Modifier
             .requiredWidth(36.dp)
             .requiredHeight(36.dp)
+            .graphicsLayer {
+                scaleX = if (pressed) 0.92f else 1f
+                scaleY = if (pressed) 0.92f else 1f
+            }
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
@@ -350,8 +364,15 @@ internal fun OverlayIconAction(
             },
             update = { view ->
                 view.setImageResource(iconRes)
+                view.isEnabled = enabled
+                view.isPressed = pressed
                 view.contentDescription = contentDescription
-                view.setColorFilter(tint.toArgb())
+                if (tint == null) {
+                    // Original selector PNGs already contain their precise color and disabled alpha.
+                    view.clearColorFilter()
+                } else {
+                    view.setColorFilter(tint.toArgb())
+                }
             },
         )
     }
@@ -365,12 +386,18 @@ internal fun OverlayIconAction(
     onClick: () -> Unit,
     contentDescription: String,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed = interactionSource.collectIsPressedAsState().value
     Box(
         modifier = Modifier
             .requiredWidth(36.dp)
             .requiredHeight(36.dp)
+            .graphicsLayer {
+                scaleX = if (pressed) 0.92f else 1f
+                scaleY = if (pressed) 0.92f else 1f
+            }
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
