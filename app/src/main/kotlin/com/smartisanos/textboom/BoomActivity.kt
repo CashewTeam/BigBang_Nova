@@ -1,5 +1,7 @@
 package com.cashewteam.novatext.android
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -69,6 +71,7 @@ import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
     private enum class PendingDiscardAction {
+        EXIT_EDIT,
         DISMISS,
         NEW_INTENT,
     }
@@ -145,6 +148,7 @@ class BoomActivity : ComponentActivity() {
                 onDismissFinished = { finish() },
                 showDiscardConfirmation = pendingDiscardAction != null,
                 onConfirmDiscard = { confirmDiscard() },
+                onSaveEditToClipboard = { saveEditToClipboardAndContinue() },
                 onCancelDiscard = { cancelDiscard() },
                 onOcr = { reopenManualOcr() },
                 onLanguageSelected = { rerunOcrWithLanguage(it) },
@@ -155,7 +159,7 @@ class BoomActivity : ComponentActivity() {
                 editCanUndo = editCanUndo,
                 editCanRedo = editCanRedo,
                 onEditMode = { enterEditMode() },
-                onExitEditMode = { exitEditMode() },
+                onExitEditMode = { requestExitEditMode() },
                 onShowKeyboard = { boomChipPage?.showEditorKeyboard() },
                 onSelectAll = { selectAll() },
                 onUndo = { boomChipPage?.undoEdit() },
@@ -260,10 +264,16 @@ class BoomActivity : ComponentActivity() {
             discardDismissAuthorized = false
             return true
         }
+        // A dirty edit session takes priority over clearing a transient chip
+        // selection: an explicit close must always preserve the user's chance
+        // to keep or discard the edited text.
+        if (boomChipPage?.isEditDirty == true) {
+            return requestDiscardConfirmation(PendingDiscardAction.DISMISS)
+        }
         if (boomChipPage?.handleClick() == true) {
             return false
         }
-        return requestDiscardConfirmation(PendingDiscardAction.DISMISS)
+        return true
     }
 
     fun requestAnimatedDismissFromLegacy() {
@@ -291,10 +301,26 @@ class BoomActivity : ComponentActivity() {
     }
 
     private fun confirmDiscard() {
-        when (pendingDiscardAction) {
+        completePendingDiscardAction()
+    }
+
+    private fun saveEditToClipboardAndContinue() {
+        val text = boomChipPage?.editText ?: return
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
+        Toast.makeText(this, R.string.bigbang_edit_saved_clipboard, Toast.LENGTH_SHORT).show()
+        completePendingDiscardAction()
+    }
+
+    private fun completePendingDiscardAction() {
+        val action = pendingDiscardAction
+        val nextIntent = pendingIncomingIntent
+        pendingDiscardAction = null
+        pendingIncomingIntent = null
+        when (action) {
+            PendingDiscardAction.EXIT_EDIT -> discardEditModeAndReturn()
+
             PendingDiscardAction.DISMISS -> {
-                pendingDiscardAction = null
-                pendingIncomingIntent = null
                 // The animation callback asks shouldDismissPage once more. Keep
                 // this single-use permit so the dialog is not shown twice.
                 discardDismissAuthorized = true
@@ -302,9 +328,6 @@ class BoomActivity : ComponentActivity() {
             }
 
             PendingDiscardAction.NEW_INTENT -> {
-                val nextIntent = pendingIncomingIntent
-                pendingDiscardAction = null
-                pendingIncomingIntent = null
                 if (nextIntent != null) {
                     acceptNewIntent(nextIntent)
                 }
@@ -380,6 +403,27 @@ class BoomActivity : ComponentActivity() {
             return
         }
         editMode = true
+    }
+
+    private fun requestExitEditMode() {
+        if (!editMode || editTransitioning) {
+            return
+        }
+        if (requestDiscardConfirmation(PendingDiscardAction.EXIT_EDIT)) {
+            exitEditMode()
+        }
+    }
+
+    private fun discardEditModeAndReturn() {
+        val page = boomChipPage ?: return
+        val segment = currentSegment ?: return
+        editCommitRequest++
+        editTransitioning = false
+        if (page.discardEditMode(segment, currentText)) {
+            editMode = false
+        } else {
+            Toast.makeText(this, R.string.bigbang_edit_discard_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun exitEditMode() {
@@ -760,6 +804,7 @@ private fun BigBangOverlayContent(
     onDismissFinished: () -> Unit,
     showDiscardConfirmation: Boolean,
     onConfirmDiscard: () -> Unit,
+    onSaveEditToClipboard: () -> Unit,
     onCancelDiscard: () -> Unit,
     onOcr: () -> Unit,
     onLanguageSelected: (String) -> Unit,
@@ -1106,17 +1151,28 @@ private fun BigBangOverlayContent(
                 )
             },
             confirmButton = {
-                TextButton(onClick = onConfirmDiscard) {
-                    androidx.compose.material3.Text(
-                        text = stringResource(R.string.bigbang_edit_discard_confirm),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onCancelDiscard) {
-                    androidx.compose.material3.Text(
-                        text = stringResource(R.string.bigbang_edit_discard_cancel),
-                    )
+                // Keep the destructive choice at the far left, followed by
+                // continuing the session and the non-destructive clipboard exit.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TextButton(onClick = onConfirmDiscard) {
+                        androidx.compose.material3.Text(
+                            text = stringResource(R.string.bigbang_edit_discard_confirm),
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    TextButton(onClick = onCancelDiscard) {
+                        androidx.compose.material3.Text(
+                            text = stringResource(R.string.bigbang_edit_discard_cancel),
+                        )
+                    }
+                    TextButton(onClick = onSaveEditToClipboard) {
+                        androidx.compose.material3.Text(
+                            text = stringResource(R.string.bigbang_edit_discard_save_clipboard),
+                        )
+                    }
                 }
             },
         )

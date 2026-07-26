@@ -241,11 +241,12 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         return type == 0 ? 3 : type - 1;
     }
 
-    private void copy(String text) {
+    private void copy(String text, int toolbarActionId) {
         mToast.setText(mBoomPage.mActivity.getResources().getString(R.string.copy_tips));
         mToast.show();
         ClipboardManager clipboard = (ClipboardManager) mBoomPage.mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText(null, text));
+        mBoomPage.playCopyChipAnimation(toolbarActionId);
     }
 
     public void search(String text, int type) {
@@ -312,7 +313,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             } else if (actionId == R.id.all_cut) {
                 mBoomPage.cutEditSelection();
             } else if (actionId == R.id.all_share) {
-                mBoomPage.copyEditSelection();
+                mBoomPage.copyEditSelection(actionId);
             } else if (actionId == R.id.all_copy) {
                 mBoomPage.pasteEditSelection();
             }
@@ -327,7 +328,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         } else if (actionId == R.id.all_share) {
             share();
         } else if (actionId == R.id.all_copy) {
-            copy(getSelectedText());
+            copy(getSelectedText(), actionId);
         }
     }
 
@@ -406,6 +407,15 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         // Edit icons carry the original disabled bitmap in their selectors;
         // applying an extra alpha here would make that state darker than stock.
         button.setAlpha(enabled || mBoomPage.isEditMode() ? 1f : 0.38f);
+    }
+
+    /** Returns the on-screen toolbar instance, including the pinned fake bar. */
+    ImageView getVisibleToolbarAction(int actionId) {
+        final RelativeLayout toolbar = mFakeSelectBar != null
+                && mFakeSelectBar.getVisibility() == View.VISIBLE
+                ? mFakeSelectBar
+                : mSelectBar;
+        return toolbar == null ? null : (ImageView) toolbar.findViewById(actionId);
     }
 
     /** Matches the original edit-selection bar: delete | cancel | cut, copy, paste. */

@@ -290,6 +290,26 @@ public class BoomAnimator {
         animatorSet.start();
     }
 
+    /**
+     * Original copy feedback: a selected chip clone converges on the toolbar
+     * copy button while shrinking almost completely, without fading.
+     */
+    public static Animator makeCopyChipAnimator(final View view, float targetTranslationX,
+            float targetTranslationY) {
+        final AnimatorSet animatorSet = new AnimatorSet();
+        final Animator scaleAnimator = makeScaleAnimator(view, 1f, 0.01f, 300L);
+        final ObjectAnimator translationX = ObjectAnimator.ofFloat(
+                view, View.TRANSLATION_X, 0f, targetTranslationX);
+        final ObjectAnimator translationY = ObjectAnimator.ofFloat(
+                view, View.TRANSLATION_Y, 0f, targetTranslationY);
+        translationX.setDuration(300L);
+        translationY.setDuration(300L);
+        translationX.setInterpolator(mIterpolator);
+        translationY.setInterpolator(mIterpolator);
+        animatorSet.playTogether(scaleAnimator, translationX, translationY);
+        return animatorSet;
+    }
+
     public static void makeMoveAnimation(final View view, float startY, final float endY) {
         if (startY != endY) {
             AnimatorSet animatorSet = new AnimatorSet();

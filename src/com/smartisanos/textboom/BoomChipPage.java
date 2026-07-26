@@ -2,6 +2,7 @@ package com.cashewteam.novatext.android;
 
 import android.app.Activity;
 import android.animation.Animator;
+import android.animation.AnimatorSet;
 import android.animation.AnimatorListenerAdapter;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -30,6 +31,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.graphics.drawable.AnimationDrawable;
+import android.graphics.drawable.Drawable;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -75,6 +78,7 @@ public class BoomChipPage {
     private final int mTableBasePaddingBottom;
     private final FrameLayout mEditorOverlayHost;
     private final FrameLayout mEditMutationOverlay;
+    private final FrameLayout mCopyAnimationOverlay;
     private final BigCursorView mBigCursorView;
     private final EditorInputView mEditInput;
     private final ClipboardManager mClipboard;
@@ -97,6 +101,11 @@ public class BoomChipPage {
     // Original editor keeps the cursor hidden while its 300ms reflow animation runs.
     private boolean mEditMutationTransitionRunning;
     private int mEditMutationGeneration;
+    private Animator mCopyAnimationAnimator;
+    private int mCopyAnimationGeneration;
+    private ImageView mCopyAnimationTarget;
+    private Drawable mCopyAnimationTargetDrawable;
+    private Runnable mCopyIconRestoreRunnable;
 
     private static final long EDIT_MUTATION_TRANSITION_DURATION_MS = 300L;
     private static final long EDIT_INSERT_TRANSITION_DURATION_MS = 200L;
@@ -388,6 +397,14 @@ public class BoomChipPage {
         mEditMutationOverlay.setClipToPadding(false);
         mEditMutationOverlay.setClickable(false);
         mEditorOverlayHost.addView(mEditMutationOverlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        mCopyAnimationOverlay = new FrameLayout(mActivity);
+        mCopyAnimationOverlay.setClipChildren(false);
+        mCopyAnimationOverlay.setClipToPadding(false);
+        mCopyAnimationOverlay.setClickable(false);
+        mEditorOverlayHost.addView(mCopyAnimationOverlay, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
@@ -765,6 +782,10 @@ public class BoomChipPage {
 
     /** Original BigBang keeps the selected chips visible after copy. */
     public boolean copyEditSelection() {
+        return copyEditSelection(0);
+    }
+
+    boolean copyEditSelection(int toolbarActionId) {
         if (!canModifyEditText() || !hasEditSelection()) {
             return false;
         }
@@ -772,6 +793,9 @@ public class BoomChipPage {
             return false;
         }
         Toast.makeText(mActivity, R.string.copy_tips, Toast.LENGTH_SHORT).show();
+        if (toolbarActionId != 0) {
+            playCopyChipAnimation(toolbarActionId);
+        }
         return true;
     }
 
@@ -870,6 +894,7 @@ public class BoomChipPage {
         hideEditorKeyboard();
         dismissSymbolPanel();
         clearEditMutationOverlay();
+        clearCopyAnimationOverlay();
         mBigCursorView.hideCursor();
         mClipboard.removePrimaryClipChangedListener(mClipboardListener);
     }
@@ -2320,6 +2345,138 @@ public class BoomChipPage {
                 !hasEditSelection() && !TextUtils.isEmpty(clipboardText),
                 duration
         );
+    }
+
+    /**
+     * Recreates the stock copy feedback for both normal and edit toolbars:
+     * visible selected-chip snapshots shrink and flow into the actual toolbar
+     * button, including the pinned fake bar used after scrolling.
+     */
+    void playCopyChipAnimation(int toolbarActionId) {
+        final ImageView target = mBoomActionHandler.getVisibleToolbarAction(toolbarActionId);
+        if (target == null || target.getWidth() <= 0 || target.getHeight() <= 0
+                || !mBoomActionHandler.hasSelection()) {
+            return;
+        }
+        clearCopyAnimationOverlay();
+        final int generation = ++mCopyAnimationGeneration;
+        final int[] overlayLocation = new int[2];
+        final int[] targetLocation = new int[2];
+        mCopyAnimationOverlay.getLocationOnScreen(overlayLocation);
+        target.getLocationOnScreen(targetLocation);
+        final float targetCenterX = targetLocation[0] + target.getWidth() / 2f;
+        final float targetCenterY = targetLocation[1] + target.getHeight() / 2f;
+        final ArrayList<Animator> chipAnimators = new ArrayList<Animator>();
+        final Rect visibleRect = new Rect();
+        for (Integer selectedId : new TreeSet<Integer>(mBoomActionHandler.mSelectedId)) {
+            final BoomChip chip = findChipByIndex(selectedId);
+            if (chip == null || chip.container.getWidth() <= 0
+                    || chip.container.getHeight() <= 0
+                    || !chip.container.getGlobalVisibleRect(visibleRect)) {
+                continue;
+            }
+            final Bitmap bitmap = Bitmap.createBitmap(
+                    chip.container.getWidth(),
+                    chip.container.getHeight(),
+                    Bitmap.Config.ARGB_8888
+            );
+            chip.container.draw(new Canvas(bitmap));
+            final int[] chipLocation = new int[2];
+            chip.container.getLocationOnScreen(chipLocation);
+            final ImageView ghost = new ImageView(mActivity);
+            ghost.setImageBitmap(bitmap);
+            ghost.setScaleType(ImageView.ScaleType.FIT_XY);
+            ghost.setTag(bitmap);
+            final FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    chip.container.getWidth(), chip.container.getHeight());
+            params.leftMargin = chipLocation[0] - overlayLocation[0];
+            params.topMargin = chipLocation[1] - overlayLocation[1];
+            mCopyAnimationOverlay.addView(ghost, params);
+            chipAnimators.add(BoomAnimator.makeCopyChipAnimator(
+                    ghost,
+                    targetCenterX - chipLocation[0] - chip.container.getWidth() / 2f,
+                    targetCenterY - chipLocation[1] - chip.container.getHeight() / 2f
+            ));
+        }
+        if (chipAnimators.isEmpty()) {
+            recycleCopyAnimationClones();
+            return;
+        }
+        playOriginalCopyIconAnimation(target, generation);
+        final AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.playTogether(chipAnimators);
+        mCopyAnimationAnimator = animatorSet;
+        animatorSet.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (animation != mCopyAnimationAnimator) {
+                    return;
+                }
+                mCopyAnimationAnimator = null;
+                recycleCopyAnimationClones();
+            }
+        });
+        animatorSet.start();
+    }
+
+    private void playOriginalCopyIconAnimation(final ImageView target, final int generation) {
+        mCopyAnimationTarget = target;
+        mCopyAnimationTargetDrawable = target.getDrawable();
+        target.setImageResource(R.drawable.copy_animation);
+        final Drawable drawable = target.getDrawable();
+        if (!(drawable instanceof AnimationDrawable)) {
+            restoreCopyIcon();
+            return;
+        }
+        final AnimationDrawable animation = (AnimationDrawable) drawable;
+        int duration = 0;
+        for (int index = 0; index < animation.getNumberOfFrames(); ++index) {
+            duration += animation.getDuration(index);
+        }
+        animation.start();
+        mCopyIconRestoreRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (generation == mCopyAnimationGeneration) {
+                    restoreCopyIcon();
+                }
+            }
+        };
+        // Original keeps the last icon frame briefly after the word flow ends.
+        target.postDelayed(mCopyIconRestoreRunnable, duration + 150L);
+    }
+
+    private void clearCopyAnimationOverlay() {
+        ++mCopyAnimationGeneration;
+        final Animator animator = mCopyAnimationAnimator;
+        mCopyAnimationAnimator = null;
+        if (animator != null) {
+            animator.cancel();
+        }
+        restoreCopyIcon();
+        recycleCopyAnimationClones();
+    }
+
+    private void restoreCopyIcon() {
+        if (mCopyAnimationTarget != null && mCopyIconRestoreRunnable != null) {
+            mCopyAnimationTarget.removeCallbacks(mCopyIconRestoreRunnable);
+        }
+        if (mCopyAnimationTarget != null && mCopyAnimationTargetDrawable != null) {
+            mCopyAnimationTarget.setImageDrawable(mCopyAnimationTargetDrawable);
+        }
+        mCopyAnimationTarget = null;
+        mCopyAnimationTargetDrawable = null;
+        mCopyIconRestoreRunnable = null;
+    }
+
+    private void recycleCopyAnimationClones() {
+        for (int index = 0; index < mCopyAnimationOverlay.getChildCount(); ++index) {
+            final Object tag = mCopyAnimationOverlay.getChildAt(index).getTag();
+            if (tag instanceof Bitmap && !((Bitmap) tag).isRecycled()) {
+                ((Bitmap) tag).recycle();
+            }
+        }
+        mCopyAnimationOverlay.removeAllViews();
     }
 
     private void clearEditMutationOverlay() {
