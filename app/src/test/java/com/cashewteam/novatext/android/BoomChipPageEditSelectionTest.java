@@ -133,6 +133,26 @@ public class BoomChipPageEditSelectionTest {
     }
 
     @Test
+    public void cursorAnchorDoesNotMoveWhenTheControlStripReachesEitherScreenEdge() {
+        final int actionWidth = 141;
+        final int actionGap = 21;
+        final int leftSlot = BigCursorView.getCursorHandleSlot(
+                47f, 1080, 5 * actionWidth + 4 * actionGap,
+                actionWidth, actionGap, 51, 48);
+        final int rightSlot = BigCursorView.getCursorHandleSlot(
+                1033f, 1080, 5 * actionWidth + 4 * actionGap,
+                actionWidth, actionGap, 51, 48);
+
+        final int left = BigCursorView.getCursorControlsLeft(
+                47f, actionWidth, actionGap, leftSlot);
+        final int right = BigCursorView.getCursorControlsLeft(
+                1033f, actionWidth, actionGap, rightSlot);
+        assertEquals(47f, left + leftSlot * (actionWidth + actionGap) + actionWidth / 2f, 0.5f);
+        assertEquals(1033f,
+                right + rightSlot * (actionWidth + actionGap) + actionWidth / 2f, 0.5f);
+    }
+
+    @Test
     public void handleDragKeepsTheBlueInsertionAnchorUnderTheSameFingerDelta() {
         assertEquals(420f,
                 BigCursorView.mapHandleDragCoordinate(700f, 700f, 420f), 0f);

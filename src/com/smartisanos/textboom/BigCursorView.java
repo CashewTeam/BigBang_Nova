@@ -1,7 +1,9 @@
 package com.cashewteam.novatext.android;
 
 import android.content.Context;
+import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -19,7 +21,6 @@ import java.util.ArrayList;
  * cursor-offset state.
  */
 public final class BigCursorView extends FrameLayout {
-    private static final long CURSOR_BLINK_DELAY_MS = 500L;
     private static final long DELETE_REPEAT_DELAY_MS = 50L;
 
     public interface Callback {
@@ -49,8 +50,9 @@ public final class BigCursorView extends FrameLayout {
         void onCursorSymbol(float cursorX, float cursorTop, float cursorBottom);
     }
 
-    private final ImageView mHandle;
+    private final FrameLayout mHandle;
     private final ImageView mBlinkCursor;
+    private final AnimationDrawable mBlinkAnimation;
     private final ImageView mSpace;
     private final ImageView mSymbol;
     private final ImageView mDelete;
@@ -70,6 +72,11 @@ public final class BigCursorView extends FrameLayout {
     private final int mCursorBlinkHeight;
     private final int mCursorBlinkTopInset;
     private final int mCursorTopProtrusion;
+    private final int mDragPanelWidth;
+    private final int mDragPanelHeight;
+    private final int mDragPanelBottomMargin;
+    private final int mDragPanelLineWidth;
+    private final int mDragPanelLineHeight;
 
     private Callback mCallback;
     private float mCursorX;
@@ -77,7 +84,6 @@ public final class BigCursorView extends FrameLayout {
     private float mCursorBottom;
     private float mHandleCenterX;
     private boolean mCursorVisible;
-    private boolean mBlinkOn;
     private boolean mControlsBelowCursor;
     private boolean mHandleDragging;
     private boolean mHandleMovedBeyondSlop;
@@ -98,27 +104,13 @@ public final class BigCursorView extends FrameLayout {
             // callback that was already dequeued when the editor is frozen.
             if (mCursorVisible && mCallback != null) {
                 mHandleDragging = true;
-                // Keep the insertion line visible while the user's attention
-                // is on drag placement; the regular blink resumes on drop.
-                mBlinkOn = true;
-                updateBlinkCursorVisibility();
+                // Original BigBang holds the short insertion bar visible while
+                // the handle moves; its AnimationDrawable resumes on drop.
+                showSolidBlinkCursor();
                 setPasteShown(false);
-                removeCallbacks(mBlinkRunnable);
                 mCallback.onCursorHandleDragStart();
                 dispatchMappedCursorDrag();
             }
-        }
-    };
-
-    private final Runnable mBlinkRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!mCursorVisible) {
-                return;
-            }
-            mBlinkOn = !mBlinkOn;
-            updateBlinkCursorVisibility();
-            postDelayed(this, CURSOR_BLINK_DELAY_MS);
         }
     };
 
@@ -151,6 +143,11 @@ public final class BigCursorView extends FrameLayout {
         // The original white stem rises slightly above its word chip before
         // the short blue insertion bar aligns with the text line.
         mCursorTopProtrusion = Math.round(5f * density);
+        mDragPanelWidth = getDrawableWidth(R.drawable.boom_cursor_active_bg, 47f * density);
+        mDragPanelHeight = getDrawableHeight(R.drawable.boom_cursor_active_bg, 40f * density);
+        mDragPanelBottomMargin = Math.round(6f * density);
+        mDragPanelLineWidth = getDrawableWidth(R.drawable.boom_cursor_line, 3f * density);
+        mDragPanelLineHeight = getDrawableHeight(R.drawable.boom_cursor_line, 10f * density);
         mActionGap = Math.round(7f * density);
         mEdgeInset = Math.round(8f * density);
         mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -159,15 +156,50 @@ public final class BigCursorView extends FrameLayout {
         mContentLeftInset = getResources().getDimensionPixelSize(R.dimen.page_margin_left);
         mContentRightInset = getResources().getDimensionPixelSize(R.dimen.page_margin_right);
 
-        mHandle = new ImageView(getContext());
-        mHandle.setImageResource(R.drawable.boom_cursor_without_line);
-        mHandle.setScaleType(ImageView.ScaleType.FIT_XY);
+        mHandle = new FrameLayout(getContext());
         mHandle.setClickable(true);
         mHandle.setFocusable(true);
         mHandle.setContentDescription("拖动光标");
         addView(mHandle, new FrameLayout.LayoutParams(mHandleWidth, mHandleHeight));
+        final ImageView cursorFrame = new ImageView(getContext());
+        cursorFrame.setImageResource(R.drawable.boom_cursor_without_line);
+        cursorFrame.setScaleType(ImageView.ScaleType.FIT_XY);
+        mHandle.addView(cursorFrame, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        // The original cursor frame ends with a dark 47x40dp drag panel.  Its
+        // three narrow bars are separate assets, not a glyph drawn on the
+        // white circular base underneath.
+        final FrameLayout dragPanel = new FrameLayout(getContext());
+        dragPanel.setBackgroundResource(R.drawable.boom_cursor_active_bg);
+        final FrameLayout.LayoutParams dragPanelLayout = new FrameLayout.LayoutParams(
+                mDragPanelWidth,
+                mDragPanelHeight,
+                Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM
+        );
+        dragPanelLayout.bottomMargin = mDragPanelBottomMargin;
+        mHandle.addView(dragPanel, dragPanelLayout);
+        final int dragPanelLinesWidth = mDragPanelLineWidth * 3;
+        for (int i = 0; i < 3; ++i) {
+            final ImageView dragPanelLine = new ImageView(getContext());
+            dragPanelLine.setImageResource(R.drawable.boom_cursor_line);
+            dragPanelLine.setEnabled(false);
+            final FrameLayout.LayoutParams lineLayout = new FrameLayout.LayoutParams(
+                    mDragPanelLineWidth,
+                    mDragPanelLineHeight,
+                    Gravity.CENTER
+            );
+            lineLayout.leftMargin = (mDragPanelWidth - dragPanelLinesWidth) / 2
+                    + i * mDragPanelLineWidth;
+            lineLayout.gravity = Gravity.LEFT | Gravity.CENTER_VERTICAL;
+            dragPanel.addView(dragPanelLine, lineLayout);
+        }
         mBlinkCursor = new ImageView(getContext());
-        mBlinkCursor.setImageResource(R.drawable.boom_cursor);
+        // This is the original 500ms boom_cursor/transparent animation, kept
+        // separate from the white cursor frame so there is only one blue bar.
+        mBlinkCursor.setImageResource(R.drawable.flicker_anim);
+        mBlinkAnimation = (AnimationDrawable) mBlinkCursor.getDrawable();
         mBlinkCursor.setScaleType(ImageView.ScaleType.CENTER);
         mBlinkCursor.setEnabled(false);
         mBlinkCursor.setVisibility(INVISIBLE);
@@ -339,7 +371,6 @@ public final class BigCursorView extends FrameLayout {
 
     public void showCursor(float x, float top, float bottom, boolean pasteAvailable) {
         mCursorVisible = true;
-        mBlinkOn = true;
         mCursorX = x;
         mCursorTop = top;
         mCursorBottom = Math.max(top + 1f, bottom);
@@ -353,13 +384,12 @@ public final class BigCursorView extends FrameLayout {
         if (getVisibility() != VISIBLE) {
             setVisibility(VISIBLE);
         }
-        removeCallbacks(mBlinkRunnable);
         if (!mHandleDragging) {
-            postDelayed(mBlinkRunnable, CURSOR_BLINK_DELAY_MS);
+            showOriginalFlickerCursor();
+        } else {
+            showSolidBlinkCursor();
         }
-        updateBlinkCursorVisibility();
         requestLayout();
-        invalidate();
     }
 
     public void hideCursor() {
@@ -370,9 +400,8 @@ public final class BigCursorView extends FrameLayout {
         mPasteAvailable = false;
         mPasteShown = false;
         updatePasteVisibility();
-        updateBlinkCursorVisibility();
+        hideBlinkCursor();
         removeCallbacks(mStartDragRunnable);
-        removeCallbacks(mBlinkRunnable);
         removeCallbacks(mDeleteRepeatRunnable);
         setVisibility(GONE);
     }
@@ -390,7 +419,7 @@ public final class BigCursorView extends FrameLayout {
         setPasteShown(!mPasteShown);
     }
 
-    /** Hides a previously revealed paste affordance when its cursor offset changes. */
+    /** Hides a previously revealed paste affordance when editing invalidates it. */
     public void hidePaste() {
         setPasteShown(false);
     }
@@ -456,11 +485,15 @@ public final class BigCursorView extends FrameLayout {
                 mContentLeftInset,
                 mContentRightInset
         );
-        final int controlsLeft = clamp(
-                Math.round(mCursorX - mActionWidth / 2f
-                        - handleSlot * (mActionWidth + mActionGap)),
-                mEdgeInset,
-                Math.max(mEdgeInset, width - controlsWidth - mEdgeInset)
+        // The five-button strip may extend slightly beyond a screen edge, but
+        // its cursor slot must never be clamped away from the text insertion
+        // point.  Otherwise the visual blue/white cursor cannot reach a row's
+        // first or final character even though the offset resolver can.
+        final int controlsLeft = getCursorControlsLeft(
+                mCursorX,
+                mActionWidth,
+                mActionGap,
+                handleSlot
         );
         final int handleLeft = controlsLeft + handleSlot * (mActionWidth + mActionGap)
                 + (mActionWidth - mHandleWidth) / 2;
@@ -562,8 +595,28 @@ public final class BigCursorView extends FrameLayout {
                 actionLeft + mActionWidth, actionTop + mActionHeight);
     }
 
-    private void updateBlinkCursorVisibility() {
-        mBlinkCursor.setVisibility(mCursorVisible && mBlinkOn ? VISIBLE : INVISIBLE);
+    private void showOriginalFlickerCursor() {
+        if (!mCursorVisible) {
+            return;
+        }
+        if (mBlinkCursor.getDrawable() != mBlinkAnimation) {
+            mBlinkCursor.setImageDrawable(mBlinkAnimation);
+        }
+        mBlinkCursor.setVisibility(VISIBLE);
+        if (!mBlinkAnimation.isRunning()) {
+            mBlinkAnimation.start();
+        }
+    }
+
+    private void showSolidBlinkCursor() {
+        mBlinkAnimation.stop();
+        mBlinkCursor.setImageResource(R.drawable.boom_cursor);
+        mBlinkCursor.setVisibility(VISIBLE);
+    }
+
+    private void hideBlinkCursor() {
+        mBlinkAnimation.stop();
+        mBlinkCursor.setVisibility(INVISIBLE);
     }
 
     /**
@@ -586,6 +639,13 @@ public final class BigCursorView extends FrameLayout {
             return cursorX <= viewportWidth / 2f ? 0 : 4;
         }
         return clampStatic(2, minimumSlot, maximumSlot);
+    }
+
+    /** Keeps the handle centre exactly on the insertion X for every slot. */
+    static int getCursorControlsLeft(float cursorX, int actionWidth, int actionGap,
+            int handleSlot) {
+        return Math.round(cursorX - actionWidth / 2f
+                - handleSlot * (actionWidth + actionGap));
     }
 
     /** Pure transform used by the drag gesture and unit tests. */
