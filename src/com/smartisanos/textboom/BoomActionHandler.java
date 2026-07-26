@@ -4,7 +4,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Rect;
 import android.util.TypedValue;
 import android.view.View;
@@ -20,6 +22,16 @@ import com.cashewteam.novatext.android.data.BigBangSettings;
 import java.util.TreeSet;
 
 public class BoomActionHandler implements CustomScrollView.OnScrollListener {
+
+    /** Original black/white toolbar assets need their contrast reversed in the edit dark theme. */
+    private static final ColorMatrixColorFilter EDIT_DARK_INVERSION = new ColorMatrixColorFilter(
+            new float[]{
+                    -1f, 0f, 0f, 0f, 255f,
+                    0f, -1f, 0f, 0f, 255f,
+                    0f, 0f, -1f, 0f, 255f,
+                    0f, 0f, 0f, 1f, 0f
+            }
+    );
 
     private final BoomChipPage mBoomPage;
     private final Toast mToast;
@@ -401,6 +413,10 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
 
     private void setToolbarButton(ImageView button, int drawableRes, int descriptionRes, boolean enabled) {
         button.setImageResource(drawableRes);
+        // Only the newly introduced edit-mode grayscale assets are inverted.
+        // Red/blue edit feedback has no color filter applied anywhere else.
+        button.setColorFilter(mBoomPage.isEditMode() && isNightMode()
+                ? EDIT_DARK_INVERSION : null);
         button.setContentDescription(descriptionRes == 0
                 ? null : mBoomPage.mActivity.getString(descriptionRes));
         button.setEnabled(enabled);
@@ -416,6 +432,22 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
                 ? mFakeSelectBar
                 : mSelectBar;
         return toolbar == null ? null : (ImageView) toolbar.findViewById(actionId);
+    }
+
+    /**
+     * Reloading the selector, instead of retaining the click-time Drawable,
+     * clears the pressed white frame after the original copy animation ends.
+     */
+    int getToolbarActionDrawableRes(int actionId) {
+        if (mBoomPage.isEditMode()) {
+            return actionId == R.id.all_share ? R.drawable.boom_edit_selection_copy : 0;
+        }
+        return actionId == R.id.all_copy ? R.drawable.boom_chips_all_copy : 0;
+    }
+
+    private boolean isNightMode() {
+        return (mBoomPage.mActivity.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     /** Matches the original edit-selection bar: delete | cancel | cut, copy, paste. */
