@@ -945,6 +945,7 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     iconRes = R.drawable.action_bar_back_selector,
                                     tint = null,
+                                    invertAssetColors = dark,
                                     enabled = !editTransitioning,
                                     onClick = onExitEditMode,
                                     contentDescription = stringResource(R.string.bigbang_action_exit_edit),
@@ -952,6 +953,7 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     iconRes = R.drawable.action_bar_close_selector,
                                     tint = null,
+                                    invertAssetColors = dark,
                                     enabled = !editTransitioning,
                                     onClick = requestDismiss,
                                     contentDescription = stringResource(R.string.bigbang_action_close),
@@ -984,6 +986,7 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     iconRes = R.drawable.action_bar_choosetext_selector,
                                     tint = null,
+                                    invertAssetColors = dark,
                                     enabled = editSelectAllEnabled && !editTransitioning,
                                     onClick = onSelectAll,
                                     contentDescription = stringResource(
@@ -999,6 +1002,7 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     iconRes = R.drawable.action_bar_share_selector,
                                     tint = null,
+                                    invertAssetColors = dark,
                                     enabled = !editTransitioning,
                                     onClick = onShareAll,
                                     contentDescription = stringResource(R.string.bigbang_action_share_all),
@@ -1052,6 +1056,7 @@ private fun BigBangOverlayContent(
                                     OverlayIconAction(
                                         iconRes = R.drawable.action_bar_undo_selector,
                                         tint = null,
+                                        invertAssetColors = dark,
                                         enabled = editCanUndo && !editTransitioning,
                                         onClick = onUndo,
                                         contentDescription = stringResource(R.string.bigbang_action_undo),
@@ -1059,6 +1064,7 @@ private fun BigBangOverlayContent(
                                     OverlayIconAction(
                                         iconRes = R.drawable.action_bar_revoke_selector,
                                         tint = null,
+                                        invertAssetColors = dark,
                                         enabled = editCanRedo && !editTransitioning,
                                         onClick = onRedo,
                                         contentDescription = stringResource(R.string.bigbang_action_redo),
@@ -1078,6 +1084,7 @@ private fun BigBangOverlayContent(
                                 OverlayIconAction(
                                     iconRes = R.drawable.action_bar_keyboard_selector,
                                     tint = null,
+                                    invertAssetColors = dark,
                                     enabled = !editTransitioning,
                                     onClick = onShowKeyboard,
                                     contentDescription = stringResource(R.string.bigbang_action_keyboard),

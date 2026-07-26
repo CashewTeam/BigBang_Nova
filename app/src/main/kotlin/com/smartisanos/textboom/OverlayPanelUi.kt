@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -59,6 +61,16 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlin.math.ceil
 
 private val OverlayBottomBarContentOffset = (-2).dp
+private val InvertAssetColorFilter = ColorMatrixColorFilter(
+    ColorMatrix(
+        floatArrayOf(
+            -1f, 0f, 0f, 0f, 255f,
+            0f, -1f, 0f, 0f, 255f,
+            0f, 0f, -1f, 0f, 255f,
+            0f, 0f, 0f, 1f, 0f,
+        ),
+    ),
+)
 
 @Composable
 internal fun OverlayScene(
@@ -334,6 +346,7 @@ internal fun OverlayBottomBar(
 internal fun OverlayIconAction(
     iconRes: Int,
     tint: Color?,
+    invertAssetColors: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
     contentDescription: String,
@@ -367,7 +380,11 @@ internal fun OverlayIconAction(
                 view.isEnabled = enabled
                 view.isPressed = pressed
                 view.contentDescription = contentDescription
-                if (tint == null) {
+                if (tint == null && invertAssetColors) {
+                    // Edit top/bottom assets were authored for a white bar.
+                    // Reverse them in dark mode without affecting cursor/tool buttons.
+                    view.colorFilter = InvertAssetColorFilter
+                } else if (tint == null) {
                     // Original selector PNGs already contain their precise color and disabled alpha.
                     view.clearColorFilter()
                 } else {

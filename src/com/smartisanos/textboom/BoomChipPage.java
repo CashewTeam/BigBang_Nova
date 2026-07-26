@@ -10,6 +10,8 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Rect;
 import android.text.Editable;
 import android.text.InputType;
@@ -106,6 +108,13 @@ public class BoomChipPage {
     private ImageView mCopyAnimationTarget;
     private Drawable mCopyAnimationTargetDrawable;
     private Runnable mCopyIconRestoreRunnable;
+    private static final ColorMatrixColorFilter EDIT_BACKGROUND_INVERT_FILTER =
+            new ColorMatrixColorFilter(new ColorMatrix(new float[] {
+                    -1, 0, 0, 0, 255,
+                    0, -1, 0, 0, 255,
+                    0, 0, -1, 0, 255,
+                    0, 0, 0, 1, 0
+            }));
 
     private static final long EDIT_MUTATION_TRANSITION_DURATION_MS = 300L;
     private static final long EDIT_INSERT_TRANSITION_DURATION_MS = 200L;
@@ -2863,6 +2872,7 @@ public class BoomChipPage {
                             LinearLayout.LayoutParams.MATCH_PARENT, gapHeight));
                     View returnChip = new View(mActivity);
                     returnChip.setBackgroundResource(R.drawable.boom_edit_chips_punctuate_return);
+                    applyEditBackgroundInversion(returnChip, false);
                     returnChip.setContentDescription("换行符");
                     breakRow.addView(returnChip, new FrameLayout.LayoutParams(
                             mLayout.getEditHalfWidthChipWidth(), gapHeight));
@@ -3153,6 +3163,7 @@ public class BoomChipPage {
                 word.setBackgroundResource(mLayout.isEditWhitespace(id)
                         ? R.drawable.boom_edit_chips_punctuate_space
                         : R.drawable.boom_edit_chips_bg);
+                applyEditBackgroundInversion(word, false);
                 word.setTextColor(mActivity.getResources().getColorStateList(
                         R.color.boom_chip_text_color));
                 final ViewGroup.LayoutParams editParams = word.getLayoutParams();
@@ -3192,6 +3203,23 @@ public class BoomChipPage {
         public void setSelected(boolean selected) {
             word.setShadowLayer(selected ? 1.0f : 0, 0, -3.0f, 0x1f000000);
             word.setSelected(selected);
+            // Dark mode reverses only the stock white editor surface. Keep the
+            // original blue selected bitmap unchanged, like the cursor/tool buttons.
+            applyEditBackgroundInversion(word, selected);
+        }
+    }
+
+    private void applyEditBackgroundInversion(View view, boolean selected) {
+        if (!isEditMode() || view.getBackground() == null) {
+            return;
+        }
+        final int nightMode = mActivity.getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        final Drawable background = view.getBackground().mutate();
+        if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES && !selected) {
+            background.setColorFilter(EDIT_BACKGROUND_INVERT_FILTER);
+        } else {
+            background.clearColorFilter();
         }
     }
 
