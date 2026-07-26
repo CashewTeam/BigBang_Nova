@@ -71,7 +71,6 @@ import com.cashewteam.novatext.android.util.LogUtils
 
 class BoomActivity : ComponentActivity() {
     private enum class PendingDiscardAction {
-        EXIT_EDIT,
         DISMISS,
         NEW_INTENT,
     }
@@ -318,8 +317,6 @@ class BoomActivity : ComponentActivity() {
         pendingDiscardAction = null
         pendingIncomingIntent = null
         when (action) {
-            PendingDiscardAction.EXIT_EDIT -> discardEditModeAndReturn()
-
             PendingDiscardAction.DISMISS -> {
                 // The animation callback asks shouldDismissPage once more. Keep
                 // this single-use permit so the dialog is not shown twice.
@@ -409,21 +406,9 @@ class BoomActivity : ComponentActivity() {
         if (!editMode || editTransitioning) {
             return
         }
-        if (requestDiscardConfirmation(PendingDiscardAction.EXIT_EDIT)) {
-            exitEditMode()
-        }
-    }
-
-    private fun discardEditModeAndReturn() {
-        val page = boomChipPage ?: return
-        val segment = currentSegment ?: return
-        editCommitRequest++
-        editTransitioning = false
-        if (page.discardEditMode(segment, currentText)) {
-            editMode = false
-        } else {
-            Toast.makeText(this, R.string.bigbang_edit_discard_failed, Toast.LENGTH_SHORT).show()
-        }
+        // Original back commits the current edit session and returns to the
+        // normal BigBang surface; only the close/dismiss paths ask to discard.
+        exitEditMode()
     }
 
     private fun exitEditMode() {
@@ -903,7 +888,13 @@ private fun BigBangOverlayContent(
         panelVisible = true
     }
 
-    BackHandler(onBack = requestDismiss)
+    BackHandler(onBack = {
+        if (isEditMode) {
+            onExitEditMode()
+        } else {
+            requestDismiss()
+        }
+    })
     ApplyOverlaySystemBars(
         statusBarColor = if (panelMetrics.fullScreen) topBarColor else Color.Transparent,
         navigationBarColor = if (panelMetrics.fullScreen) bottomBarColor else Color.Transparent,

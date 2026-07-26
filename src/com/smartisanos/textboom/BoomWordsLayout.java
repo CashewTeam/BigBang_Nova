@@ -222,7 +222,10 @@ public class BoomWordsLayout {
                 if (touchedIndex >= start && touchedIndex < end) {
                     mTouchedIndex = mWords.size();
                 }
-                mWords.add(new Word(trim, start, false));
+                // A lone Latin letter or digit uses the same compact symbol
+                // chip as punctuation. Multi-character words/numbers retain
+                // the regular word width.
+                mWords.add(new Word(trim, start, isCompactNormalToken(trim)));
             }
             prev = end;
         }
@@ -279,6 +282,19 @@ public class BoomWordsLayout {
             return;
         }
         mHardBreaks.add(breakIndex);
+    }
+
+    private static boolean isCompactNormalToken(String text) {
+        if (text == null || text.length() == 0) {
+            return false;
+        }
+        final int codePoint = text.codePointAt(0);
+        if (text.length() != Character.charCount(codePoint)) {
+            return false;
+        }
+        return Character.isDigit(codePoint)
+                || (Character.isLetter(codePoint)
+                && Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.LATIN);
     }
 
     private int measureChip(int index) {
@@ -534,7 +550,10 @@ public class BoomWordsLayout {
             for (int offset = 0; offset < word.word.length();) {
                 final int codePoint = word.word.codePointAt(offset);
                 final int next = offset + Character.charCount(codePoint);
-                newWords.add(new Word(word.word.substring(offset, next), word.start + offset, false));
+                final String unit = word.word.substring(offset, next);
+                // Split Latin letters and digits must keep the same compact
+                // symbol width as a single-token normal layout.
+                newWords.add(new Word(unit, word.start + offset, isCompactNormalToken(unit)));
                 newSelected.add(newWords.size() - 1);
                 offset = next;
             }
