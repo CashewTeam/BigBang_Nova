@@ -392,11 +392,11 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
             return;
         }
         restoreNormalToolbarLayout(first, second, third, fourth, fifth);
-        setToolbarButton(first, R.drawable.boom_chips_all_search, 0, true);
-        setToolbarButton(second, R.drawable.boom_chips_all_dict, 0, true);
-        setToolbarButton(third, R.drawable.boom_chips_all_cut, 0, true);
-        setToolbarButton(fourth, R.drawable.boom_chips_all_share, 0, true);
-        setToolbarButton(fifth, R.drawable.boom_chips_all_copy, 0, true);
+        setToolbarButton(first, R.drawable.selector_bigbang_btn_search, 0, true);
+        setToolbarButton(second, R.drawable.selector_bigbang_btn_dictionary, 0, true);
+        setToolbarButton(third, R.drawable.selector_bigbang_btn_participle, 0, true);
+        setToolbarButton(fourth, R.drawable.selector_bigbang_btn_share, 0, true);
+        setToolbarButton(fifth, R.drawable.selector_bigbang_btn_copy, 0, true);
     }
 
     private void setToolbarButton(ImageView button, int drawableRes, int descriptionRes, boolean enabled) {

@@ -13,21 +13,21 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentLeft="true"
-            android:src="@drawable/boom_chips_all_search" />
+            android:src="@drawable/selector_bigbang_btn_search" />
 
     <ImageView
             android:id="@+id/all_dict"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toRightOf="@+id/all_search"
-            android:src="@drawable/boom_chips_all_dict" />
+            android:src="@drawable/selector_bigbang_btn_dictionary" />
 
     <ImageView
             android:id="@+id/all_cut"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toRightOf="@+id/all_dict"
-            android:src="@drawable/boom_chips_all_cut" />
+            android:src="@drawable/selector_bigbang_btn_participle" />
 
     <ImageView
             android:id="@+id/all_share"
@@ -35,7 +35,7 @@
             android:layout_height="wrap_content"
             android:layout_marginRight="4dp"
             android:layout_toLeftOf="@+id/all_copy"
-            android:src="@drawable/boom_chips_all_share" />
+            android:src="@drawable/selector_bigbang_btn_share" />
 
     <ImageView
             android:id="@+id/all_copy"
@@ -43,5 +43,5 @@
             android:layout_height="wrap_content"
             android:layout_alignParentRight="true"
             android:layout_marginRight="1dp"
-            android:src="@drawable/boom_chips_all_copy" />
+            android:src="@drawable/selector_bigbang_btn_copy" />
 </RelativeLayout>

@@ -108,11 +108,13 @@ public class BoomChipPage {
     private ImageView mCopyAnimationTarget;
     private Drawable mCopyAnimationTargetDrawable;
     private Runnable mCopyIconRestoreRunnable;
-    private static final ColorMatrixColorFilter EDIT_BACKGROUND_INVERT_FILTER =
+    private static final ColorMatrixColorFilter EDIT_BACKGROUND_DARK_FILTER =
             new ColorMatrixColorFilter(new ColorMatrix(new float[] {
-                    -1, 0, 0, 0, 255,
-                    0, -1, 0, 0, 255,
-                    0, 0, -1, 0, 255,
+                    // The source white chip surface resolves to #2D2D2D,
+                    // preserving the original inversion while avoiding pure black.
+                    -1, 0, 0, 0, 300,
+                    0, -1, 0, 0, 300,
+                    0, 0, -1, 0, 300,
                     0, 0, 0, 1, 0
             }));
 
@@ -3217,7 +3219,7 @@ public class BoomChipPage {
                 & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
         final Drawable background = view.getBackground().mutate();
         if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES && !selected) {
-            background.setColorFilter(EDIT_BACKGROUND_INVERT_FILTER);
+            background.setColorFilter(EDIT_BACKGROUND_DARK_FILTER);
         } else {
             background.clearColorFilter();
         }
