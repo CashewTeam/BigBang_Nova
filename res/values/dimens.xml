@@ -33,4 +33,8 @@
 
     <dimen name="fake_select_bar_margin_top">33dp</dimen>
     <dimen name="fake_select_bar_margin_bottom">55dp</dimen>
+    <!-- Original multi-select toolbar uses 6dp between the right-side actions. -->
+    <dimen name="edit_selection_toolbar_gap">6dp</dimen>
+    <dimen name="edit_selection_toolbar_normal_share_margin">4dp</dimen>
+    <dimen name="edit_selection_toolbar_normal_copy_margin">1dp</dimen>
 </resources>

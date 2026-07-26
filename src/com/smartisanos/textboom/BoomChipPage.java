@@ -695,7 +695,8 @@ public class BoomChipPage {
         if (!canModifyEditText()) {
             return;
         }
-        clearEditSelectionForCursor();
+        // Opening the hidden IME is cursor-only. Keep any visible chip
+        // selection until an actual mutation consumes or cancels it.
         resetEditInputBuffer(getEditCursorOffset());
         mEditInput.requestFocus();
         mEditInput.post(new Runnable() {
@@ -868,6 +869,12 @@ public class BoomChipPage {
         final int rangeStart = mInputBufferOffset + start;
         final int rangeEnd = rangeStart + before;
         final String replacement = text.subSequence(start, start + count).toString();
+        // The hidden EditText receives the character before this callback. Consume an
+        // active chip selection in one mutation so ordinary keyboard input replaces it.
+        if (count > 0 && hasEditSelection()) {
+            replaceEditSelection(replacement);
+            return;
+        }
         final int selection = mEditInput.getSelectionStart();
         final int cursor = mInputBufferOffset + (selection < 0 ? start + count : selection);
         if (replaceEditRange(rangeStart, rangeEnd, replacement, cursor, false)) {
@@ -891,6 +898,9 @@ public class BoomChipPage {
     private boolean insertEditText(String text) {
         if (!canModifyEditText() || text == null || text.length() == 0) {
             return false;
+        }
+        if (hasEditSelection()) {
+            return replaceEditSelection(text);
         }
         prepareForDirectEdit();
         final int cursor = getEditCursorOffset();
@@ -1064,11 +1074,7 @@ public class BoomChipPage {
         return applyEditText(newText, cursorOffset, resetInputBuffer);
     }
 
-    /**
-     * Replaces every selected character range in one transaction. For a
-     * discontinuous selection the replacement is inserted once at the first
-     * range, while every selected range is removed without shifting later ones.
-     */
+    /** Replaces the editor's single contiguous selected character range in one transaction. */
     private boolean replaceEditSelection(String replacement) {
         if (!canModifyEditText() || !hasEditSelection()) {
             return false;
@@ -1348,7 +1354,8 @@ public class BoomChipPage {
         if (!canModifyEditText()) {
             return;
         }
-        clearEditSelectionForCursor();
+        // The stock editor keeps the blue selected chips and their action bar
+        // while the insertion handle is repositioned.
         resetEditInputBuffer(getEditCursorOffset());
         mCursorDragActive = true;
     }
@@ -1373,7 +1380,7 @@ public class BoomChipPage {
         if (!canModifyEditText()) {
             return;
         }
-        clearEditSelectionForCursor();
+        // Moving a caret is not a text edit and must not discard selection.
         updateEditCursorOffset(
                 findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY),
                 false,
@@ -1789,7 +1796,12 @@ public class BoomChipPage {
             return true;
         }
         final String text = mLayout.getOriText();
-        final Serializable selectedState = captureSelectedState();
+        final Serializable savedSelection = captureSelectedState();
+        // Normal mode permits disjoint selections. Editing has one replacement
+        // range, so include every source character between its two outer bounds.
+        final Serializable selectedState = savedSelection instanceof int[][]
+                ? collapseSelectionRangesForEdit((int[][]) savedSelection)
+                : savedSelection;
         if (!mLayout.layoutEditWords(text)) {
             return false;
         }
@@ -1959,6 +1971,30 @@ public class BoomChipPage {
         }
     }
 
+    /**
+     * Reconciles transient chip touch feedback with the editor's one contiguous
+     * selection range. Normal BigBang mode intentionally keeps its original
+     * multi-select behaviour.
+     */
+    void syncEditChipSelectionVisuals(TreeSet<Integer> selectedIds) {
+        if (!isEditMode()) {
+            return;
+        }
+        for (int i = 0; i < mLayout.getRowCount(); ++i) {
+            final LinearLayout row = getChipRow(i);
+            if (row == null) {
+                continue;
+            }
+            for (int j = 0; j < row.getChildCount(); ++j) {
+                final View child = row.getChildAt(j);
+                if (child.getTag() instanceof BoomChip) {
+                    final BoomChip chip = (BoomChip) child.getTag();
+                    chip.setSelected(selectedIds != null && selectedIds.contains(chip.index));
+                }
+            }
+        }
+    }
+
     public void moveChipRow(int row, float to) {
         View child = mBoomConent.getChildAt(row);
         BoomAnimator.makeMoveAnimation(child, child.getTranslationY(), to);
@@ -2018,6 +2054,27 @@ public class BoomChipPage {
             return compactRanges;
         }
         return null;
+    }
+
+    /**
+     * The legacy view can retain several ordinary-mode ranges. Editor entry
+     * deliberately turns them into the one continuous range that an edit
+     * replacement operation can represent, preserving whitespace between them.
+     */
+    static int[][] collapseSelectionRangesForEdit(int[][] ranges) {
+        if (ranges == null || ranges.length == 0) {
+            return null;
+        }
+        int first = Integer.MAX_VALUE;
+        int last = Integer.MIN_VALUE;
+        for (int[] range : ranges) {
+            if (range == null || range.length < 2) {
+                continue;
+            }
+            first = Math.min(first, Math.min(range[0], range[1]));
+            last = Math.max(last, Math.max(range[0], range[1]));
+        }
+        return first < last ? new int[][]{{first, last}} : null;
     }
 
     public void restoreSelectedState(Serializable savedState) {
@@ -2217,14 +2274,27 @@ public class BoomChipPage {
             final int count = mLayout.getColumnCount(i);
             if (mLayout.isGapRow(i)) {
                 final int rowHeight = getActiveChipRowHeight();
-                final int gapHeight = Math.round(
-                        rowHeight * BigBangSettings.get(mActivity).getGapRowHeightPercent() / 100f
-                );
-                View spacer = new View(mActivity);
-                spacer.setLayoutParams(new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        gapHeight));
-                mBoomConent.addView(spacer);
+                final int gapHeight = getGapRowHeight(rowHeight, isEditMode(),
+                        mLayout.isEmptyGapRow(i),
+                        BigBangSettings.get(mActivity).getGapRowHeightPercent());
+                if (isEditMode()) {
+                    // A hard break is a visible original return chip, while its
+                    // row height still follows the configured line/empty spacing.
+                    FrameLayout breakRow = new FrameLayout(mActivity);
+                    breakRow.setLayoutParams(new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, gapHeight));
+                    View returnChip = new View(mActivity);
+                    returnChip.setBackgroundResource(R.drawable.boom_edit_chips_punctuate_return);
+                    returnChip.setContentDescription("换行符");
+                    breakRow.addView(returnChip, new FrameLayout.LayoutParams(
+                            mLayout.getEditHalfWidthChipWidth(), gapHeight));
+                    mBoomConent.addView(breakRow);
+                } else {
+                    View spacer = new View(mActivity);
+                    spacer.setLayoutParams(new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, gapHeight));
+                    mBoomConent.addView(spacer);
+                }
                 continue;
             }
             LinearLayout row = new LinearLayout(mActivity);
@@ -2266,6 +2336,14 @@ public class BoomChipPage {
         return mActivity.getResources().getDimensionPixelSize(isEditMode()
                 ? R.dimen.chip_row_height_edit
                 : R.dimen.chip_row_height);
+    }
+
+    /** Empty editor rows are 40dp; a lone line break keeps the configured spacing. */
+    static int getGapRowHeight(int rowHeight, boolean editMode, boolean isEmptyRow,
+                               int normalGapPercent) {
+        return editMode && isEmptyRow
+                ? rowHeight
+                : Math.round(rowHeight * normalGapPercent / 100f);
     }
 
     private boolean restoreSelectedState() {
@@ -2474,7 +2552,9 @@ public class BoomChipPage {
                         chipView.getPaddingRight(),
                         0
                 );
-                word.setBackgroundResource(mLayout.isEditHalfWidth(id)
+                // All ASCII/punctuation units are 18dp wide, but only actual
+                // whitespace uses the intentionally blank original background.
+                word.setBackgroundResource(mLayout.isEditWhitespace(id)
                         ? R.drawable.boom_edit_chips_punctuate_space
                         : R.drawable.boom_edit_chips_bg);
                 word.setTextColor(mActivity.getResources().getColorStateList(

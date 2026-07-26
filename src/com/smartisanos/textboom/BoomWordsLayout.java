@@ -31,6 +31,7 @@ public class BoomWordsLayout {
     private ArrayList<Integer> mRowStart = new ArrayList<Integer>();
     private ArrayList<Integer> mRowCount = new ArrayList<Integer>();
     private ArrayList<Boolean> mRowIsGap = new ArrayList<Boolean>();
+    private ArrayList<Boolean> mRowIsEmpty = new ArrayList<Boolean>();
     private ArrayList<Integer> mHardBreaks = new ArrayList<Integer>();
     private int[] mIdToRow;
     private int mTouchedIndex;
@@ -305,6 +306,7 @@ public class BoomWordsLayout {
         mRowCount.clear();
         mRowStart.clear();
         mRowIsGap.clear();
+        mRowIsEmpty.clear();
         mIdToRow = new int[mWords.size()];
         int hardBreakCursor = 0;
         for (int i = 0; i < mWords.size(); ++i) {
@@ -313,7 +315,7 @@ public class BoomWordsLayout {
                 if (count > 0) {
                     addRow(start, count, false);
                 }
-                addRow(i, 0, true);
+                addRow(i, 0, true, isEmptyHardBreak(hardBreakCursor, i));
                 start = i;
                 count = 0;
                 remain = mBoomPageWidth;
@@ -345,16 +347,32 @@ public class BoomWordsLayout {
             // A trailing or standalone newline is still an editable empty line.
             while (hardBreakCursor < mHardBreaks.size()
                     && mHardBreaks.get(hardBreakCursor) == mWords.size()) {
-                addRow(mWords.size(), 0, true);
+                addRow(mWords.size(), 0, true, isEmptyHardBreak(hardBreakCursor, mWords.size()));
                 ++hardBreakCursor;
             }
         }
     }
 
     private void addRow(int start, int count, boolean isGap) {
+        addRow(start, count, isGap, false);
+    }
+
+    private void addRow(int start, int count, boolean isGap, boolean isEmpty) {
         mRowStart.add(start);
         mRowCount.add(count);
         mRowIsGap.add(isGap);
+        mRowIsEmpty.add(isEmpty);
+    }
+
+    /** A repeated hard-break index denotes an actual empty line, not line spacing. */
+    static boolean isEmptyHardBreak(int hardBreakCursor, int currentWordIndex,
+                                    ArrayList<Integer> hardBreaks) {
+        return hardBreakCursor > 0
+                && hardBreaks.get(hardBreakCursor - 1) == currentWordIndex;
+    }
+
+    private boolean isEmptyHardBreak(int hardBreakCursor, int currentWordIndex) {
+        return isEmptyHardBreak(hardBreakCursor, currentWordIndex, mHardBreaks);
     }
 
     private boolean isHardBreakIndex(int index) {
@@ -377,6 +395,11 @@ public class BoomWordsLayout {
         return mRowIsGap.get(row);
     }
 
+    /** True for the blank row introduced by a second consecutive line break. */
+    public boolean isEmptyGapRow(int row) {
+        return mRowIsEmpty.get(row);
+    }
+
     public int getRowForIndex(int index) {
         if (index < 0 || index >= mIdToRow.length) {
             return 0;
@@ -397,6 +420,14 @@ public class BoomWordsLayout {
             return false;
         }
         return isEditHalfWidthUnit(mWords.get(index).word);
+    }
+
+    /** True only for an editable whitespace unit, never merely a narrow one. */
+    public boolean isEditWhitespace(int index) {
+        if (!mEditLayout || index < 0 || index >= mWords.size()) {
+            return false;
+        }
+        return isEditWhitespaceUnit(mWords.get(index).word);
     }
 
     /** Package-private so the editor's compact ASCII/space policy stays unit-testable. */
@@ -426,6 +457,16 @@ public class BoomWordsLayout {
             default:
                 return false;
         }
+    }
+
+    /** Package-private so background selection for spaces stays unit-testable. */
+    static boolean isEditWhitespaceUnit(String text) {
+        if (text == null || text.length() == 0) {
+            return false;
+        }
+        final int codePoint = text.codePointAt(0);
+        return text.length() == Character.charCount(codePoint)
+                && (Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint));
     }
 
     public int getEditHalfWidthChipWidth() {

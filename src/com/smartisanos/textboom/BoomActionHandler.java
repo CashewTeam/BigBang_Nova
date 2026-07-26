@@ -70,11 +70,15 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     public void onSelect(TreeSet<Integer> savedState) {
         mSelectedId.clear();
         final int wordCount = mBoomPage.mLayout.getWordCount();
-        for (Integer id : savedState) {
-            if (id < wordCount) {
-                mSelectedId.add(id);
+        if (savedState != null) {
+            for (Integer id : savedState) {
+                if (id != null && id >= 0 && id < wordCount) {
+                    mSelectedId.add(id);
+                }
             }
         }
+        normalizeEditSelectionToSingleBatch();
+        mBoomPage.syncEditChipSelectionVisuals(mSelectedId);
         if (!mSelectedId.isEmpty()) {
             onSelectInternal(mSelectedId.first(), mSelectedId.last());
         }
@@ -84,7 +88,32 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         for (int i = start; i <= end; ++i) {
             mSelectedId.add(new Integer(i));
         }
-        onSelectInternal(start, end);
+        normalizeEditSelectionToSingleBatch();
+        mBoomPage.syncEditChipSelectionVisuals(mSelectedId);
+        if (!mSelectedId.isEmpty()) {
+            onSelectInternal(mSelectedId.first(), mSelectedId.last());
+        }
+    }
+
+    /** Editor selections are a single replacement range; ordinary BigBang keeps multi-select. */
+    private void normalizeEditSelectionToSingleBatch() {
+        if (mBoomPage.isEditMode() && !mSelectedId.isEmpty()) {
+            final TreeSet<Integer> normalized = normalizeToSingleEditBatch(mSelectedId);
+            mSelectedId.clear();
+            mSelectedId.addAll(normalized);
+        }
+    }
+
+    /** Package-private for the edit-selection contract tests. */
+    static TreeSet<Integer> normalizeToSingleEditBatch(TreeSet<Integer> selectedIds) {
+        final TreeSet<Integer> normalized = new TreeSet<Integer>();
+        if (selectedIds == null || selectedIds.isEmpty()) {
+            return normalized;
+        }
+        for (int index = selectedIds.first(); index <= selectedIds.last(); ++index) {
+            normalized.add(index);
+        }
+        return normalized;
     }
 
     private void onSelectInternal(int start, int end) {
@@ -126,6 +155,8 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         for (int i = stat; i <= end; ++i) {
             mSelectedId.remove(new Integer(i));
         }
+        normalizeEditSelectionToSingleBatch();
+        mBoomPage.syncEditChipSelectionVisuals(mSelectedId);
         if (mSelectedId.size() > 0) {
             final int min = mBoomPage.mLayout.getRowForIndex(mSelectedId.first());
             final int max = mBoomPage.mLayout.getRowForIndex(mSelectedId.last());
@@ -335,6 +366,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         final ImageView fourth = (ImageView) toolbar.findViewById(R.id.all_share);
         final ImageView fifth = (ImageView) toolbar.findViewById(R.id.all_copy);
         if (mBoomPage.isEditMode()) {
+            configureEditToolbarLayout(first, second, third, fourth, fifth);
             final boolean editActionsEnabled = mBoomPage.canModifyEditText();
             setToolbarButton(first, R.drawable.boom_edit_selection_delete,
                     R.string.bigbang_edit_selection_delete, editActionsEnabled);
@@ -349,6 +381,7 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
                     editActionsEnabled && mBoomPage.hasEditClipboardText());
             return;
         }
+        restoreNormalToolbarLayout(first, second, third, fourth, fifth);
         setToolbarButton(first, R.drawable.boom_chips_all_search, 0, true);
         setToolbarButton(second, R.drawable.boom_chips_all_dict, 0, true);
         setToolbarButton(third, R.drawable.boom_chips_all_cut, 0, true);
@@ -361,7 +394,54 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         button.setContentDescription(descriptionRes == 0
                 ? null : mBoomPage.mActivity.getString(descriptionRes));
         button.setEnabled(enabled);
-        button.setAlpha(enabled ? 1f : 0.38f);
+        // Edit icons carry the original disabled bitmap in their selectors;
+        // applying an extra alpha here would make that state darker than stock.
+        button.setAlpha(enabled || mBoomPage.isEditMode() ? 1f : 0.38f);
+    }
+
+    /** Matches the original edit-selection bar: delete | cancel | cut, copy, paste. */
+    private void configureEditToolbarLayout(ImageView delete, ImageView cancel, ImageView cut,
+                                             ImageView copy, ImageView paste) {
+        final int gap = mBoomPage.mActivity.getResources().getDimensionPixelSize(
+                R.dimen.edit_selection_toolbar_gap);
+        placeToolbarButton(delete, RelativeLayout.ALIGN_PARENT_START, 0, 0, 0, 0);
+        placeToolbarButton(cancel, RelativeLayout.CENTER_HORIZONTAL, 0, 0, 0, 0);
+        placeToolbarButton(cut, RelativeLayout.LEFT_OF, copy.getId(), 0, gap, 0);
+        placeToolbarButton(copy, RelativeLayout.LEFT_OF, paste.getId(), 0, gap, 0);
+        placeToolbarButton(paste, RelativeLayout.ALIGN_PARENT_END, 0, 0, 0, 0);
+    }
+
+    private void restoreNormalToolbarLayout(ImageView search, ImageView dict, ImageView cut,
+                                             ImageView share, ImageView copy) {
+        placeToolbarButton(search, RelativeLayout.ALIGN_PARENT_START, 0, 0, 0, 0);
+        placeToolbarButton(dict, RelativeLayout.RIGHT_OF, search.getId(), 0, 0, 0);
+        placeToolbarButton(cut, RelativeLayout.RIGHT_OF, dict.getId(), 0, 0, 0);
+        placeToolbarButton(share, RelativeLayout.LEFT_OF, copy.getId(), 0,
+                mBoomPage.mActivity.getResources().getDimensionPixelSize(
+                        R.dimen.edit_selection_toolbar_normal_share_margin), 0);
+        placeToolbarButton(copy, RelativeLayout.ALIGN_PARENT_END, 0, 0,
+                mBoomPage.mActivity.getResources().getDimensionPixelSize(
+                        R.dimen.edit_selection_toolbar_normal_copy_margin), 0);
+    }
+
+    private void placeToolbarButton(ImageView button, int rule, int anchorId,
+                                    int leftMargin, int rightMargin, int topMargin) {
+        final RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams)
+                button.getLayoutParams();
+        params.removeRule(RelativeLayout.ALIGN_PARENT_START);
+        params.removeRule(RelativeLayout.ALIGN_PARENT_END);
+        params.removeRule(RelativeLayout.RIGHT_OF);
+        params.removeRule(RelativeLayout.LEFT_OF);
+        params.removeRule(RelativeLayout.CENTER_HORIZONTAL);
+        if (anchorId == 0) {
+            params.addRule(rule);
+        } else {
+            params.addRule(rule, anchorId);
+        }
+        params.leftMargin = leftMargin;
+        params.rightMargin = rightMargin;
+        params.topMargin = topMargin;
+        button.setLayoutParams(params);
     }
 
     private void notifyEditUiStateChanged() {

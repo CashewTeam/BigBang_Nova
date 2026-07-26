@@ -2,6 +2,9 @@ package com.cashewteam.novatext.android;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.TreeSet;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
@@ -36,6 +39,33 @@ public class BoomChipPageEditSelectionTest {
 
         assertEquals("X乙丁", mutation.text);
         assertEquals(1, mutation.cursorOffset);
+    }
+
+    @Test
+    public void editorEntryCollapsesDisjointNormalSelectionsAndIncludesTheirMiddleText() {
+        final int[][] editRange = BoomChipPage.collapseSelectionRangesForEdit(
+                new int[][]{{0, 1}, {3, 4}});
+
+        assertArrayEquals(new int[]{0, 4}, editRange[0]);
+        final BoomChipPage.EditTextMutation mutation = BoomChipPage.replaceSelectedText(
+                "甲乙丙丁", editRange, "X");
+        assertEquals("X", mutation.text);
+        assertEquals(1, mutation.cursorOffset);
+    }
+
+    @Test
+    public void editorSelectionIsAlwaysOneContiguousChipBatch() {
+        final TreeSet<Integer> selected = new TreeSet<Integer>();
+        selected.add(2);
+        selected.add(5);
+        selected.add(6);
+
+        final TreeSet<Integer> normalized = BoomActionHandler.normalizeToSingleEditBatch(selected);
+        final TreeSet<Integer> expected = new TreeSet<Integer>();
+        for (int index = 2; index <= 6; ++index) {
+            expected.add(index);
+        }
+        assertEquals(expected, normalized);
     }
 
     @Test
@@ -106,8 +136,33 @@ public class BoomChipPageEditSelectionTest {
     }
 
     @Test
+    public void onlyWhitespaceUsesTheBlankEditChipBackground() {
+        assertTrue(BoomWordsLayout.isEditWhitespaceUnit(" "));
+        assertTrue(BoomWordsLayout.isEditWhitespaceUnit("　"));
+        assertFalse(BoomWordsLayout.isEditWhitespaceUnit("A"));
+        assertFalse(BoomWordsLayout.isEditWhitespaceUnit(","));
+        assertFalse(BoomWordsLayout.isEditWhitespaceUnit("，"));
+    }
+
+    @Test
+    public void editEmptyRowsUseTheActualEditorLineHeightButLineBreaksKeepSpacing() {
+        assertEquals(20, BoomChipPage.getGapRowHeight(40, true, false, 50));
+        assertEquals(40, BoomChipPage.getGapRowHeight(40, true, true, 50));
+        assertEquals(20, BoomChipPage.getGapRowHeight(40, false, true, 50));
+    }
+
+    @Test
+    public void onlyRepeatedHardBreaksCreateAnEmptyEditorRow() {
+        ArrayList<Integer> breaks = new ArrayList<Integer>();
+        breaks.add(1); // A\nB: configured line spacing
+        assertFalse(BoomWordsLayout.isEmptyHardBreak(0, 1, breaks));
+        breaks.add(1); // A\n\nB: one actual empty 40dp row
+        assertTrue(BoomWordsLayout.isEmptyHardBreak(1, 1, breaks));
+    }
+
+    @Test
     public void emptyAndTrailingLinesKeepDistinctCursorAnchorOffsets() {
-        // The editor maps these break counts to actual 40dp gap rows after relayout.
+        // Repeated breaks map to 40dp empty rows; lone breaks use configured spacing.
         assertEquals(1, BoomChipPage.countLineBreaksBefore("甲\n", 2));
         assertEquals(2, BoomChipPage.countLineBreaksBefore("甲\n\n", 3));
         assertEquals(2, BoomChipPage.countLineBreaksBefore("\n\n乙", 2));

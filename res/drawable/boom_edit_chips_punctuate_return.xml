@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original BigBang return-chip artwork, including its selected blue state. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:drawable="@drawable/boom_edit_chips_punctuate_return_move" />
+    <item android:drawable="@drawable/boom_edit_chips_punctuate_return_normal" />
+</selector>
