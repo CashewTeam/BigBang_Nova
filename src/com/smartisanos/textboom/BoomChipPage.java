@@ -110,11 +110,11 @@ public class BoomChipPage {
     private Runnable mCopyIconRestoreRunnable;
     private static final ColorMatrixColorFilter EDIT_BACKGROUND_DARK_FILTER =
             new ColorMatrixColorFilter(new ColorMatrix(new float[] {
-                    // The source white chip surface resolves to #2D2D2D,
-                    // preserving the original inversion while avoiding pure black.
-                    -1, 0, 0, 0, 300,
-                    0, -1, 0, 0, 300,
-                    0, 0, -1, 0, 300,
+                    // Map the stock white editor surface to the same night
+                    // color as a normal BigBang word chip: #26303A.
+                    -1, 0, 0, 0, 293,
+                    0, -1, 0, 0, 303,
+                    0, 0, -1, 0, 313,
                     0, 0, 0, 1, 0
             }));
 
