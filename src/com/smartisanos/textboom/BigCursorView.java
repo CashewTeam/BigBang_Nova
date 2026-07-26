@@ -4,8 +4,6 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.content.res.Configuration;
-import android.graphics.ColorMatrixColorFilter;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
 import android.view.Gravity;
@@ -83,7 +81,6 @@ public final class BigCursorView extends FrameLayout {
     private final int mDragPanelBottomMargin;
     private final int mDragPanelLineWidth;
     private final int mDragPanelLineHeight;
-    private final ColorMatrixColorFilter mDarkModeInversion;
 
     private Callback mCallback;
     private float mCursorX;
@@ -139,12 +136,6 @@ public final class BigCursorView extends FrameLayout {
         setClipToPadding(false);
 
         final float density = getResources().getDisplayMetrics().density;
-        mDarkModeInversion = isNightMode(context) ? new ColorMatrixColorFilter(new float[]{
-                -1f, 0f, 0f, 0f, 255f,
-                0f, -1f, 0f, 0f, 255f,
-                0f, 0f, -1f, 0f, 255f,
-                0f, 0f, 0f, 1f, 0f
-        }) : null;
         // Keep the original xxhdpi assets at their intrinsic, density-scaled size.
         // The old layout used wrap_content for every one of these views.
         mHandleWidth = getDrawableWidth(R.drawable.boom_cursor_without_line, 47f * density);
@@ -177,7 +168,6 @@ public final class BigCursorView extends FrameLayout {
         addView(mHandle, new FrameLayout.LayoutParams(mHandleWidth, mHandleHeight));
         final ImageView cursorFrame = new ImageView(getContext());
         cursorFrame.setImageResource(R.drawable.boom_cursor_without_line);
-        invertGrayscaleAsset(cursorFrame);
         cursorFrame.setScaleType(ImageView.ScaleType.FIT_XY);
         mHandle.addView(cursorFrame, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -188,7 +178,6 @@ public final class BigCursorView extends FrameLayout {
         // white circular base underneath.
         final FrameLayout dragPanel = new FrameLayout(getContext());
         dragPanel.setBackgroundResource(R.drawable.boom_cursor_active_bg);
-        invertGrayscaleBackground(dragPanel);
         final FrameLayout.LayoutParams dragPanelLayout = new FrameLayout.LayoutParams(
                 mDragPanelWidth,
                 mDragPanelHeight,
@@ -200,7 +189,6 @@ public final class BigCursorView extends FrameLayout {
         for (int i = 0; i < 3; ++i) {
             final ImageView dragPanelLine = new ImageView(getContext());
             dragPanelLine.setImageResource(R.drawable.boom_cursor_line);
-            invertGrayscaleAsset(dragPanelLine);
             dragPanelLine.setEnabled(false);
             final FrameLayout.LayoutParams lineLayout = new FrameLayout.LayoutParams(
                     mDragPanelLineWidth,
@@ -661,11 +649,6 @@ public final class BigCursorView extends FrameLayout {
         view.setImageResource(iconRes);
         view.setScaleType(ImageView.ScaleType.CENTER);
         view.setBackgroundResource(backgroundRes);
-        // Red delete feedback is an accent asset and deliberately remains red.
-        if (backgroundRes == R.drawable.cursor_back_black_selector_extend) {
-            invertGrayscaleAsset(view);
-            invertGrayscaleBackground(view);
-        }
         view.setClickable(true);
         view.setFocusable(true);
         view.setOnTouchListener(new OnTouchListener() {
@@ -681,23 +664,6 @@ public final class BigCursorView extends FrameLayout {
             }
         });
         return view;
-    }
-
-    private boolean isNightMode(Context context) {
-        return (context.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-    }
-
-    private void invertGrayscaleAsset(ImageView view) {
-        if (mDarkModeInversion != null) {
-            view.setColorFilter(mDarkModeInversion);
-        }
-    }
-
-    private void invertGrayscaleBackground(View view) {
-        if (mDarkModeInversion != null && view.getBackground() != null) {
-            view.getBackground().setColorFilter(mDarkModeInversion);
-        }
     }
 
     private void animatePress(View view, boolean pressed) {

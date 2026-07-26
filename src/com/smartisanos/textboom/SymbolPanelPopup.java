@@ -1,9 +1,7 @@
 package com.cashewteam.novatext.android;
 
 import android.content.Context;
-import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.ColorMatrixColorFilter;
 import android.graphics.drawable.ColorDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -46,7 +44,6 @@ final class SymbolPanelPopup {
     private final int mPanelWidth;
     private final int mPanelHeight;
     private final int mArrowHeight;
-    private final ColorMatrixColorFilter mDarkModeInversion;
 
     private boolean mChinese = true;
     private int mPressedCell = -1;
@@ -57,18 +54,11 @@ final class SymbolPanelPopup {
         mPanelWidth = Math.round(PANEL_WIDTH_DP * density);
         mPanelHeight = Math.round(PANEL_HEIGHT_DP * density);
         mArrowHeight = Math.round(PANEL_ARROW_HEIGHT_DP * density);
-        mDarkModeInversion = isNightMode(context) ? new ColorMatrixColorFilter(new float[]{
-                -1f, 0f, 0f, 0f, 255f,
-                0f, -1f, 0f, 0f, 255f,
-                0f, 0f, -1f, 0f, 255f,
-                0f, 0f, 0f, 1f, 0f
-        }) : null;
 
         mRoot = new FrameLayout(context);
         mPanel = new LinearLayout(context);
         mPanel.setOrientation(LinearLayout.VERTICAL);
         mPanel.setBackgroundResource(R.drawable.sym_panel_bg);
-        invertGrayscaleBackground(mPanel);
         final int horizontalPadding = Math.round(15f * density);
         final int verticalPadding = Math.round(19f * density);
         mPanel.setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
@@ -90,10 +80,10 @@ final class SymbolPanelPopup {
                 TextView cell = new TextView(context);
                 cell.setGravity(Gravity.CENTER);
                 cell.setTextSize(15f);
-                cell.setTextColor(mDarkModeInversion == null ? 0x80000000 : 0x80FFFFFF);
+                cell.setTextColor(0x80000000);
                 cell.setIncludeFontPadding(false);
                 cell.setSingleLine(true);
-                setCellBackground(cell, backgroundForCell(index));
+                cell.setBackgroundResource(backgroundForCell(index));
                 cell.setContentDescription(index == 9 ? "切换中英文标点" : "插入符号");
                 cell.setOnTouchListener(new CellTouchListener(index));
                 line.addView(cell, new LinearLayout.LayoutParams(
@@ -106,7 +96,6 @@ final class SymbolPanelPopup {
 
         mArrow = new ImageView(context);
         mArrow.setImageResource(R.drawable.sym_panel_arrow);
-        invertGrayscaleAsset(mArrow);
         mRoot.addView(mArrow, new FrameLayout.LayoutParams(
                 Math.round(13f * density),
                 mArrowHeight,
@@ -163,7 +152,6 @@ final class SymbolPanelPopup {
         mArrow.setImageResource(showAbove
                 ? R.drawable.sym_panel_arrow_bottom
                 : R.drawable.sym_panel_arrow);
-        invertGrayscaleAsset(mArrow);
         FrameLayout.LayoutParams panelParams = (FrameLayout.LayoutParams) mPanel.getLayoutParams();
         panelParams.gravity = (showAbove ? Gravity.TOP : Gravity.BOTTOM) | Gravity.CENTER_HORIZONTAL;
         mPanel.setLayoutParams(panelParams);
@@ -174,7 +162,7 @@ final class SymbolPanelPopup {
         for (int index = 0; index < mCells.length; ++index) {
             if (index == 9) {
                 mCells[index].setText("");
-                setCellBackground(mCells[index], mChinese
+                mCells[index].setBackgroundResource(mChinese
                         ? R.drawable.symbol_bottom_left_selector_che
                         : R.drawable.symbol_bottom_left_selector_en);
             } else {
@@ -206,28 +194,6 @@ final class SymbolPanelPopup {
                 return R.drawable.symbol_bottom_mid_selector;
             default:
                 return R.drawable.symbol_bottom_right_selector;
-        }
-    }
-
-    private boolean isNightMode(Context context) {
-        return (context.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-    }
-
-    private void setCellBackground(TextView cell, int backgroundRes) {
-        cell.setBackgroundResource(backgroundRes);
-        invertGrayscaleBackground(cell);
-    }
-
-    private void invertGrayscaleAsset(ImageView view) {
-        if (mDarkModeInversion != null) {
-            view.setColorFilter(mDarkModeInversion);
-        }
-    }
-
-    private void invertGrayscaleBackground(View view) {
-        if (mDarkModeInversion != null && view.getBackground() != null) {
-            view.getBackground().setColorFilter(mDarkModeInversion);
         }
     }
 

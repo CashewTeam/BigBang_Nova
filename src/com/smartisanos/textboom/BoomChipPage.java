@@ -104,7 +104,7 @@ public class BoomChipPage {
     private Animator mCopyAnimationAnimator;
     private int mCopyAnimationGeneration;
     private ImageView mCopyAnimationTarget;
-    private int mCopyAnimationTargetDrawableRes;
+    private Drawable mCopyAnimationTargetDrawable;
     private Runnable mCopyIconRestoreRunnable;
 
     private static final long EDIT_MUTATION_TRANSITION_DURATION_MS = 300L;
@@ -2402,7 +2402,7 @@ public class BoomChipPage {
             recycleCopyAnimationClones();
             return;
         }
-        playOriginalCopyIconAnimation(target, toolbarActionId, generation);
+        playOriginalCopyIconAnimation(target, generation);
         final AnimatorSet animatorSet = new AnimatorSet();
         animatorSet.playTogether(chipAnimators);
         mCopyAnimationAnimator = animatorSet;
@@ -2419,11 +2419,9 @@ public class BoomChipPage {
         animatorSet.start();
     }
 
-    private void playOriginalCopyIconAnimation(final ImageView target, int toolbarActionId,
-                                               final int generation) {
+    private void playOriginalCopyIconAnimation(final ImageView target, final int generation) {
         mCopyAnimationTarget = target;
-        mCopyAnimationTargetDrawableRes = mBoomActionHandler.getToolbarActionDrawableRes(
-                toolbarActionId);
+        mCopyAnimationTargetDrawable = target.getDrawable();
         target.setImageResource(R.drawable.copy_animation);
         final Drawable drawable = target.getDrawable();
         if (!(drawable instanceof AnimationDrawable)) {
@@ -2463,15 +2461,11 @@ public class BoomChipPage {
         if (mCopyAnimationTarget != null && mCopyIconRestoreRunnable != null) {
             mCopyAnimationTarget.removeCallbacks(mCopyIconRestoreRunnable);
         }
-        if (mCopyAnimationTarget != null && mCopyAnimationTargetDrawableRes != 0) {
-            // Do not restore the Drawable captured while the button is pressed:
-            // its selector state is the white pressed artwork. Reloading the
-            // resource matches the original and lets ImageView select normal.
-            mCopyAnimationTarget.setImageResource(mCopyAnimationTargetDrawableRes);
-            mCopyAnimationTarget.refreshDrawableState();
+        if (mCopyAnimationTarget != null && mCopyAnimationTargetDrawable != null) {
+            mCopyAnimationTarget.setImageDrawable(mCopyAnimationTargetDrawable);
         }
         mCopyAnimationTarget = null;
-        mCopyAnimationTargetDrawableRes = 0;
+        mCopyAnimationTargetDrawable = null;
         mCopyIconRestoreRunnable = null;
     }
 
