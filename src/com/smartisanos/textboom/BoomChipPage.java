@@ -6,24 +6,30 @@ import android.animation.AnimatorListenerAdapter;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.util.LongSparseArray;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
+import android.view.ViewTreeObserver.OnPreDrawListener;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -42,6 +48,7 @@ import com.cashewteam.novatext.android.domain.capture.TextSessionCoordinator;
 import com.cashewteam.novatext.android.util.LogUtils;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.TreeSet;
 
 public class BoomChipPage {
@@ -67,6 +74,7 @@ public class BoomChipPage {
     private final int mTableBasePaddingTop;
     private final int mTableBasePaddingBottom;
     private final FrameLayout mEditorOverlayHost;
+    private final FrameLayout mEditMutationOverlay;
     private final BigCursorView mBigCursorView;
     private final EditorInputView mEditInput;
     private final ClipboardManager mClipboard;
@@ -84,6 +92,12 @@ public class BoomChipPage {
     private boolean mCursorUpdatePending;
     private boolean mCursorUpdateNeedsVisibility;
     private Runnable mCursorAutoScrollRunnable;
+    // Original editor keeps the cursor hidden while its 300ms reflow animation runs.
+    private boolean mEditMutationTransitionRunning;
+    private int mEditMutationGeneration;
+
+    private static final long EDIT_MUTATION_TRANSITION_DURATION_MS = 300L;
+    private static final long EDIT_INSERT_TRANSITION_DURATION_MS = 200L;
 
     Serializable mSavedData;
     private EditSessionState mEditSession;
@@ -364,6 +378,16 @@ public class BoomChipPage {
         mCancel.setOnClickListener(mDismissClickListener);
         mBoomActionHandler = new BoomActionHandler(this, mEnableLegacyMask);
         mClipboard = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
+        // Sits above the rebuilt text but below the large cursor. It hosts only
+        // transient snapshots of deleted chips, never the live text layout.
+        mEditMutationOverlay = new FrameLayout(mActivity);
+        mEditMutationOverlay.setClipChildren(false);
+        mEditMutationOverlay.setClipToPadding(false);
+        mEditMutationOverlay.setClickable(false);
+        mEditorOverlayHost.addView(mEditMutationOverlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
         mBigCursorView = new BigCursorView(mActivity);
         mBigCursorView.setCallback(new BigCursorView.Callback() {
             @Override
@@ -847,6 +871,7 @@ public class BoomChipPage {
         endCursorDrag();
         hideEditorKeyboard();
         dismissSymbolPanel();
+        clearEditMutationOverlay();
         mBigCursorView.hideCursor();
         mClipboard.removePrimaryClipChangedListener(mClipboardListener);
     }
@@ -915,6 +940,9 @@ public class BoomChipPage {
         if (!canModifyEditText()) {
             return false;
         }
+        if (hasEditSelection()) {
+            return deleteEditSelection();
+        }
         prepareForDirectEdit();
         final String text = mEditSession.text;
         final int cursor = getEditCursorOffset();
@@ -933,6 +961,9 @@ public class BoomChipPage {
         if (!canModifyEditText()) {
             return false;
         }
+        if (hasEditSelection()) {
+            return deleteEditSelection();
+        }
         prepareForDirectEdit();
         final String text = mEditSession.text;
         final int cursor = getEditCursorOffset();
@@ -947,6 +978,9 @@ public class BoomChipPage {
             boolean inCodePoints, int inputSelectionStart) {
         if (!canModifyEditText()) {
             return false;
+        }
+        if (hasEditSelection()) {
+            return deleteEditSelection();
         }
         final String text = mEditSession.text;
         final int cursor = clampEditOffset(text, mInputBufferOffset + inputSelectionStart);
@@ -1199,13 +1233,20 @@ public class BoomChipPage {
         }
         final EditHistorySnapshot beforeEdit = captureEditSnapshot();
         final int safeCursor = clampEditOffset(text, cursorOffset);
-        if (mEditSession.text.equals(text) || !mLayout.layoutEditWords(text)) {
+        final String previousText = mEditSession.text;
+        if (previousText.equals(text)) {
             return false;
         }
-        // A text mutation closes the optional paste affordance.  Cursor-only
-        // layout refreshes deliberately do not: otherwise a tap can flash it
-        // for one frame before the next anchor update arrives.
+        clearEditMutationOverlay();
+        // The stock editor records removed chips before mutating its data set.
+        final EditMutationTransition transition = captureEditMutationTransition(previousText, text);
+        if (!mLayout.layoutEditWords(text)) {
+            return false;
+        }
+        // Keep the original cursor controls rendered while text animates.
+        // Hiding the whole overlay caused an unrelated UI refresh flash.
         mBigCursorView.hidePaste();
+        mEditMutationTransitionRunning = true;
         mEditSession = new EditSessionState(
                 mEditSession.originalText,
                 text,
@@ -1214,11 +1255,10 @@ public class BoomChipPage {
                 appendHistorySnapshot(mEditSession.getUndoSnapshots(), beforeEdit),
                 new EditHistorySnapshot[0]
         );
-        rebuildChips(null);
+        rebuildChips(null, transition);
         if (resetInputBuffer) {
             resetEditInputBuffer(safeCursor);
         }
-        scheduleEditCursorUpdate(true);
         notifyEditUiStateChanged();
         return true;
     }
@@ -1472,6 +1512,9 @@ public class BoomChipPage {
             mBigCursorView.hideCursor();
             return;
         }
+        if (mEditMutationTransitionRunning) {
+            return;
+        }
         mCursorUpdateNeedsVisibility |= ensureVisible;
         if (mCursorUpdatePending) {
             return;
@@ -1483,6 +1526,9 @@ public class BoomChipPage {
                 final boolean shouldEnsureVisible = mCursorUpdateNeedsVisibility;
                 mCursorUpdatePending = false;
                 mCursorUpdateNeedsVisibility = false;
+                if (mEditMutationTransitionRunning) {
+                    return;
+                }
                 updateEditCursor(shouldEnsureVisible);
             }
         });
@@ -1791,6 +1837,118 @@ public class BoomChipPage {
         }
     }
 
+    /** A deleted chip captured before the live editor layout is rebuilt. */
+    private static final class DeletedChipSnapshot {
+        final Bitmap bitmap;
+        final float left;
+        final float top;
+        final int width;
+        final int height;
+
+        DeletedChipSnapshot(Bitmap bitmap, float left, float top, int width, int height) {
+            this.bitmap = bitmap;
+            this.left = left;
+            this.top = top;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    /** State needed for the original-style deleted-chip overlay transition. */
+    private static final class EditMutationTransition {
+        final int generation;
+        final int newChangeStart;
+        final int newChangeEnd;
+        final float insertionX;
+        final float insertionY;
+        final ArrayList<DeletedChipSnapshot> deletedChips;
+        final ArrayList<RetainedChipView> retainedChips;
+
+        EditMutationTransition(int generation, int newChangeStart, int newChangeEnd,
+                float insertionX, float insertionY,
+                ArrayList<DeletedChipSnapshot> deletedChips,
+                ArrayList<RetainedChipView> retainedChips) {
+            this.generation = generation;
+            this.newChangeStart = newChangeStart;
+            this.newChangeEnd = newChangeEnd;
+            this.insertionX = insertionX;
+            this.insertionY = insertionY;
+            this.deletedChips = deletedChips;
+            this.retainedChips = retainedChips;
+        }
+    }
+
+    /**
+     * Unchanged edit chips keep their original View/display list across a text
+     * mutation. Re-inflating every chip caused a visible full-grid refresh even
+     * though only one character was inserted or removed.
+     */
+    private static final class RetainedChipView {
+        final int newStart;
+        final int newEnd;
+        final BoomChip chip;
+
+        RetainedChipView(int newStart, int newEnd, BoomChip chip) {
+            this.newStart = newStart;
+            this.newEnd = newEnd;
+            this.chip = chip;
+        }
+    }
+
+    private static long editRangeKey(int start, int end) {
+        return ((long) start << 32) | (end & 0xffffffffL);
+    }
+
+    private EditMutationTransition captureEditMutationTransition(String oldText, String newText) {
+        final int generation = ++mEditMutationGeneration;
+        int prefix = 0;
+        final int sharedLength = Math.min(oldText.length(), newText.length());
+        while (prefix < sharedLength && oldText.charAt(prefix) == newText.charAt(prefix)) {
+            ++prefix;
+        }
+        int oldEnd = oldText.length();
+        int newEnd = newText.length();
+        while (oldEnd > prefix && newEnd > prefix
+                && oldText.charAt(oldEnd - 1) == newText.charAt(newEnd - 1)) {
+            --oldEnd;
+            --newEnd;
+        }
+        final CursorAnchor insertionAnchor = findEditCursorAnchor();
+        final int[] overlayLocation = new int[2];
+        mEditMutationOverlay.getLocationOnScreen(overlayLocation);
+        final ArrayList<DeletedChipSnapshot> deletedChips = new ArrayList<DeletedChipSnapshot>();
+        final ArrayList<RetainedChipView> retainedChips = new ArrayList<RetainedChipView>();
+        final int suffixOffset = newEnd - oldEnd;
+        for (int index = 0; index < mLayout.getWordCount(); ++index) {
+            final BoomChip chip = findChipByIndex(index);
+            final int wordStart = mLayout.getWordStart(index);
+            final int wordEnd = mLayout.getWordEnd(index);
+            if (chip == null) {
+                continue;
+            }
+            if (wordEnd <= prefix) {
+                retainedChips.add(new RetainedChipView(wordStart, wordEnd, chip));
+            } else if (wordStart >= oldEnd) {
+                retainedChips.add(new RetainedChipView(
+                        wordStart + suffixOffset, wordEnd + suffixOffset, chip));
+            }
+            if (wordStart >= oldEnd || wordEnd <= prefix
+                    || chip.container.getWidth() == 0 || chip.container.getHeight() == 0) {
+                continue;
+            }
+            final Bitmap bitmap = Bitmap.createBitmap(chip.container.getWidth(),
+                    chip.container.getHeight(), Bitmap.Config.ARGB_8888);
+            chip.container.draw(new Canvas(bitmap));
+            final int[] location = new int[2];
+            chip.container.getLocationOnScreen(location);
+            deletedChips.add(new DeletedChipSnapshot(bitmap,
+                    location[0] - overlayLocation[0], location[1] - overlayLocation[1],
+                    chip.container.getWidth(), chip.container.getHeight()));
+        }
+        return new EditMutationTransition(generation, prefix, newEnd,
+                insertionAnchor.x, insertionAnchor.top, deletedChips, retainedChips);
+    }
+
     public boolean enterEditMode() {
         if (isEditMode()) {
             return true;
@@ -1899,13 +2057,45 @@ public class BoomChipPage {
     }
 
     private void rebuildChips(Serializable selectedState) {
-        if (mBoomActionHandler != null) {
-            mBoomActionHandler.clearSelectionStateForRelayout();
+        ++mEditMutationGeneration;
+        mEditMutationTransitionRunning = false;
+        clearEditMutationOverlay();
+        rebuildChips(selectedState, null);
+    }
+
+    private void rebuildChips(Serializable selectedState, final EditMutationTransition transition) {
+        if (mBoomActionHandler != null
+                && (transition == null || mBoomActionHandler.hasSelection())) {
+            // applyEditText sends the final state notification after the new
+            // session and chips are ready; avoid both an intermediate empty UI
+            // state and a redundant selection-overlay layout when none exists.
+            mBoomActionHandler.clearSelectionStateForRelayout(transition == null);
         }
         mSavedData = selectedState;
-        mBoomConent.removeAllViews();
-        initChips(false);
-        if (selectedState != null || isEditMode()) {
+        final LongSparseArray<RetainedChipView> retainedChipPool =
+                detachRetainedEditChips(transition);
+        // Removing old rows and attaching the rebuilt row set is one layout
+        // transaction. This prevents an intermediate empty content traversal.
+        mBoomConent.suppressLayout(true);
+        try {
+            mBoomConent.removeAllViews();
+            initChips(false, retainedChipPool);
+        } finally {
+            mBoomConent.suppressLayout(false);
+        }
+        if (transition != null) {
+            // Global-layout can run after a traversal already prepared a draw
+            // on some devices. Prepare the old-position translations in the
+            // pre-draw phase so the new target layout never flashes for a frame.
+            mBoomConent.getViewTreeObserver().addOnPreDrawListener(new OnPreDrawListener() {
+                @Override
+                public boolean onPreDraw() {
+                    mBoomConent.getViewTreeObserver().removeOnPreDrawListener(this);
+                    animateEditMutationTransition(transition);
+                    return true;
+                }
+            });
+        } else if (selectedState != null || isEditMode()) {
             mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
                 @Override
                 public void onGlobalLayout() {
@@ -1917,6 +2107,113 @@ public class BoomChipPage {
                 }
             });
         }
+    }
+
+    private LongSparseArray<RetainedChipView> detachRetainedEditChips(
+            EditMutationTransition transition) {
+        if (transition == null || transition.retainedChips.isEmpty()) {
+            return null;
+        }
+        final LongSparseArray<RetainedChipView> result =
+                new LongSparseArray<RetainedChipView>(transition.retainedChips.size());
+        for (RetainedChipView retained : transition.retainedChips) {
+            final View chipView = retained.chip.container;
+            final ViewParent parent = chipView.getParent();
+            if (!(parent instanceof ViewGroup)) {
+                continue;
+            }
+            ((ViewGroup) parent).removeView(chipView);
+            result.put(editRangeKey(retained.newStart, retained.newEnd), retained);
+        }
+        return result;
+    }
+
+    /**
+     * The live rebuilt layout stays at its final coordinates throughout the
+     * transition. Only snapshots of chips removed by this mutation animate,
+     * matching the original delete scale/fade while preventing retained text
+     * from ever leaving the render tree.
+     */
+    private void animateEditMutationTransition(final EditMutationTransition transition) {
+        if (transition.generation != mEditMutationGeneration || !isEditMode()) {
+            return;
+        }
+        // Rebuilt retained chips must always start from a fully rendered state.
+        // Only chips overlapping the newly inserted source range are animated.
+        for (int index = 0; index < mLayout.getWordCount(); ++index) {
+            final BoomChip chip = findChipByIndex(index);
+            if (chip == null) {
+                continue;
+            }
+            chip.container.animate().cancel();
+            chip.container.setAlpha(1f);
+            chip.container.setScaleX(1f);
+            chip.container.setScaleY(1f);
+            chip.container.setTranslationX(0f);
+            chip.container.setTranslationY(0f);
+        }
+        if (transition.newChangeStart < transition.newChangeEnd) {
+            for (int index = 0; index < mLayout.getWordCount(); ++index) {
+                final int wordStart = mLayout.getWordStart(index);
+                final int wordEnd = mLayout.getWordEnd(index);
+                if (wordStart >= transition.newChangeEnd
+                        || wordEnd <= transition.newChangeStart) {
+                    continue;
+                }
+                final BoomChip chip = findChipByIndex(index);
+                if (chip == null) {
+                    continue;
+                }
+                // Original boom-in curve: scale/alpha 0 -> 1 over 200ms.
+                chip.container.setAlpha(0f);
+                chip.container.setScaleX(0f);
+                chip.container.setScaleY(0f);
+                BoomAnimator.makeBoomAnimation(chip.container);
+            }
+        }
+        for (DeletedChipSnapshot deletedChip : transition.deletedChips) {
+            final ImageView ghost = new ImageView(mActivity);
+            ghost.setImageBitmap(deletedChip.bitmap);
+            ghost.setScaleType(ImageView.ScaleType.FIT_XY);
+            ghost.setTag(deletedChip.bitmap);
+            final FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    deletedChip.width, deletedChip.height);
+            params.leftMargin = Math.round(deletedChip.left);
+            params.topMargin = Math.round(deletedChip.top);
+            mEditMutationOverlay.addView(ghost, params);
+            final float targetX = transition.insertionX - deletedChip.left
+                    - deletedChip.width / 2f;
+            final float targetY = transition.insertionY - deletedChip.top
+                    - deletedChip.height / 2f;
+            BoomAnimator.makeEditDeleteChipAnimation(ghost, targetX, targetY);
+        }
+        final long transitionDuration = transition.deletedChips.isEmpty()
+                ? EDIT_INSERT_TRANSITION_DURATION_MS
+                : EDIT_MUTATION_TRANSITION_DURATION_MS;
+        mBoomPage.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (transition.generation != mEditMutationGeneration || !isEditMode()) {
+                    return;
+                }
+                clearEditMutationOverlay();
+                mEditMutationTransitionRunning = false;
+                scheduleEditCursorUpdate(true);
+            }
+        }, transitionDuration);
+    }
+
+    private void clearEditMutationOverlay() {
+        for (int index = 0; index < mEditMutationOverlay.getChildCount(); ++index) {
+            final Object tag = mEditMutationOverlay.getChildAt(index).getTag();
+            if (tag instanceof Bitmap) {
+                final Bitmap bitmap = (Bitmap) tag;
+                if (!bitmap.isRecycled()) {
+                    bitmap.recycle();
+                }
+            }
+        }
+        mEditMutationOverlay.removeAllViews();
     }
 
     /**
@@ -2269,6 +2566,11 @@ public class BoomChipPage {
     }
 
     private void initChips(boolean animate) {
+        initChips(animate, null);
+    }
+
+    private void initChips(boolean animate,
+            LongSparseArray<RetainedChipView> retainedChipPool) {
         for (int i = 0; i < mLayout.getRowCount(); ++i) {
             final int start = mLayout.getRowStart(i);
             final int count = mLayout.getColumnCount(i);
@@ -2299,14 +2601,31 @@ public class BoomChipPage {
             }
             LinearLayout row = new LinearLayout(mActivity);
             row.setOrientation(LinearLayout.HORIZONTAL);
+            // Reflow starts a retained chip at its former row/column. Let the
+            // complete chip container travel across a row boundary un-clipped.
+            row.setClipChildren(false);
+            row.setClipToPadding(false);
             row.setLayoutParams(new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             for(int j = 0; j < count; ++j) {
                 boolean isPunc = mLayout.isPunc(start + j);
-                View chipView = mActivity.getLayoutInflater().inflate(
-                        isPunc ? R.layout.boom_punc_layout : R.layout.boom_chip_layout, null);
                 final int wordIndex = start + j;
-                BoomChip chip = new BoomChip(wordIndex, chipView);
+                final long rangeKey = editRangeKey(
+                        mLayout.getWordStart(wordIndex), mLayout.getWordEnd(wordIndex));
+                final RetainedChipView retained = retainedChipPool == null
+                        ? null : retainedChipPool.get(rangeKey);
+                final View chipView;
+                final BoomChip chip;
+                if (retained != null && retained.chip.punc == isPunc) {
+                    retainedChipPool.remove(rangeKey);
+                    chip = retained.chip;
+                    chipView = chip.container;
+                    chip.rebind(wordIndex);
+                } else {
+                    chipView = mActivity.getLayoutInflater().inflate(
+                            isPunc ? R.layout.boom_punc_layout : R.layout.boom_chip_layout, null);
+                    chip = new BoomChip(wordIndex, chipView);
+                }
                 chipView.setTag(chip);
                 if (mLayout.isEditHalfWidth(wordIndex)) {
                     // Constrain the root as well: its 9-patch background can otherwise widen the chip.
@@ -2320,7 +2639,6 @@ public class BoomChipPage {
             }
             mBoomConent.addView(row);
         }
-        mBoomConent.requestLayout();
         mScroller.post(new Runnable() {
             @Override
             public void run() {
@@ -2530,12 +2848,14 @@ public class BoomChipPage {
 
     public class BoomChip {
         int index;
+        View container;
         TextView word;
         boolean punc;
 
 
         public BoomChip(final int id, View chipView) {
             index = id;
+            container = chipView;
             punc = mLayout.isPunc(id);
             if (punc) {
                 word = (TextView) chipView.findViewById(R.id.punc);
@@ -2575,6 +2895,21 @@ public class BoomChipPage {
                 params.width = width;
                 word.setLayoutParams(params);
                 word.setWidth(width);
+            }
+        }
+
+        void rebind(int id) {
+            index = id;
+            punc = mLayout.isPunc(id);
+            container.animate().cancel();
+            container.clearAnimation();
+            container.setAlpha(1f);
+            container.setScaleX(1f);
+            container.setScaleY(1f);
+            container.setTranslationX(0f);
+            container.setTranslationY(0f);
+            if (word.isSelected()) {
+                setSelected(false);
             }
         }
 

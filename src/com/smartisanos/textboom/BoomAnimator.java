@@ -272,6 +272,24 @@ public class BoomAnimator {
         animatorSet.start();
     }
 
+    /** Original editor deletion: the removed chip contracts, fades and converges on the caret. */
+    public static void makeEditDeleteChipAnimation(final View view, float targetTranslationX,
+            float targetTranslationY) {
+        final AnimatorSet animatorSet = new AnimatorSet();
+        final Animator scaleAnimator = makeScaleAnimator(view, 1f, 0f, 300L);
+        final Animator alphaAnimator = makeAlphaAnimator(view, 1f, 0f, 300L);
+        final ObjectAnimator translationX = ObjectAnimator.ofFloat(
+                view, View.TRANSLATION_X, 0f, targetTranslationX);
+        final ObjectAnimator translationY = ObjectAnimator.ofFloat(
+                view, View.TRANSLATION_Y, 0f, targetTranslationY);
+        translationX.setDuration(300L);
+        translationY.setDuration(300L);
+        translationX.setInterpolator(mIterpolator);
+        translationY.setInterpolator(mIterpolator);
+        animatorSet.playTogether(scaleAnimator, alphaAnimator, translationX, translationY);
+        animatorSet.start();
+    }
+
     public static void makeMoveAnimation(final View view, float startY, final float endY) {
         if (startY != endY) {
             AnimatorSet animatorSet = new AnimatorSet();

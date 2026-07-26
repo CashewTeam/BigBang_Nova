@@ -191,6 +191,10 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
     }
 
     void clearSelectionStateForRelayout() {
+        clearSelectionStateForRelayout(true);
+    }
+
+    void clearSelectionStateForRelayout(boolean notifyStateChanged) {
         mSelectedId.clear();
         mSelectedTopRow = -1;
         mSelectedBottomRow = -1;
@@ -206,7 +210,9 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         if (mFakeSelectBar != null && mFakeSelectBar.getVisibility() == View.VISIBLE) {
             mFakeSelectBar.setVisibility(View.INVISIBLE);
         }
-        notifyEditUiStateChanged();
+        if (notifyStateChanged) {
+            notifyEditUiStateChanged();
+        }
     }
 
     private boolean isChineseWord(char c) {
