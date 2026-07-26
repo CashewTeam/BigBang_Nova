@@ -895,7 +895,10 @@ public class BoomChipPage {
 
     /** Refreshes the overlay after ordinary ScrollView scrolling. */
     public void onScrollerChanged() {
-        if (isEditMode()) {
+        if (isEditMode() && !mCursorDragActive) {
+            // The drag loop owns its mapped screen position. Re-anchoring from
+            // the committed offset here would fight the floating preview on
+            // every auto-scroll frame.
             scheduleEditCursorUpdate(false);
         }
     }

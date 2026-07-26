@@ -223,14 +223,16 @@ public final class BigCursorView extends FrameLayout {
                         mHandleDownRawY = event.getRawY();
                         mHandleLastRawX = mHandleDownRawX;
                         mHandleLastRawY = mHandleDownRawY;
-                        final int[] cursorHostLocation = new int[2];
-                        getLocationOnScreen(cursorHostLocation);
-                        // The large gray knob is far below the text line. Keep
-                        // this initial gap throughout the gesture so the blue
-                        // insertion line, rather than the knob, tracks text.
-                        mCursorDownScreenX = cursorHostLocation[0] + mCursorX;
-                        mCursorDownScreenY = cursorHostLocation[1]
-                                + (mCursorTop + mCursorBottom) / 2f;
+                        final int[] visibleCursorLocation = new int[2];
+                        mBlinkCursor.getLocationOnScreen(visibleCursorLocation);
+                        // A long document can leave the logical text anchor
+                        // outside the viewport while the cursor controls float
+                        // at a clamped edge. Anchor the gesture to the blue bar
+                        // the user actually touched, not that off-screen point.
+                        mCursorDownScreenX = visibleCursorLocation[0]
+                                + mBlinkCursor.getWidth() / 2f;
+                        mCursorDownScreenY = visibleCursorLocation[1]
+                                + mBlinkCursor.getHeight() / 2f;
                         postDelayed(mStartDragRunnable, 150L);
                         return true;
                     case MotionEvent.ACTION_MOVE:
