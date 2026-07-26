@@ -1,5 +1,15 @@
 ## 更新日志
 
+### [Beta 1.15.0](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.0)
+#### 重大功能更新 大爆炸编辑模式
+- 支持了大爆炸编辑模式，支持词块编辑、删除、文本输入、复制、符号输入
+
+#### 优化与修复
+- 添加了复制按钮的动画。
+- 更新了新版的工具栏图标资源。
+- 全屏截图现在始终以原始像素识别，提高首次OCR识别概率。
+**Full Changelog**: https://github.com/CashewTeam/BigBang_NovaText/compare/Beta_1.14.29...Beta_1.15.0
+
 ### [Beta 1.14.29](https://github.com/CashewTeam/BigBang_NovaText/commits/smartisan-m-onestep_bigboom/)
 
 #### 新增功能
