@@ -1811,6 +1811,18 @@ public class BoomChipPage {
         );
     }
 
+    private float getCursorDodgeTranslation(int wordIndex, CursorDodgeTarget target) {
+        if (target == null || mLayout.getRowForIndex(wordIndex) != target.row) {
+            return 0f;
+        }
+        final float dodge = mActivity.getResources()
+                .getDimensionPixelSize(R.dimen.edit_cursor_dodge_offset);
+        if (target.atRowEnd) {
+            return -dodge;
+        }
+        return wordIndex >= target.word ? dodge : 0f;
+    }
+
     private CursorAnchor findEditCursorAnchor(boolean useFinalLayoutGeometry) {
         final String text = mEditSession.text;
         final int cursor = getEditCursorOffset();
@@ -2354,6 +2366,12 @@ public class BoomChipPage {
         try {
             mBoomConent.removeAllViews();
             initChips(false, retainedChipPool);
+            if (transition != null) {
+                // Keep the new insertion gap present before the rebuilt rows
+                // can draw; waiting for the post-animation cursor refresh
+                // produces a visible close-and-open jump on every mutation.
+                updateCursorDodge(getEditCursorOffset(), false);
+            }
         } finally {
             mBoomConent.suppressLayout(false);
         }
@@ -2434,6 +2452,8 @@ public class BoomChipPage {
         final long transitionDuration = transition.deletedChips.isEmpty()
                 ? EDIT_INSERT_TRANSITION_DURATION_MS
                 : EDIT_MUTATION_TRANSITION_DURATION_MS;
+        final CursorDodgeTarget dodgeTarget =
+                findCursorDodgeTarget(getEditCursorOffset());
         // Rebuilt retained chips must always start from a fully rendered state.
         // Only chips overlapping the newly inserted source range are animated.
         for (int index = 0; index < mLayout.getWordCount(); ++index) {
@@ -2445,7 +2465,8 @@ public class BoomChipPage {
             chip.container.setAlpha(1f);
             chip.container.setScaleX(1f);
             chip.container.setScaleY(1f);
-            chip.container.setTranslationX(0f);
+            chip.container.setTranslationX(
+                    getCursorDodgeTranslation(index, dodgeTarget));
             chip.container.setTranslationY(0f);
         }
         if (transition.newChangeStart < transition.newChangeEnd) {
@@ -2464,7 +2485,7 @@ public class BoomChipPage {
                 chip.container.setAlpha(0f);
                 chip.container.setScaleX(0f);
                 chip.container.setScaleY(0f);
-                BoomAnimator.makeBoomAnimation(chip.container);
+                BoomAnimator.makeEditInsertAnimation(chip.container);
             }
         }
         for (DeletedChipSnapshot deletedChip : transition.deletedChips) {

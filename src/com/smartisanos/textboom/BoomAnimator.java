@@ -272,6 +272,38 @@ public class BoomAnimator {
         animatorSet.start();
     }
 
+    /**
+     * Editor insertion uses the same boom scale/fade but must preserve the
+     * cursor's horizontal dodge translation throughout the mutation.
+     */
+    public static void makeEditInsertAnimation(final View view) {
+        AnimatorSet animatorSet = new AnimatorSet();
+        Animator scaleAnimator = makeScaleAnimator(view, 0f, 1f, BOOM_DURATION);
+        Animator alphaAnimator = makeAlphaAnimator(view, 0f, 1f, BOOM_DURATION);
+        animatorSet.playTogether(scaleAnimator, alphaAnimator);
+        animatorSet.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                view.setScaleX(1.0f);
+                view.setScaleY(1.0f);
+                view.setAlpha(1.0f);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+            }
+        });
+        animatorSet.start();
+    }
+
     /** Original editor deletion: the removed chip contracts, fades and converges on the caret. */
     public static void makeEditDeleteChipAnimation(final View view, float targetTranslationX,
             float targetTranslationY) {
