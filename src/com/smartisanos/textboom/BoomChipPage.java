@@ -26,6 +26,7 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import android.view.ViewTreeObserver.OnPreDrawListener;
+import android.view.animation.DecelerateInterpolator;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputConnectionWrapper;
@@ -97,6 +98,10 @@ public class BoomChipPage {
     private float mCursorDragFingerY;
     private int mCursorDragPendingOffset;
     private boolean mCursorDragHasPendingOffset;
+    private boolean mAnimateNextCursorUpdate;
+    private int mCursorDodgeRow = -1;
+    private int mCursorDodgeWord = -1;
+    private boolean mCursorDodgeAtRowEnd;
     private boolean mCursorUpdatePending;
     private boolean mCursorUpdateNeedsVisibility;
     private Runnable mCursorAutoScrollRunnable;
@@ -121,6 +126,7 @@ public class BoomChipPage {
     private static final long EDIT_MUTATION_TRANSITION_DURATION_MS = 300L;
     private static final long EDIT_INSERT_TRANSITION_DURATION_MS = 200L;
     private static final long EDIT_CURSOR_MOVE_DURATION_MS = 300L;
+    private static final long EDIT_CURSOR_DODGE_DURATION_MS = 300L;
 
     Serializable mSavedData;
     private EditSessionState mEditSession;
@@ -1437,6 +1443,7 @@ public class BoomChipPage {
         // The stock editor keeps the blue selected chips and their action bar
         // while the insertion handle is repositioned.
         resetEditInputBuffer(getEditCursorOffset());
+        mAnimateNextCursorUpdate = false;
         mCursorDragActive = true;
         mCursorDragPendingOffset = getEditCursorOffset();
         mCursorDragHasPendingOffset = true;
@@ -1453,7 +1460,8 @@ public class BoomChipPage {
         }
         if (commitPendingOffset) {
             // Dragging is a visual preview. Commit the nearest text boundary
-            // only after release, then restore the anchored blinking cursor.
+            // only after release, then glide back to the anchored blinking cursor.
+            mAnimateNextCursorUpdate = true;
             updateEditCursorOffset(pendingOffset, true, true);
         }
         // Also covers a release onto the current offset, where the state setter
@@ -1476,6 +1484,7 @@ public class BoomChipPage {
             mCursorDragPendingOffset =
                     findEditOffsetForScreenPosition(cursorScreenX, cursorScreenY);
             mCursorDragHasPendingOffset = true;
+            updateCursorDodge(mCursorDragPendingOffset, true);
             final int[] pageLocation = new int[2];
             mBoomPage.getLocationOnScreen(pageLocation);
             final float previewCenterY = cursorScreenY - pageLocation[1];
@@ -1609,18 +1618,36 @@ public class BoomChipPage {
         // Anchored cursors follow the final chip layout, not the temporary
         // scale/translation used by the editor entry animation. This keeps the
         // initial paragraph-tail position identical to a manually placed caret.
-        final CursorAnchor cursorAnchor = findEditCursorAnchor(true);
+        final int cursorOffset = getEditCursorOffset();
+        updateCursorDodge(cursorOffset, true);
+        final CursorAnchor cursorAnchor = applyCursorDodgeToAnchor(
+                findEditCursorAnchor(true),
+                findCursorDodgeTarget(cursorOffset)
+        );
         if (ensureVisible && scrollEditCursorIntoView(cursorAnchor)) {
             scheduleEditCursorUpdate(false);
             return;
         }
         final String clipboardText = getClipboardText();
-        mBigCursorView.showCursor(
-                cursorAnchor.x,
-                cursorAnchor.top,
-                cursorAnchor.bottom,
-                !hasEditSelection() && clipboardText != null && clipboardText.length() > 0
-        );
+        final boolean pasteAvailable =
+                !hasEditSelection() && clipboardText != null && clipboardText.length() > 0;
+        if (mAnimateNextCursorUpdate) {
+            mAnimateNextCursorUpdate = false;
+            mBigCursorView.showCursorAnimated(
+                    cursorAnchor.x,
+                    cursorAnchor.top,
+                    cursorAnchor.bottom,
+                    pasteAvailable,
+                    EDIT_CURSOR_MOVE_DURATION_MS
+            );
+        } else {
+            mBigCursorView.showCursor(
+                    cursorAnchor.x,
+                    cursorAnchor.top,
+                    cursorAnchor.bottom,
+                    pasteAvailable
+            );
+        }
     }
 
     private boolean scrollEditCursorIntoView(CursorAnchor cursorAnchor) {
@@ -1656,6 +1683,132 @@ public class BoomChipPage {
 
     private CursorAnchor findEditCursorAnchor() {
         return findEditCursorAnchor(false);
+    }
+
+    private static final class CursorDodgeTarget {
+        final int row;
+        final int word;
+        final boolean atRowEnd;
+
+        CursorDodgeTarget(int row, int word, boolean atRowEnd) {
+            this.row = row;
+            this.word = word;
+            this.atRowEnd = atRowEnd;
+        }
+    }
+
+    /**
+     * The stock editor opens a 12dp insertion gap in the active row. Chips at
+     * and after an inner boundary move right; at a row end the whole row moves
+     * left so the gap remains inside the page.
+     */
+    private CursorDodgeTarget findCursorDodgeTarget(int cursor) {
+        final String text = mEditSession.text;
+        int previousWord = -1;
+        int nextWord = -1;
+        for (int index = 0; index < mLayout.getWordCount(); ++index) {
+            if (mLayout.getWordEnd(index) <= cursor) {
+                previousWord = index;
+            }
+            if (nextWord == -1 && mLayout.getWordStart(index) >= cursor) {
+                nextWord = index;
+            }
+        }
+        final boolean beforeLineBreak = cursor < text.length() && isLineBreak(text.charAt(cursor));
+        final boolean afterLineBreak = cursor > 0 && isLineBreak(text.charAt(cursor - 1));
+        if (beforeLineBreak && afterLineBreak) {
+            return null;
+        }
+        if (beforeLineBreak) {
+            return previousWord < 0 ? null : new CursorDodgeTarget(
+                    mLayout.getRowForIndex(previousWord), previousWord, true);
+        }
+        if (afterLineBreak && nextWord >= 0) {
+            return new CursorDodgeTarget(
+                    mLayout.getRowForIndex(nextWord), nextWord, false);
+        }
+        if (afterLineBreak) {
+            // A trailing newline owns an empty row; there are no chips on that
+            // row to dodge and its cursor stays at the page's left edge.
+            return null;
+        }
+        if (nextWord >= 0) {
+            return new CursorDodgeTarget(
+                    mLayout.getRowForIndex(nextWord), nextWord, false);
+        }
+        return previousWord < 0 ? null : new CursorDodgeTarget(
+                mLayout.getRowForIndex(previousWord), previousWord, true);
+    }
+
+    private void updateCursorDodge(int cursor, boolean animate) {
+        final CursorDodgeTarget target = findCursorDodgeTarget(cursor);
+        final int targetRow = target == null ? -1 : target.row;
+        final int targetWord = target == null ? -1 : target.word;
+        final boolean targetAtRowEnd = target != null && target.atRowEnd;
+        if (targetRow == mCursorDodgeRow
+                && targetWord == mCursorDodgeWord
+                && targetAtRowEnd == mCursorDodgeAtRowEnd) {
+            return;
+        }
+        if (mCursorDodgeRow >= 0) {
+            animateCursorDodgeRow(mCursorDodgeRow, -1, false, animate);
+        }
+        if (targetRow >= 0) {
+            animateCursorDodgeRow(targetRow, targetWord, targetAtRowEnd, animate);
+        }
+        mCursorDodgeRow = targetRow;
+        mCursorDodgeWord = targetWord;
+        mCursorDodgeAtRowEnd = targetAtRowEnd;
+    }
+
+    private void animateCursorDodgeRow(
+            int rowIndex,
+            int boundaryWord,
+            boolean atRowEnd,
+            boolean animate
+    ) {
+        final LinearLayout row = getChipRow(rowIndex);
+        if (row == null) {
+            return;
+        }
+        final float dodge = mActivity.getResources()
+                .getDimensionPixelSize(R.dimen.edit_cursor_dodge_offset);
+        for (int childIndex = 0; childIndex < row.getChildCount(); ++childIndex) {
+            final View child = row.getChildAt(childIndex);
+            if (!(child.getTag() instanceof BoomChip)) {
+                continue;
+            }
+            final BoomChip chip = (BoomChip) child.getTag();
+            final float targetTranslation = atRowEnd
+                    ? -dodge
+                    : boundaryWord >= 0 && chip.index >= boundaryWord ? dodge : 0f;
+            child.animate().cancel();
+            if (animate) {
+                child.animate()
+                        .translationX(targetTranslation)
+                        .setDuration(EDIT_CURSOR_DODGE_DURATION_MS)
+                        .setInterpolator(new DecelerateInterpolator(1.5f))
+                        .start();
+            } else {
+                child.setTranslationX(targetTranslation);
+            }
+        }
+    }
+
+    private CursorAnchor applyCursorDodgeToAnchor(
+            CursorAnchor anchor,
+            CursorDodgeTarget target
+    ) {
+        if (anchor == null || target == null) {
+            return anchor;
+        }
+        final float halfDodge = mActivity.getResources()
+                .getDimensionPixelSize(R.dimen.edit_cursor_dodge_offset) / 2f;
+        return new CursorAnchor(
+                anchor.x + (target.atRowEnd ? -halfDodge : halfDodge),
+                anchor.top,
+                anchor.bottom
+        );
     }
 
     private CursorAnchor findEditCursorAnchor(boolean useFinalLayoutGeometry) {
@@ -2026,7 +2179,11 @@ public class BoomChipPage {
             --oldEnd;
             --newEnd;
         }
-        final CursorAnchor insertionAnchor = findEditCursorAnchor();
+        final int cursorOffset = getEditCursorOffset();
+        final CursorAnchor insertionAnchor = applyCursorDodgeToAnchor(
+                findEditCursorAnchor(true),
+                findCursorDodgeTarget(cursorOffset)
+        );
         final int[] overlayLocation = new int[2];
         mEditMutationOverlay.getLocationOnScreen(overlayLocation);
         final ArrayList<DeletedChipSnapshot> deletedChips = new ArrayList<DeletedChipSnapshot>();
@@ -2176,6 +2333,11 @@ public class BoomChipPage {
     }
 
     private void rebuildChips(Serializable selectedState, final EditMutationTransition transition) {
+        // Rebuilt/retained views start from their layout position; the active
+        // cursor gap is reapplied after the new rows have been laid out.
+        mCursorDodgeRow = -1;
+        mCursorDodgeWord = -1;
+        mCursorDodgeAtRowEnd = false;
         if (mBoomActionHandler != null
                 && (transition == null || mBoomActionHandler.hasSelection())) {
             // applyEditText sends the final state notification after the new
@@ -2338,7 +2500,10 @@ public class BoomChipPage {
         if (!canModifyEditText() || mCursorDragActive) {
             return;
         }
-        CursorAnchor cursorAnchor = findEditCursorAnchor(true);
+        final int cursorOffset = getEditCursorOffset();
+        final CursorDodgeTarget dodgeTarget = findCursorDodgeTarget(cursorOffset);
+        CursorAnchor cursorAnchor = applyCursorDodgeToAnchor(
+                findEditCursorAnchor(true), dodgeTarget);
         if (cursorAnchor == null) {
             // A normal text offset must never animate to the empty-line
             // fallback while its target chip is still awaiting layout.
@@ -2348,7 +2513,8 @@ public class BoomChipPage {
             // ScrollView updates scrollY synchronously. Re-read screen
             // coordinates so a wrapped insertion/deletion animates to the
             // post-scroll anchor instead of snapping there after completion.
-            cursorAnchor = findEditCursorAnchor(true);
+            cursorAnchor = applyCursorDodgeToAnchor(
+                    findEditCursorAnchor(true), dodgeTarget);
             if (cursorAnchor == null) {
                 return;
             }

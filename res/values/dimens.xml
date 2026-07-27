@@ -26,6 +26,8 @@
     <dimen name="punc_base_width">8dp</dimen>
     <!-- 编辑态单码点半角词块的固定宽度；布局测量与实际 View 宽度必须保持一致，避免换行计算与渲染脱节。 -->
     <dimen name="edit_half_width_chip_width">18dp</dimen>
+    <!-- 原版光标在相邻词块之间挤出的插入间隙。 -->
+    <dimen name="edit_cursor_dodge_offset">12dp</dimen>
 
     <!-- Original edit drag uses a symmetric 90dp edge zone. -->
     <dimen name="auto_scroll_top">90dp</dimen>
