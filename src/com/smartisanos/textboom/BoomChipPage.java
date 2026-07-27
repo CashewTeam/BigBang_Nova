@@ -28,6 +28,8 @@ import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import android.view.ViewTreeObserver.OnPreDrawListener;
 import android.view.animation.DecelerateInterpolator;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.ExtractedText;
+import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputMethodManager;
@@ -192,6 +194,8 @@ public class BoomChipPage {
 
         CharSequence onInputGetTextAfterCursor(int maxChars, int inputSelectionEnd);
 
+        ExtractedText onInputGetExtractedText(int inputSelectionStart, int inputSelectionEnd);
+
         void onInputEnter();
 
         void onInputSelectionChanged(int selectionStart, int selectionEnd);
@@ -217,6 +221,16 @@ public class BoomChipPage {
             final InputConnection target = super.onCreateInputConnection(outAttrs);
             outAttrs.imeOptions = (outAttrs.imeOptions & ~EditorInfo.IME_MASK_ACTION)
                     | EditorInfo.IME_ACTION_NONE;
+            if (mCallback != null) {
+                final int bufferLength = getBufferLength();
+                final ExtractedText initialText = mCallback.onInputGetExtractedText(
+                        Math.max(0, Math.min(getSelectionStart(), bufferLength)),
+                        Math.max(0, Math.min(getSelectionEnd(), bufferLength)));
+                if (initialText != null) {
+                    outAttrs.initialSelStart = initialText.selectionStart;
+                    outAttrs.initialSelEnd = initialText.selectionEnd;
+                }
+            }
             return new InputConnectionWrapper(target, true) {
                 @Override
                 public boolean deleteSurroundingText(int beforeLength, int afterLength) {
@@ -260,6 +274,20 @@ public class BoomChipPage {
                         }
                     }
                     return super.getTextAfterCursor(maxChars, flags);
+                }
+
+                @Override
+                public ExtractedText getExtractedText(ExtractedTextRequest request, int flags) {
+                    if (mCallback != null) {
+                        final int bufferLength = getBufferLength();
+                        final ExtractedText text = mCallback.onInputGetExtractedText(
+                                Math.max(0, Math.min(getSelectionStart(), bufferLength)),
+                                Math.max(0, Math.min(getSelectionEnd(), bufferLength)));
+                        if (text != null) {
+                            return text;
+                        }
+                    }
+                    return super.getExtractedText(request, flags);
                 }
 
                 @Override
@@ -556,6 +584,12 @@ public class BoomChipPage {
             public CharSequence onInputGetTextAfterCursor(
                     int maxChars, int inputSelectionEnd) {
                 return getEditTextAfterInputCursor(maxChars, inputSelectionEnd);
+            }
+
+            @Override
+            public ExtractedText onInputGetExtractedText(
+                    int inputSelectionStart, int inputSelectionEnd) {
+                return getEditInputExtractedText(inputSelectionStart, inputSelectionEnd);
             }
 
             @Override
@@ -1116,6 +1150,24 @@ public class BoomChipPage {
         final int end = clampEditOffset(text, Math.min(
                 text.length(), cursor + Math.max(0, maxChars)));
         return text.substring(cursor, end);
+    }
+
+    private ExtractedText getEditInputExtractedText(
+            int inputSelectionStart, int inputSelectionEnd) {
+        if (!isEditMode()) {
+            return null;
+        }
+        final String text = mEditSession.text;
+        final ExtractedText extractedText = new ExtractedText();
+        extractedText.text = text;
+        extractedText.startOffset = 0;
+        extractedText.partialStartOffset = -1;
+        extractedText.partialEndOffset = -1;
+        extractedText.selectionStart =
+                clampEditOffset(text, mInputBufferOffset + inputSelectionStart);
+        extractedText.selectionEnd =
+                clampEditOffset(text, mInputBufferOffset + inputSelectionEnd);
+        return extractedText;
     }
 
     private int getEditDeleteStart(String text, int cursor, int count, boolean inCodePoints) {
@@ -3226,16 +3278,13 @@ public class BoomChipPage {
                     chip = new BoomChip(wordIndex, chipView);
                 }
                 chipView.setTag(chip);
-                if (mLayout.isEditLayout()) {
-                    // Give scale animations the same exact bounds used by the
-                    // row calculation, including CJK and emoji chips.
-                    row.addView(chipView, new LinearLayout.LayoutParams(
-                            mLayout.getEditChipWidth(wordIndex),
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                    ));
-                } else {
-                    row.addView(chipView);
-                }
+                // Keep the actual chip bounds identical to the row calculation.
+                // This is also required for multi-code-point emoji: wrap_content
+                // can otherwise collapse the whole grapheme to punctuation width.
+                row.addView(chipView, new LinearLayout.LayoutParams(
+                        mLayout.getChipWidth(wordIndex),
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                ));
             }
             mBoomConent.addView(row);
         }
@@ -3492,6 +3541,10 @@ public class BoomChipPage {
                 editParams.width = mLayout.getEditChipWidth(id);
                 editParams.height = getActiveChipRowHeight();
                 word.setLayoutParams(editParams);
+            } else {
+                final ViewGroup.LayoutParams normalParams = word.getLayoutParams();
+                normalParams.width = mLayout.getChipWidth(id);
+                word.setLayoutParams(normalParams);
             }
             if (mLayout.isEditHalfWidth(id)) {
                 final int width = mLayout.getEditHalfWidthChipWidth();

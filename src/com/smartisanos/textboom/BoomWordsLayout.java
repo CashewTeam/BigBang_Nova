@@ -2,6 +2,7 @@ package com.cashewteam.novatext.android;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.icu.text.BreakIterator;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.Log;
@@ -193,15 +194,11 @@ public class BoomWordsLayout {
     }
 
     private int appendFilteredGap(StringBuilder newText, String text, int start, int end) {
-        int preserved = 0;
-        for (int i = start; i < end; ++i) {
-            char ch = text.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isSpaceChar(ch)) {
-                newText.append(ch);
-                ++preserved;
-            }
-        }
-        return (end - start) - preserved;
+        // Text not covered by cppjieba is still user content. In particular,
+        // symbol-only and emoji sequences must keep their UTF-16 offsets so
+        // punctuation layout can rebuild them as complete grapheme clusters.
+        newText.append(text, start, end);
+        return 0;
     }
 
     private boolean layoutWordsAfterFilter(int[] segment, String text, int touchedIndex) {
@@ -265,14 +262,32 @@ public class BoomWordsLayout {
     }
 
     private void addGapIntoChips(int start, int end) {
-        for (int i = start; i < end; ++i) {
-            char punc = mOriText.charAt(i);
-            if (punc == '\n') {
-                addHardBreak();
-            } else if (!Character.isWhitespace(punc) && !Character.isSpaceChar(punc)) {
-                mWords.add(new Word(String.valueOf(punc), i, true));
+        BreakIterator characterBreaks = BreakIterator.getCharacterInstance();
+        characterBreaks.setText(mOriText);
+        for (int index = start; index < end;) {
+            int next = characterBreaks.following(index);
+            if (next == BreakIterator.DONE || next > end) {
+                next = end;
             }
+            final String unit = mOriText.substring(index, next);
+            if (unit.indexOf('\n') >= 0) {
+                addHardBreak();
+            } else if (!isWhitespaceUnit(unit)) {
+                mWords.add(new Word(unit, index, true));
+            }
+            index = next;
         }
+    }
+
+    private static boolean isWhitespaceUnit(String text) {
+        for (int index = 0; index < text.length();) {
+            final int codePoint = text.codePointAt(index);
+            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                return false;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return true;
     }
 
     private void addHardBreak() {
@@ -309,7 +324,10 @@ public class BoomWordsLayout {
                     mEditWordBaseWidth + (int) mWordPaint.measureText(word.word));
         }
         if (word.punc) {
-            return Math.max(mPuncMinWidth, mPuncBaseWidth + (int)mPuncPaint.measureText(word.word));
+            final int minimumWidth = word.word.codePointCount(0, word.word.length()) > 1
+                    ? mWordMinWidth : mPuncMinWidth;
+            return Math.max(minimumWidth,
+                    mPuncBaseWidth + (int)mPuncPaint.measureText(word.word));
         } else {
             return Math.max(mWordMinWidth, mWordBaseWidth + (int)mWordPaint.measureText(word.word));
         }
@@ -496,6 +514,10 @@ public class BoomWordsLayout {
     public int getEditChipWidth(int index) {
         // Match the original editor: row layout and rendering use the same
         // measured width instead of treating it only as a TextView minimum.
+        return measureChip(index);
+    }
+
+    public int getChipWidth(int index) {
         return measureChip(index);
     }
 

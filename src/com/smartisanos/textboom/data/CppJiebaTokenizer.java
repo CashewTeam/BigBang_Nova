@@ -1,6 +1,7 @@
 package com.cashewteam.novatext.android.data;
 
 import android.content.Context;
+import android.icu.text.BreakIterator;
 
 import com.cashewteam.novatext.android.BuildConfig;
 import com.cashewteam.novatext.android.util.Utils;
@@ -46,7 +47,7 @@ public final class CppJiebaTokenizer {
         }
         ensureInitialized();
         int[] tokenSpans = nativeCut(text);
-        if (tokenSpans == null || tokenSpans.length == 0) {
+        if (tokenSpans == null) {
             return null;
         }
         return buildSegments(text, tokenSpans);
@@ -106,21 +107,40 @@ public final class CppJiebaTokenizer {
     private int[] buildSegments(String text, int[] tokenSpans) {
         ArrayList<Integer> words = new ArrayList<Integer>();
         ArrayList<Integer> punctuations = new ArrayList<Integer>();
+        BreakIterator characterBreaks = BreakIterator.getCharacterInstance();
+        characterBreaks.setText(text);
         int cursor = 0;
         for (int i = 0; i < tokenSpans.length; i += 2) {
-            int start = tokenSpans[i];
-            int endInclusive = tokenSpans[i + 1];
+            int rawStart = tokenSpans[i];
+            int rawEndExclusive = tokenSpans[i + 1] + 1;
+            if (rawStart < 0 || rawEndExclusive <= rawStart
+                    || rawEndExclusive > text.length()) {
+                continue;
+            }
+            int start = characterBreaks.isBoundary(rawStart)
+                    ? rawStart : characterBreaks.preceding(rawStart);
+            int endExclusive = characterBreaks.isBoundary(rawEndExclusive)
+                    ? rawEndExclusive : characterBreaks.following(rawEndExclusive);
+            if (start == BreakIterator.DONE) {
+                start = 0;
+            }
+            if (endExclusive == BreakIterator.DONE) {
+                endExclusive = text.length();
+            }
+            int endInclusive = endExclusive - 1;
             if (start < cursor || endInclusive < start || endInclusive >= text.length()) {
                 continue;
             }
             appendGapPunctuation(text, cursor, start, punctuations);
-            if (hasWordCodePoint(text, start, endInclusive + 1)) {
+            final boolean splitCharacter =
+                    start != rawStart || endExclusive != rawEndExclusive;
+            if (!splitCharacter && hasWordCodePoint(text, start, endExclusive)) {
                 words.add(start);
                 words.add(endInclusive);
             } else {
-                appendPunctuation(text, start, endInclusive + 1, punctuations);
+                appendPunctuation(text, start, endExclusive, punctuations);
             }
-            cursor = endInclusive + 1;
+            cursor = endExclusive;
         }
         appendGapPunctuation(text, cursor, text.length(), punctuations);
         if (words.isEmpty() && punctuations.isEmpty()) {
@@ -145,16 +165,31 @@ public final class CppJiebaTokenizer {
     }
 
     private void appendPunctuation(String text, int start, int end, ArrayList<Integer> out) {
+        BreakIterator characterBreaks = BreakIterator.getCharacterInstance();
+        characterBreaks.setText(text);
         int index = start;
         while (index < end) {
-            int codePoint = text.codePointAt(index);
-            int next = index + Character.charCount(codePoint);
-            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+            int next = characterBreaks.following(index);
+            if (next == BreakIterator.DONE || next > end) {
+                next = end;
+            }
+            if (!isWhitespace(text, index, next)) {
                 out.add(index);
                 out.add(next - 1);
             }
             index = next;
         }
+    }
+
+    private boolean isWhitespace(String text, int start, int end) {
+        for (int index = start; index < end;) {
+            int codePoint = text.codePointAt(index);
+            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                return false;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return true;
     }
 
     private boolean hasWordCodePoint(String text, int start, int end) {
