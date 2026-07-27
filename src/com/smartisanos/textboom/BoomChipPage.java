@@ -41,9 +41,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
 import com.cashewteam.novatext.android.BoomActivity;
 import com.cashewteam.novatext.android.BoomWordsLayout;
 import com.cashewteam.novatext.android.BoomAnimator;
@@ -104,7 +101,51 @@ public class BoomChipPage {
     private boolean mCursorDodgeAtRowEnd;
     private boolean mCursorUpdatePending;
     private boolean mCursorUpdateNeedsVisibility;
+    private boolean mEditorViewportRefreshPending;
     private Runnable mCursorAutoScrollRunnable;
+    private final Runnable mEditorViewportRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            mEditorViewportRefreshPending = false;
+            if (!canModifyEditText()) {
+                return;
+            }
+            updateScrollerInsetsForContent();
+            mAnimateNextCursorUpdate = false;
+            if (!mCursorDragActive) {
+                scheduleEditCursorUpdate(true);
+            }
+            // Selection toolbars use the same resized viewport as the cursor.
+            mBoomActionHandler.onScrollChanged();
+            mBoomPage.postOnAnimation(new Runnable() {
+                @Override
+                public void run() {
+                    repositionSymbolPanelForViewport();
+                }
+            });
+        }
+    };
+    private final View.OnLayoutChangeListener mEditorViewportLayoutListener =
+            new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(
+                        View view,
+                        int left,
+                        int top,
+                        int right,
+                        int bottom,
+                        int oldLeft,
+                        int oldTop,
+                        int oldRight,
+                        int oldBottom
+                ) {
+                    if (right - left == oldRight - oldLeft
+                            && bottom - top == oldBottom - oldTop) {
+                        return;
+                    }
+                    scheduleEditorViewportRefresh();
+                }
+            };
     // Original editor keeps the cursor hidden while its 300ms reflow animation runs.
     private boolean mEditMutationTransitionRunning;
     private int mEditMutationGeneration;
@@ -451,6 +492,7 @@ public class BoomChipPage {
                 // Clipboard content does not reveal paste by itself; the
                 // original editor exposes it only after tapping the handle.
                 mBigCursorView.togglePaste();
+                scheduleEditCursorUpdate(true);
             }
 
             @Override
@@ -581,6 +623,7 @@ public class BoomChipPage {
         });
         mTableBasePaddingTop = mBoomTable.getPaddingTop();
         mTableBasePaddingBottom = mBoomTable.getPaddingBottom();
+        mBoomPage.addOnLayoutChangeListener(mEditorViewportLayoutListener);
     }
 
     public interface OnAdjacentRequestListener {
@@ -916,7 +959,17 @@ public class BoomChipPage {
         clearEditMutationOverlay();
         clearCopyAnimationOverlay();
         mBigCursorView.hideCursor();
+        mBoomPage.removeOnLayoutChangeListener(mEditorViewportLayoutListener);
+        mBoomPage.removeCallbacks(mEditorViewportRefreshRunnable);
         mClipboard.removePrimaryClipChangedListener(mClipboardListener);
+    }
+
+    private void scheduleEditorViewportRefresh() {
+        if (!isEditMode() || mEditorViewportRefreshPending) {
+            return;
+        }
+        mEditorViewportRefreshPending = true;
+        mBoomPage.postOnAnimation(mEditorViewportRefreshRunnable);
     }
 
     private void onEditInputChanged(CharSequence text, int start, int before, int count) {
@@ -1135,6 +1188,24 @@ public class BoomChipPage {
         if (mSymbolPanelPopup != null) {
             mSymbolPanelPopup.dismiss();
         }
+    }
+
+    private void repositionSymbolPanelForViewport() {
+        if (!canModifyEditText() || mSymbolPanelPopup == null
+                || !mSymbolPanelPopup.isShowing()) {
+            return;
+        }
+        final CursorAnchor anchor = findEditCursorAnchor();
+        if (anchor == null) {
+            return;
+        }
+        mSymbolPanelPopup.show(
+                mEditorOverlayHost,
+                anchor.x,
+                anchor.top,
+                anchor.bottom,
+                mBigCursorView.getVisibleBottomForEditor()
+        );
     }
 
     private void prepareForDirectEdit() {
@@ -1519,29 +1590,23 @@ public class BoomChipPage {
         final int[] scrollerLocation = new int[2];
         mScroller.getLocationOnScreen(scrollerLocation);
         final int scrollerTop = scrollerLocation[1];
-        int scrollerBottom = scrollerTop + mScroller.getHeight();
-        final WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(mBoomPage);
-        if (rootInsets != null) {
-            scrollerBottom -= rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
-        }
+        // Compose has already shortened the AndroidView above the IME. The
+        // measured ScrollView bottom is therefore the real drag boundary.
+        final int scrollerBottom = scrollerTop + mScroller.getHeight();
         if (scrollerBottom <= scrollerTop) {
             mCursorAutoScrollVelocity = 0;
             return;
         }
-        final int visibleScrollerHeight = scrollerBottom - scrollerTop;
-        final int edgeInset = Math.min(
+        final int[] autoScrollBounds = getAutoScrollBounds(
+                scrollerTop,
+                scrollerBottom,
                 mActivity.getResources().getDimensionPixelSize(R.dimen.auto_scroll_top),
-                visibleScrollerHeight / 2
-        );
-        final int autoScrollTop = scrollerTop + edgeInset;
-        final int autoScrollBottom = scrollerBottom - Math.min(
-                mActivity.getResources().getDimensionPixelSize(R.dimen.auto_scroll_bottom),
-                visibleScrollerHeight / 2
+                mActivity.getResources().getDimensionPixelSize(R.dimen.auto_scroll_bottom)
         );
         int velocity = getOriginalAutoScrollVelocity(
                 fingerScreenY,
-                autoScrollTop,
-                autoScrollBottom
+                autoScrollBounds[0],
+                autoScrollBounds[1]
         );
         if (shouldStopAutoScrollAtContentEdge(
                 velocity,
@@ -1558,6 +1623,21 @@ public class BoomChipPage {
         if (velocity != 0) {
             mBigCursorView.postDelayed(mCursorAutoScrollRunnable, 25L);
         }
+    }
+
+    /** Original BigBang's quadratic 25ms edge-scroll velocity curve. */
+    static int[] getAutoScrollBounds(
+            int viewportTop,
+            int viewportBottom,
+            int topInset,
+            int bottomInset
+    ) {
+        final int viewportHeight = Math.max(0, viewportBottom - viewportTop);
+        final int halfHeight = Math.max(0, viewportHeight / 2);
+        return new int[] {
+                viewportTop + Math.min(topInset, halfHeight),
+                viewportBottom - Math.min(bottomInset, halfHeight)
+        };
     }
 
     /** Original BigBang's quadratic 25ms edge-scroll velocity curve. */
@@ -1658,10 +1738,6 @@ public class BoomChipPage {
         if (!mScroller.getGlobalVisibleRect(viewport)) {
             return false;
         }
-        final WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(mBoomPage);
-        if (rootInsets != null) {
-            viewport.bottom -= rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
-        }
         if (viewport.bottom <= viewport.top) {
             return false;
         }
@@ -1670,10 +1746,17 @@ public class BoomChipPage {
         final int cursorTop = Math.round(cursorAnchor.top) + pageLocation[1];
         final int cursorBottom = Math.round(cursorAnchor.bottom) + pageLocation[1];
         final int margin = Math.round(24f * mActivity.getResources().getDisplayMetrics().density);
-        int delta = 0;
-        if (cursorTop < viewport.top + margin) {
+        int delta = mBigCursorView.getRequiredViewportScrollDelta(
+                cursorTop,
+                cursorBottom,
+                viewport.top,
+                viewport.bottom
+        );
+        // Very small viewports cannot fit the complete original control group.
+        // In that case keep at least the actual insertion line visible.
+        if (delta == 0 && cursorTop < viewport.top + margin) {
             delta = cursorTop - viewport.top - margin;
-        } else if (cursorBottom > viewport.bottom - margin) {
+        } else if (delta == 0 && cursorBottom > viewport.bottom - margin) {
             delta = cursorBottom - viewport.bottom + margin;
         }
         if (delta == 0) {

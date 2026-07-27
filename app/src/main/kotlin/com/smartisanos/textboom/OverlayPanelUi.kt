@@ -24,7 +24,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
@@ -71,6 +73,12 @@ private val InvertAssetColorFilter = ColorMatrixColorFilter(
         ),
     ),
 )
+
+internal fun effectiveOverlayBottomInset(
+    systemInset: Dp,
+    imeInset: Dp,
+    editMode: Boolean,
+): Dp = if (editMode) maxOf(systemInset, imeInset) else systemInset
 
 @Composable
 internal fun OverlayScene(
@@ -155,9 +163,14 @@ internal data class OverlayPanelMetrics(
     val fullScreen: Boolean,
     val topSystemInset: Dp,
     val bottomSystemInset: Dp,
+    val imeBottomInset: Dp,
     val leftSystemInset: Dp,
     val rightSystemInset: Dp,
-)
+) {
+    internal fun effectiveBottomInset(editMode: Boolean): Dp {
+        return effectiveOverlayBottomInset(bottomSystemInset, imeBottomInset, editMode)
+    }
+}
 
 @Composable
 internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): OverlayPanelMetrics {
@@ -184,6 +197,12 @@ internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): Over
     } else {
         0.dp
     }
+    // Compose observes IME insets as animation frames. Keeping this value in
+    // the panel metrics makes the bottom bar and AndroidView share one usable
+    // height instead of letting the legacy layer subtract the keyboard again.
+    val imeBottomInset = with(density) {
+        WindowInsets.ime.getBottom(this).toDp()
+    }
     val leftSystemInset = if (fullScreen) {
         with(density) { (systemBarsInsets?.left ?: 0).toDp() }
     } else {
@@ -205,6 +224,7 @@ internal fun rememberOverlayPanelMetrics(forceFullscreen: Boolean = false): Over
         fullScreen = fullScreen,
         topSystemInset = topSystemInset,
         bottomSystemInset = bottomSystemInset,
+        imeBottomInset = imeBottomInset,
         leftSystemInset = leftSystemInset,
         rightSystemInset = rightSystemInset,
     )

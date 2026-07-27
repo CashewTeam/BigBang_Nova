@@ -225,6 +225,10 @@ public class BoomChipPageEditSelectionTest {
 
     @Test
     public void originalCursorEdgeScrollUsesSymmetricQuadraticVelocity() {
+        assertArrayEquals(new int[]{90, 910},
+                BoomChipPage.getAutoScrollBounds(0, 1000, 90, 90));
+        assertArrayEquals(new int[]{160, 160},
+                BoomChipPage.getAutoScrollBounds(100, 220, 90, 90));
         assertEquals(0, BoomChipPage.getOriginalAutoScrollVelocity(100f, 100, 900));
         assertEquals(0, BoomChipPage.getOriginalAutoScrollVelocity(500f, 100, 900));
         assertEquals(-10, BoomChipPage.getOriginalAutoScrollVelocity(0f, 100, 900));
@@ -232,5 +236,19 @@ public class BoomChipPageEditSelectionTest {
         assertTrue(BoomChipPage.shouldStopAutoScrollAtContentEdge(-10, false, true));
         assertTrue(BoomChipPage.shouldStopAutoScrollAtContentEdge(10, true, false));
         assertFalse(BoomChipPage.shouldStopAutoScrollAtContentEdge(10, true, true));
+    }
+
+    @Test
+    public void cursorToolbarUsesTheSmallestScrollNeededForTheImeViewport() {
+        assertEquals(0, BigCursorView.getRequiredViewportScrollDelta(
+                180f, 220f, 0, 400, 109, 5, 0, 8));
+        assertEquals(8, BigCursorView.getRequiredViewportScrollDelta(
+                360f, 400f, 0, 400, 109, 5, 0, 8));
+        assertEquals(66, BigCursorView.getRequiredViewportScrollDelta(
+                360f, 400f, 0, 400, 109, 5, 58, 8));
+        // If the viewport is physically shorter than the toolbar, the caller
+        // falls back to keeping the insertion line visible.
+        assertEquals(0, BigCursorView.getRequiredViewportScrollDelta(
+                40f, 80f, 0, 100, 109, 5, 0, 8));
     }
 }

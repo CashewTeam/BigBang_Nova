@@ -1021,7 +1021,7 @@ private fun BigBangOverlayContent(
                 bottomBar = {
                     OverlayBottomBar(
                         backgroundColor = bottomBarColor,
-                        bottomInset = panelMetrics.bottomSystemInset,
+                        bottomInset = panelMetrics.effectiveBottomInset(isEditMode),
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
                         contentHeight = if (isEditMode) 48.dp else 52.dp,

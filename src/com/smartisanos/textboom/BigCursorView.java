@@ -15,7 +15,6 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import java.util.ArrayList;
 
@@ -552,12 +551,21 @@ public final class BigCursorView extends FrameLayout {
                 + visibleActionCount * mActionGap;
         final int belowTop = Math.round(mCursorTop) - mCursorTopProtrusion;
         final int aboveTop = Math.round(mCursorBottom) - mHandleHeight;
-        mControlsBelowCursor = belowTop + mHandleHeight + mEdgeInset <= visibleBottom
-                || aboveTop < mEdgeInset;
+        final int pasteExtent = mPaste.getVisibility() == VISIBLE
+                ? mActionHeight + mActionGap : 0;
+        final boolean controlsFitBelow = belowTop - pasteExtent >= mEdgeInset
+                && belowTop + mHandleHeight + mEdgeInset <= visibleBottom;
+        final boolean controlsFitAbove = aboveTop >= mEdgeInset
+                && aboveTop + mHandleHeight + pasteExtent + mEdgeInset <= visibleBottom;
+        mControlsBelowCursor = controlsFitBelow || !controlsFitAbove;
+        final int minimumHandleTop = mEdgeInset
+                + (mControlsBelowCursor ? pasteExtent : 0);
+        final int maximumHandleTop = visibleBottom - mHandleHeight - mEdgeInset
+                - (mControlsBelowCursor ? 0 : pasteExtent);
         final int handleTop = clamp(
                 mControlsBelowCursor ? belowTop : aboveTop,
-                mEdgeInset,
-                Math.max(mEdgeInset, visibleBottom - mHandleHeight - mEdgeInset)
+                Math.min(minimumHandleTop, Math.max(mEdgeInset, maximumHandleTop)),
+                Math.max(minimumHandleTop, maximumHandleTop)
         );
         final int handleSlot = getCursorHandleSlot(
                 mCursorX,
@@ -600,12 +608,9 @@ public final class BigCursorView extends FrameLayout {
         layoutAction(mDelete, handleSlot <= 2 ? 3 : 2, controlsLeft, actionTop);
         layoutAction(mEnter, handleSlot <= 3 ? 4 : 3, controlsLeft, actionTop);
         if (mPaste.getVisibility() == VISIBLE) {
-            final int pasteTop = clamp(
-                    mControlsBelowCursor ? handleTop - mActionHeight - mActionGap
-                            : handleTop + mHandleHeight + mActionGap,
-                    mEdgeInset,
-                    Math.max(mEdgeInset, visibleBottom - mActionHeight - mEdgeInset)
-            );
+            final int pasteTop = mControlsBelowCursor
+                    ? handleTop - mActionHeight - mActionGap
+                    : handleTop + mHandleHeight + mActionGap;
             final int pasteLeft = clamp(
                     Math.round(mHandleCenterX) - mActionWidth / 2,
                     mEdgeInset,
@@ -763,6 +768,76 @@ public final class BigCursorView extends FrameLayout {
         return dx * dx + dy * dy > touchSlop * touchSlop;
     }
 
+    /**
+     * Returns the smallest ScrollView delta that lets either original cursor
+     * orientation fit in the measured editor viewport. Positive values move
+     * text upward; negative values move it downward.
+     */
+    public int getRequiredViewportScrollDelta(
+            float cursorTop,
+            float cursorBottom,
+            int viewportTop,
+            int viewportBottom
+    ) {
+        return getRequiredViewportScrollDelta(
+                cursorTop,
+                cursorBottom,
+                viewportTop,
+                viewportBottom,
+                mHandleHeight,
+                mCursorTopProtrusion,
+                mPaste.getVisibility() == VISIBLE ? mActionHeight + mActionGap : 0,
+                mEdgeInset
+        );
+    }
+
+    static int getRequiredViewportScrollDelta(
+            float cursorTop,
+            float cursorBottom,
+            int viewportTop,
+            int viewportBottom,
+            int handleHeight,
+            int topProtrusion,
+            int pasteExtent,
+            int edgeInset
+    ) {
+        final int safeTop = viewportTop + edgeInset;
+        final int safeBottom = viewportBottom - edgeInset;
+        final int availableHeight = safeBottom - safeTop;
+        if (availableHeight <= 0
+                || handleHeight + pasteExtent > availableHeight) {
+            return 0;
+        }
+        final int belowTop = Math.round(cursorTop) - topProtrusion - pasteExtent;
+        final int belowBottom = Math.round(cursorTop) - topProtrusion + handleHeight;
+        final int aboveTop = Math.round(cursorBottom) - handleHeight;
+        final int aboveBottom = Math.round(cursorBottom) + pasteExtent;
+        final int belowDelta = getBoundsFitDelta(
+                belowTop, belowBottom, safeTop, safeBottom);
+        final int aboveDelta = getBoundsFitDelta(
+                aboveTop, aboveBottom, safeTop, safeBottom);
+        if (belowDelta == 0 || aboveDelta == 0) {
+            return 0;
+        }
+        return Math.abs(belowDelta) <= Math.abs(aboveDelta)
+                ? belowDelta : aboveDelta;
+    }
+
+    private static int getBoundsFitDelta(
+            int boundsTop,
+            int boundsBottom,
+            int safeTop,
+            int safeBottom
+    ) {
+        if (boundsTop < safeTop) {
+            return boundsTop - safeTop;
+        }
+        if (boundsBottom > safeBottom) {
+            return boundsBottom - safeBottom;
+        }
+        return 0;
+    }
+
     private void dispatchMappedCursorDrag() {
         if (mCallback == null) {
             return;
@@ -785,12 +860,10 @@ public final class BigCursorView extends FrameLayout {
     }
 
     private int getVisibleBottom(int height) {
-        final WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(this);
-        if (rootInsets == null) {
-            return height;
-        }
-        // The full-screen helper is edge-to-edge, so the cursor controls must reserve IME space.
-        return Math.max(mEdgeInset, height - rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom);
+        // Compose already measures this overlay to the editor body above the
+        // bottom bar/IME spacer. Subtracting the root IME inset here would
+        // shorten the cursor viewport a second time.
+        return Math.max(mEdgeInset, height);
     }
 
     private int clamp(int value, int min, int max) {
