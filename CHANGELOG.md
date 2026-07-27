@@ -3,6 +3,16 @@
 ### [Beta 1.15.1](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.1)
 
 #### 编辑模式优化
+- 编辑模式 IME 可用区域适配
+- 修复大爆炸 emoji 文本输入
+- 微信输入法长按删除适配
+- 修复词块圆角缩放问题
+- 修复撤销重做按钮视觉替换错误
+
+
+### [Beta 1.15.1](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.1)
+
+#### 编辑模式优化
 
 - 优化编辑模式光标拖拽映射、自动滚动和松手后的归位动画。
 - 增加光标所在位置的词块让位动画，改善行首、行中和行尾插入体验。
