@@ -234,10 +234,16 @@ public class BoomChipPage {
                 public boolean sendKeyEvent(KeyEvent event) {
                     if (event.getAction() == KeyEvent.ACTION_DOWN && mCallback != null) {
                         final int selection = Math.max(0, getSelectionStart());
-                        if (event.getKeyCode() == KeyEvent.KEYCODE_DEL && selection == 0) {
+                        // Some IMEs implement long-press backspace as repeated key events
+                        // while keeping the hidden composing buffer's caret away from zero.
+                        // Route those repeats to the visible editor so every deletion is
+                        // reflected in the chip layout and edit history.
+                        if (event.getKeyCode() == KeyEvent.KEYCODE_DEL
+                                && (selection == 0 || event.getRepeatCount() > 0)) {
                             return mCallback.onInputDeleteBefore(1, true);
                         }
-                        if (event.getKeyCode() == KeyEvent.KEYCODE_FORWARD_DEL && selection >= getBufferLength()) {
+                        if (event.getKeyCode() == KeyEvent.KEYCODE_FORWARD_DEL
+                                && (selection >= getBufferLength() || event.getRepeatCount() > 0)) {
                             return mCallback.onInputDeleteAfter(1, true);
                         }
                         if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
@@ -262,10 +268,12 @@ public class BoomChipPage {
         public boolean onKeyDown(int keyCode, KeyEvent event) {
             if (mCallback != null) {
                 final int selection = Math.max(0, getSelectionStart());
-                if (keyCode == KeyEvent.KEYCODE_DEL && selection == 0) {
+                if (keyCode == KeyEvent.KEYCODE_DEL
+                        && (selection == 0 || event.getRepeatCount() > 0)) {
                     return mCallback.onInputDeleteBefore(1, true);
                 }
-                if (keyCode == KeyEvent.KEYCODE_FORWARD_DEL && selection >= getBufferLength()) {
+                if (keyCode == KeyEvent.KEYCODE_FORWARD_DEL
+                        && (selection >= getBufferLength() || event.getRepeatCount() > 0)) {
                     return mCallback.onInputDeleteAfter(1, true);
                 }
                 if (keyCode == KeyEvent.KEYCODE_ENTER) {
