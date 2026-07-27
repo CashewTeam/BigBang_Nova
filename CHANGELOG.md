@@ -1,5 +1,14 @@
 ## 更新日志
 
+### [Beta 1.5.1](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.5.1)
+
+#### 编辑模式优化
+
+- 优化编辑模式光标拖拽映射、自动滚动和松手后的归位动画。
+- 增加光标所在位置的词块让位动画，改善行首、行中和行尾插入体验。
+- 修复 Release 版本中文词块尺寸异常及文字渲染丢失问题。
+- 修复首次进入编辑模式时段落尾部光标定位与手动定位不一致的问题。
+
 ### [Beta 1.15.0](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.0)
 #### 重大功能更新 大爆炸编辑模式
 - 支持了大爆炸编辑模式，支持词块编辑、删除、文本输入、复制、符号输入
