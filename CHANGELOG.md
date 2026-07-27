@@ -1,6 +1,6 @@
 ## 更新日志
 
-### [Beta 1.5.1](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.5.1)
+### [Beta 1.15.1](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.1)
 
 #### 编辑模式优化
 
