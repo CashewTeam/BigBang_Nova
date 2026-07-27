@@ -188,6 +188,10 @@ public class BoomChipPage {
         boolean onInputDeleteSurrounding(int beforeCount, int afterCount,
                 boolean inCodePoints, int inputSelectionStart);
 
+        CharSequence onInputGetTextBeforeCursor(int maxChars, int inputSelectionStart);
+
+        CharSequence onInputGetTextAfterCursor(int maxChars, int inputSelectionEnd);
+
         void onInputEnter();
 
         void onInputSelectionChanged(int selectionStart, int selectionEnd);
@@ -228,6 +232,34 @@ public class BoomChipPage {
                         return true;
                     }
                     return super.deleteSurroundingTextInCodePoints(beforeLength, afterLength);
+                }
+
+                @Override
+                public CharSequence getTextBeforeCursor(int maxChars, int flags) {
+                    if (mCallback != null) {
+                        final int selection = Math.max(0,
+                                Math.min(getSelectionStart(), getBufferLength()));
+                        final CharSequence text =
+                                mCallback.onInputGetTextBeforeCursor(maxChars, selection);
+                        if (text != null) {
+                            return text;
+                        }
+                    }
+                    return super.getTextBeforeCursor(maxChars, flags);
+                }
+
+                @Override
+                public CharSequence getTextAfterCursor(int maxChars, int flags) {
+                    if (mCallback != null) {
+                        final int selection = Math.max(0,
+                                Math.min(getSelectionEnd(), getBufferLength()));
+                        final CharSequence text =
+                                mCallback.onInputGetTextAfterCursor(maxChars, selection);
+                        if (text != null) {
+                            return text;
+                        }
+                    }
+                    return super.getTextAfterCursor(maxChars, flags);
                 }
 
                 @Override
@@ -512,6 +544,18 @@ public class BoomChipPage {
                     boolean inCodePoints, int inputSelectionStart) {
                 return deleteEditSurrounding(
                         beforeCount, afterCount, inCodePoints, inputSelectionStart);
+            }
+
+            @Override
+            public CharSequence onInputGetTextBeforeCursor(
+                    int maxChars, int inputSelectionStart) {
+                return getEditTextBeforeInputCursor(maxChars, inputSelectionStart);
+            }
+
+            @Override
+            public CharSequence onInputGetTextAfterCursor(
+                    int maxChars, int inputSelectionEnd) {
+                return getEditTextAfterInputCursor(maxChars, inputSelectionEnd);
             }
 
             @Override
@@ -1051,6 +1095,27 @@ public class BoomChipPage {
             return false;
         }
         return replaceEditRange(start, end, "", start, true);
+    }
+
+    private CharSequence getEditTextBeforeInputCursor(int maxChars, int inputSelectionStart) {
+        if (!isEditMode()) {
+            return null;
+        }
+        final String text = mEditSession.text;
+        final int cursor = clampEditOffset(text, mInputBufferOffset + inputSelectionStart);
+        final int start = clampEditOffset(text, Math.max(0, cursor - Math.max(0, maxChars)));
+        return text.substring(start, cursor);
+    }
+
+    private CharSequence getEditTextAfterInputCursor(int maxChars, int inputSelectionEnd) {
+        if (!isEditMode()) {
+            return null;
+        }
+        final String text = mEditSession.text;
+        final int cursor = clampEditOffset(text, mInputBufferOffset + inputSelectionEnd);
+        final int end = clampEditOffset(text, Math.min(
+                text.length(), cursor + Math.max(0, maxChars)));
+        return text.substring(cursor, end);
     }
 
     private int getEditDeleteStart(String text, int cursor, int count, boolean inCodePoints) {
