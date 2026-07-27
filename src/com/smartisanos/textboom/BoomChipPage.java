@@ -2918,10 +2918,11 @@ public class BoomChipPage {
                     chip = new BoomChip(wordIndex, chipView);
                 }
                 chipView.setTag(chip);
-                if (mLayout.isEditHalfWidth(wordIndex)) {
-                    // Constrain the root as well: its 9-patch background can otherwise widen the chip.
+                if (mLayout.isEditLayout()) {
+                    // Give scale animations the same exact bounds used by the
+                    // row calculation, including CJK and emoji chips.
                     row.addView(chipView, new LinearLayout.LayoutParams(
-                            mLayout.getEditHalfWidthChipWidth(),
+                            mLayout.getEditChipWidth(wordIndex),
                             LinearLayout.LayoutParams.WRAP_CONTENT
                     ));
                 } else {
@@ -3168,21 +3169,24 @@ public class BoomChipPage {
                 word.setBackgroundResource(mLayout.isEditWhitespace(id)
                         ? R.drawable.boom_edit_chips_punctuate_space
                         : R.drawable.boom_edit_chips_bg);
+                // The normal-mode 9-patch leaves horizontal content padding on
+                // this TextView. Clear it for every edit chip before applying
+                // the original measured width, otherwise a CJK glyph has no
+                // drawable content area and is ellipsized away.
+                word.setPadding(0, word.getPaddingTop(), 0, word.getPaddingBottom());
                 applyEditBackgroundInversion(word, false);
                 word.setTextColor(mActivity.getResources().getColorStateList(
                         R.color.boom_chip_text_color));
                 final ViewGroup.LayoutParams editParams = word.getLayoutParams();
+                // The original ChipTextView renders Word.width directly. An
+                // explicit width prevents release resource optimization from
+                // changing wrap_content through the bitmap intrinsic width.
+                editParams.width = mLayout.getEditChipWidth(id);
                 editParams.height = getActiveChipRowHeight();
                 word.setLayoutParams(editParams);
-                if (!mLayout.isEditHalfWidth(id)) {
-                    // Keep CJK/emoji at the original editor's 24dp minimum.
-                    word.setMinWidth(mLayout.getEditWordMinWidth());
-                }
             }
             if (mLayout.isEditHalfWidth(id)) {
                 final int width = mLayout.getEditHalfWidthChipWidth();
-                // Preserve vertical inset only so the compact chip still has room to render its glyph.
-                word.setPadding(0, word.getPaddingTop(), 0, word.getPaddingBottom());
                 final ViewGroup.LayoutParams params = word.getLayoutParams();
                 params.width = width;
                 word.setLayoutParams(params);

@@ -493,6 +493,12 @@ public class BoomWordsLayout {
         return mEditWordMinWidth;
     }
 
+    public int getEditChipWidth(int index) {
+        // Match the original editor: row layout and rendering use the same
+        // measured width instead of treating it only as a TextView minimum.
+        return measureChip(index);
+    }
+
     public boolean isEditLayout() {
         return mEditLayout;
     }
