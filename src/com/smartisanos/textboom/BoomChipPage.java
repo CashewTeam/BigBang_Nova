@@ -295,65 +295,17 @@ public class BoomChipPage {
             }
             final int bufferLength = getBufferLength();
             final int selectionStart = Math.max(0, Math.min(getSelectionStart(), bufferLength));
-            final int selectionEnd = Math.max(selectionStart,
-                    Math.min(Math.max(0, getSelectionEnd()), bufferLength));
-            final int beforeInBuffer = getInputUnitCount(0, selectionStart, inCodePoints);
-            final int afterInBuffer = getInputUnitCount(selectionEnd, bufferLength, inCodePoints);
-            if (beforeLength <= beforeInBuffer && afterLength <= afterInBuffer
-                    && !deletesPartialInputUnit(
-                            beforeLength, afterLength, inCodePoints, selectionStart, selectionEnd)) {
-                return false;
+            if (beforeLength > 0 || afterLength > 0) {
+                // Long-press deletion is commonly delivered as repeated
+                // deleteSurroundingText calls. Always mutate the authoritative
+                // editor model: letting an in-buffer request fall through to
+                // the transparent EditText can swallow later repeat callbacks.
+                mCallback.onInputDeleteSurrounding(
+                        beforeLength, afterLength, inCodePoints, selectionStart);
             }
-            // Resolve the whole requested range at once: the other side may still be in preedit text.
-            return mCallback.onInputDeleteSurrounding(
-                    beforeLength, afterLength, inCodePoints, selectionStart);
-        }
-
-        private int getInputUnitCount(int start, int end, boolean inCodePoints) {
-            if (!inCodePoints) {
-                return end - start;
-            }
-            final Editable text = getText();
-            return text == null ? 0 : Character.codePointCount(text, start, end);
-        }
-
-        private boolean deletesPartialInputUnit(int beforeLength, int afterLength,
-                boolean inCodePoints, int selectionStart, int selectionEnd) {
-            final Editable text = getText();
-            if (text == null) {
-                return false;
-            }
-            final int start = inCodePoints
-                    ? moveInputCodePoints(text, selectionStart, -beforeLength)
-                    : Math.max(0, selectionStart - beforeLength);
-            final int end = inCodePoints
-                    ? moveInputCodePoints(text, selectionEnd, afterLength)
-                    : Math.min(text.length(), selectionEnd + afterLength);
-            return isInsideInputEditableUnit(text, start) || isInsideInputEditableUnit(text, end);
-        }
-
-        private int moveInputCodePoints(CharSequence text, int offset, int count) {
-            int result = offset;
-            int remaining = count;
-            while (remaining < 0 && result > 0) {
-                result = Character.offsetByCodePoints(text, result, -1);
-                ++remaining;
-            }
-            while (remaining > 0 && result < text.length()) {
-                result = Character.offsetByCodePoints(text, result, 1);
-                --remaining;
-            }
-            return result;
-        }
-
-        private boolean isInsideInputEditableUnit(CharSequence text, int offset) {
-            if (offset <= 0 || offset >= text.length()) {
-                return false;
-            }
-            final char before = text.charAt(offset - 1);
-            final char after = text.charAt(offset);
-            return Character.isHighSurrogate(before) && Character.isLowSurrogate(after)
-                    || before == '\r' && after == '\n';
+            // Consume the request even at a document boundary so the IME keeps
+            // its long-press repeat sequence alive.
+            return true;
         }
     }
 
