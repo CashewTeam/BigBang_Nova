@@ -1,6 +1,6 @@
 ## 更新日志
 
-### [Beta 1.15.1](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.1)
+### [Beta 1.15.2](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.2)
 
 #### 编辑模式优化
 - 编辑模式 IME 可用区域适配
