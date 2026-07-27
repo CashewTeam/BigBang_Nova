@@ -1045,7 +1045,8 @@ private fun BigBangOverlayContent(
                             if (isEditMode) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     OverlayIconAction(
-                                        iconRes = R.drawable.action_bar_undo_selector,
+                                        // Legacy asset names are visually reversed: revoke is the left-facing undo arrow.
+                                        iconRes = R.drawable.action_bar_revoke_selector,
                                         tint = null,
                                         invertAssetColors = dark,
                                         enabled = editCanUndo && !editTransitioning,
@@ -1053,7 +1054,8 @@ private fun BigBangOverlayContent(
                                         contentDescription = stringResource(R.string.bigbang_action_undo),
                                     )
                                     OverlayIconAction(
-                                        iconRes = R.drawable.action_bar_revoke_selector,
+                                        // The legacy undo asset is the right-facing redo arrow.
+                                        iconRes = R.drawable.action_bar_undo_selector,
                                         tint = null,
                                         invertAssetColors = dark,
                                         enabled = editCanRedo && !editTransitioning,
