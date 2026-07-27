@@ -1460,8 +1460,11 @@ public class BoomChipPage {
         }
         if (commitPendingOffset) {
             // Dragging is a visual preview. Commit the nearest text boundary
-            // only after release, then glide back to the anchored blinking cursor.
+            // only after release. A row-end left dodge only makes room for the
+            // floating drag preview, so releasing animates that row back home;
+            // an inner insertion gap remains anchored at the committed caret.
             mAnimateNextCursorUpdate = true;
+            updateCursorDodge(pendingOffset, true);
             updateEditCursorOffset(pendingOffset, true, true);
         }
         // Also covers a release onto the current offset, where the state setter
@@ -1622,7 +1625,7 @@ public class BoomChipPage {
         updateCursorDodge(cursorOffset, true);
         final CursorAnchor cursorAnchor = applyCursorDodgeToAnchor(
                 findEditCursorAnchor(true),
-                findCursorDodgeTarget(cursorOffset)
+                findActiveCursorDodgeTarget(cursorOffset)
         );
         if (ensureVisible && scrollEditCursorIntoView(cursorAnchor)) {
             scheduleEditCursorUpdate(false);
@@ -1740,8 +1743,16 @@ public class BoomChipPage {
                 mLayout.getRowForIndex(previousWord), previousWord, true);
     }
 
-    private void updateCursorDodge(int cursor, boolean animate) {
+    private CursorDodgeTarget findActiveCursorDodgeTarget(int cursor) {
         final CursorDodgeTarget target = findCursorDodgeTarget(cursor);
+        // The stock row-end dodge belongs to the floating drag preview only.
+        // Once released, the row returns to its layout position and the caret
+        // anchors to the real trailing edge instead of keeping the row shifted.
+        return target != null && target.atRowEnd && !mCursorDragActive ? null : target;
+    }
+
+    private void updateCursorDodge(int cursor, boolean animate) {
+        final CursorDodgeTarget target = findActiveCursorDodgeTarget(cursor);
         final int targetRow = target == null ? -1 : target.row;
         final int targetWord = target == null ? -1 : target.word;
         final boolean targetAtRowEnd = target != null && target.atRowEnd;
@@ -2194,7 +2205,7 @@ public class BoomChipPage {
         final int cursorOffset = getEditCursorOffset();
         final CursorAnchor insertionAnchor = applyCursorDodgeToAnchor(
                 findEditCursorAnchor(true),
-                findCursorDodgeTarget(cursorOffset)
+                findActiveCursorDodgeTarget(cursorOffset)
         );
         final int[] overlayLocation = new int[2];
         mEditMutationOverlay.getLocationOnScreen(overlayLocation);
@@ -2453,7 +2464,7 @@ public class BoomChipPage {
                 ? EDIT_INSERT_TRANSITION_DURATION_MS
                 : EDIT_MUTATION_TRANSITION_DURATION_MS;
         final CursorDodgeTarget dodgeTarget =
-                findCursorDodgeTarget(getEditCursorOffset());
+                findActiveCursorDodgeTarget(getEditCursorOffset());
         // Rebuilt retained chips must always start from a fully rendered state.
         // Only chips overlapping the newly inserted source range are animated.
         for (int index = 0; index < mLayout.getWordCount(); ++index) {
@@ -2522,7 +2533,7 @@ public class BoomChipPage {
             return;
         }
         final int cursorOffset = getEditCursorOffset();
-        final CursorDodgeTarget dodgeTarget = findCursorDodgeTarget(cursorOffset);
+        final CursorDodgeTarget dodgeTarget = findActiveCursorDodgeTarget(cursorOffset);
         CursorAnchor cursorAnchor = applyCursorDodgeToAnchor(
                 findEditCursorAnchor(true), dodgeTarget);
         if (cursorAnchor == null) {
