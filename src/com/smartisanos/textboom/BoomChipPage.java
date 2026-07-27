@@ -1606,7 +1606,10 @@ public class BoomChipPage {
             mBigCursorView.hideCursor();
             return;
         }
-        final CursorAnchor cursorAnchor = findEditCursorAnchor();
+        // Anchored cursors follow the final chip layout, not the temporary
+        // scale/translation used by the editor entry animation. This keeps the
+        // initial paragraph-tail position identical to a manually placed caret.
+        final CursorAnchor cursorAnchor = findEditCursorAnchor(true);
         if (ensureVisible && scrollEditCursorIntoView(cursorAnchor)) {
             scheduleEditCursorUpdate(false);
             return;
@@ -2087,7 +2090,6 @@ public class BoomChipPage {
         rebuildChips(selectedState);
         animateEditEntry();
         resetEditInputBuffer(initialCursorOffset);
-        scheduleEditCursorUpdate(true);
         mBoomActionHandler.refreshToolbarForCurrentMode();
         notifyEditUiStateChanged();
         finishAdjacentPull();
