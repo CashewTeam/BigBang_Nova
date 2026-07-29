@@ -50,6 +50,9 @@ class ExtraSettings(context: Context) {
     var threeFingerTapDuration: Float
         get() = preferences.getFloat(KEY_THREE_FINGER_TAP_DURATION, 300f)
         set(value) = write { putFloat(KEY_THREE_FINGER_TAP_DURATION, value) }
+    var autoEnableNovaTextAccessibility: Boolean
+        get() = preferences.getBoolean(KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, false)
+        set(value) = write { putBoolean(KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, value) }
     fun config(): TriggerConfig = TriggerConfig(
         enabled = triggerEnabled,
         calibrated = calibrated,
@@ -80,6 +83,7 @@ class ExtraSettings(context: Context) {
         const val KEY_LONG_PRESS_DURATION = "long_press_duration"
         const val KEY_TWO_FINGER_TAP_DURATION = "two_finger_tap_duration"
         const val KEY_THREE_FINGER_TAP_DURATION = "three_finger_tap_duration"
+        const val KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY = "auto_enable_nova_text_accessibility"
         private const val PREFS = "nova_text_extra"
     }
 }
@@ -120,6 +124,7 @@ object VectorServiceBridge {
             .putFloat(ExtraSettings.KEY_LONG_PRESS_DURATION, settings.longPressDuration)
             .putFloat(ExtraSettings.KEY_TWO_FINGER_TAP_DURATION, settings.twoFingerTapDuration)
             .putFloat(ExtraSettings.KEY_THREE_FINGER_TAP_DURATION, settings.threeFingerTapDuration)
+            .putBoolean(ExtraSettings.KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, settings.autoEnableNovaTextAccessibility)
             .apply()
     }
 
@@ -150,4 +155,32 @@ object VectorServiceBridge {
     fun scopeStatus(): String = service?.let {
         runCatching { "已授权 ${it.scope.size} 个应用" }.getOrElse { "Xposed 服务不可用" }
     } ?: "未连接 Xposed"
+
+    fun enableNovaTextAccessibility(settings: ExtraSettings, onResult: (String) -> Unit) {
+        val vector = service ?: run {
+            mainHandler.post { onResult("请先在 Xposed 管理器中启用模块") }
+            return
+        }
+        val systemScope = listOf("android")
+        val enable = {
+            settings.autoEnableNovaTextAccessibility = true
+            mainHandler.post { onResult("已保存自动开启请求；若刚授权系统作用域，请重启设备后生效") }
+        }
+        if (runCatching { vector.scope.contains("android") }.getOrDefault(false)) {
+            enable()
+            return
+        }
+        runCatching {
+            vector.requestScope(systemScope, object : XposedService.OnScopeEventListener {
+                override fun onScopeRequestApproved(approved: List<String>) {
+                    if (approved.contains("android")) enable()
+                    else mainHandler.post { onResult("Xposed 未授权 Android 系统作用域") }
+                }
+
+                override fun onScopeRequestFailed(message: String) {
+                    mainHandler.post { onResult(message) }
+                }
+            })
+        }.onFailure { mainHandler.post { onResult(it.message ?: "Android 系统作用域请求失败") } }
+    }
 }

@@ -45,4 +45,14 @@ public final class VectorTouchModule extends XposedModule {
             log(Log.ERROR, "NovaTextExtra", "unable to hook input", throwable);
         }
     }
+
+    @Override
+    public void onSystemServerStarting(XposedModuleInterface.SystemServerStartingParam param) {
+        try {
+            SharedPreferences preferences = getRemotePreferences(ExtraSettings.GROUP);
+            NovaTextAccessibilityBridge.attachSystemServer(preferences);
+        } catch (Throwable throwable) {
+            log(Log.ERROR, "NovaTextExtra", "unable to configure Nova Text accessibility", throwable);
+        }
+    }
 }

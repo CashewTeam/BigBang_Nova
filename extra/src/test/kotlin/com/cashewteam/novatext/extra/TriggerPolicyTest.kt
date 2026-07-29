@@ -1,5 +1,6 @@
 package com.cashewteam.novatext.extra
 
+import com.cashewteam.novatext.extra.vector.NovaTextAccessibilityBridge
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
@@ -51,5 +52,25 @@ class TriggerPolicyTest {
     fun extractsInputMethodPackage() {
         assertEquals("com.example.ime", TriggerPolicy.inputMethodPackage("com.example.ime/.Keyboard"))
         assertEquals(null, TriggerPolicy.inputMethodPackage(null))
+    }
+
+    @Test
+    fun enablingNovaTextAccessibilityPreservesExistingServices() {
+        assertEquals(
+            "com.example.first/.Service:${NovaTextAccessibilityBridge.SERVICE_COMPONENT}:com.example.second/.Service",
+            NovaTextAccessibilityBridge.enabledServicesWithNovaText(
+                "com.example.first/.Service:${NovaTextAccessibilityBridge.SERVICE_COMPONENT}:com.example.second/.Service",
+            ),
+        )
+        assertEquals(
+            NovaTextAccessibilityBridge.SERVICE_COMPONENT,
+            NovaTextAccessibilityBridge.enabledServicesWithNovaText(null),
+        )
+        assertEquals(
+            "com.example.first/.Service:com.cashewteam.novatext.android/.service.NovaTextAccessibilityService",
+            NovaTextAccessibilityBridge.enabledServicesWithNovaText(
+                "com.example.first/.Service:com.cashewteam.novatext.android/.service.NovaTextAccessibilityService",
+            ),
+        )
     }
 }

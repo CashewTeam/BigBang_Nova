@@ -26,6 +26,7 @@ object VectorTouchBridge {
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var config = TriggerConfig(false, false, TriggerMode.PRESSURE, 0f)
     @Volatile private var attachedPreferences: SharedPreferences? = null
+    private var preferenceListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var activeMode = TriggerMode.PRESSURE
     private var longPressTask: Runnable? = null
     private var firstPointerId = MotionEvent.INVALID_POINTER_ID
@@ -43,9 +44,11 @@ object VectorTouchBridge {
     @JvmStatic
     fun attach(preferences: SharedPreferences) {
         if (attachedPreferences === preferences) return
+        attachedPreferences?.let { current -> preferenceListener?.let(current::unregisterOnSharedPreferenceChangeListener) }
         attachedPreferences = preferences
         refresh(preferences)
-        preferences.registerOnSharedPreferenceChangeListener { _, _ -> refresh(preferences) }
+        preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> refresh(preferences) }
+        preferences.registerOnSharedPreferenceChangeListener(requireNotNull(preferenceListener))
     }
 
     @JvmStatic

@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cashewteam.novatext.extra.vector.NovaTextAccessibilityBridge
 
 class ExtraActivity : ComponentActivity() {
     private var resumeVersion by mutableIntStateOf(0)
@@ -187,6 +188,31 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
                     settings.triggerEnabled = it; refresh()
                 }
                 if (!config.calibrated) Text("请先保存触发设置", color = Color(0xFFB05D00), fontSize = 13.sp)
+            }
+        }
+        item {
+            ExtraCard {
+                Text("Nova Text 无障碍", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                SwitchRow(
+                    "自动开启 Nova Text 无障碍",
+                    "需要 Xposed 授权 Android 系统作用域；首次授权后请重启设备。",
+                    settings.autoEnableNovaTextAccessibility,
+                ) { enabled ->
+                    if (!enabled) {
+                        settings.autoEnableNovaTextAccessibility = false
+                        refresh()
+                    } else {
+                        VectorServiceBridge.enableNovaTextAccessibility(settings) {
+                            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                            refresh()
+                        }
+                    }
+                }
+                Text(
+                    if (NovaTextAccessibilityBridge.isEnabled(context)) "Nova Text 无障碍：已开启" else "Nova Text 无障碍：未开启",
+                    color = Color(0xFF60656D),
+                    fontSize = 13.sp,
+                )
             }
         }
     }
@@ -367,6 +393,8 @@ private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress
                     else -> "%.3f".format(config.threshold)
                 })
                 StatusRow("系统监听", if (settings.triggerEnabled) "已启用" else "未启用")
+                StatusRow("自动开启无障碍", if (settings.autoEnableNovaTextAccessibility) "已请求" else "未请求")
+                StatusRow("Nova Text 无障碍", if (NovaTextAccessibilityBridge.isEnabled(context)) "已开启" else "未开启")
                 StatusRow("免 Root 监听", "已迁移至 Nova Text")
                 StatusRow("最近触发", ExtraDiagnostics.last(context))
             }
