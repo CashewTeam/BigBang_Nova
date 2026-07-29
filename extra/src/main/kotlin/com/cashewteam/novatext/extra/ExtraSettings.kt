@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,6 +22,9 @@ data class TriggerConfig(
 
 class ExtraSettings(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private var autoEnableNovaTextAccessibilityState by mutableStateOf(
+        preferences.getBoolean(KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, false),
+    )
 
     var triggerEnabled: Boolean
         get() = preferences.getBoolean(KEY_ENABLED, false)
@@ -51,8 +55,13 @@ class ExtraSettings(context: Context) {
         get() = preferences.getFloat(KEY_THREE_FINGER_TAP_DURATION, 300f)
         set(value) = write { putFloat(KEY_THREE_FINGER_TAP_DURATION, value) }
     var autoEnableNovaTextAccessibility: Boolean
-        get() = preferences.getBoolean(KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, false)
-        set(value) = write { putBoolean(KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, value) }
+        get() = autoEnableNovaTextAccessibilityState
+        set(value) {
+            if (autoEnableNovaTextAccessibilityState == value) return
+            preferences.edit().putBoolean(KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, value).apply()
+            autoEnableNovaTextAccessibilityState = value
+            VectorServiceBridge.sync(this)
+        }
     fun config(): TriggerConfig = TriggerConfig(
         enabled = triggerEnabled,
         calibrated = calibrated,
@@ -113,19 +122,26 @@ object VectorServiceBridge {
     }
 
     fun sync(settings: ExtraSettings) {
-        val remote = service?.getRemotePreferences(ExtraSettings.GROUP) ?: return
-        remote.edit()
-            .putBoolean(ExtraSettings.KEY_ENABLED, settings.triggerEnabled)
-            .putBoolean(ExtraSettings.KEY_CALIBRATED, settings.calibrated)
-            .putString(ExtraSettings.KEY_MODE, settings.mode.name)
-            .putFloat(ExtraSettings.KEY_PRESSURE, settings.pressureThreshold)
-            .putFloat(ExtraSettings.KEY_SIZE, settings.sizeThreshold)
-            .putFloat(ExtraSettings.KEY_TOUCH_AREA, settings.touchAreaThreshold)
-            .putFloat(ExtraSettings.KEY_LONG_PRESS_DURATION, settings.longPressDuration)
-            .putFloat(ExtraSettings.KEY_TWO_FINGER_TAP_DURATION, settings.twoFingerTapDuration)
-            .putFloat(ExtraSettings.KEY_THREE_FINGER_TAP_DURATION, settings.threeFingerTapDuration)
-            .putBoolean(ExtraSettings.KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, settings.autoEnableNovaTextAccessibility)
-            .apply()
+        runCatching {
+            val remote = service?.getRemotePreferences(ExtraSettings.GROUP) ?: return
+            remote.edit()
+                .putBoolean(ExtraSettings.KEY_ENABLED, settings.triggerEnabled)
+                .putBoolean(ExtraSettings.KEY_CALIBRATED, settings.calibrated)
+                .putString(ExtraSettings.KEY_MODE, settings.mode.name)
+                .putFloat(ExtraSettings.KEY_PRESSURE, settings.pressureThreshold)
+                .putFloat(ExtraSettings.KEY_SIZE, settings.sizeThreshold)
+                .putFloat(ExtraSettings.KEY_TOUCH_AREA, settings.touchAreaThreshold)
+                .putFloat(ExtraSettings.KEY_LONG_PRESS_DURATION, settings.longPressDuration)
+                .putFloat(ExtraSettings.KEY_TWO_FINGER_TAP_DURATION, settings.twoFingerTapDuration)
+                .putFloat(ExtraSettings.KEY_THREE_FINGER_TAP_DURATION, settings.threeFingerTapDuration)
+                .putBoolean(ExtraSettings.KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY, settings.autoEnableNovaTextAccessibility)
+                .apply()
+        }.onFailure { throwable ->
+            Log.e(TAG, "Unable to synchronize Xposed preferences", throwable)
+            mainHandler.post {
+                status = "Xposed 配置同步失败：${throwable.message ?: throwable.javaClass.simpleName}"
+            }
+        }
     }
 
     fun requestRequiredScopes(context: Context, onResult: (String) -> Unit) {
@@ -159,4 +175,5 @@ object VectorServiceBridge {
         runCatching { "已授权 ${it.scope.size} 个应用" }.getOrElse { "Xposed 服务不可用" }
     } ?: "未连接 Xposed"
 
+    private const val TAG = "NovaExtraXposed"
 }

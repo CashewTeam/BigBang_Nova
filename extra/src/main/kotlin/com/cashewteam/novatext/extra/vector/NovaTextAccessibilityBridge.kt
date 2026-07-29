@@ -3,6 +3,8 @@ package com.cashewteam.novatext.extra.vector
 import android.content.Context
 import android.content.ContentResolver
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import com.cashewteam.novatext.extra.ExtraSettings
@@ -22,10 +24,13 @@ object NovaTextAccessibilityBridge {
         attachedPreferences?.let { current -> preferenceListener?.let(current::unregisterOnSharedPreferenceChangeListener) }
         attachedPreferences = preferences
         preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
-            if (key == ExtraSettings.KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY) enableIfRequested(changed)
+            if (key == ExtraSettings.KEY_AUTO_ENABLE_NOVA_TEXT_ACCESSIBILITY) {
+                Log.i(TAG, "auto-enable request=${changed.getBoolean(key, false)}")
+                enableIfRequested(changed)
+            }
         }
         preferences.registerOnSharedPreferenceChangeListener(requireNotNull(preferenceListener))
-        enableIfRequested(preferences)
+        Handler(Looper.getMainLooper()).post { enableIfRequested(preferences) }
     }
 
     @JvmStatic
@@ -48,16 +53,16 @@ object NovaTextAccessibilityBridge {
             val resolver = context.contentResolver
             val enabled = getSecureStringForCurrentUser(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
             val updated = enabledServicesWithNovaText(enabled)
-            putSecureStringForCurrentUser(
+            check(putSecureStringForCurrentUser(
                 resolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                 updated,
-            )
-            putSecureStringForCurrentUser(
+            )) { "failed to update enabled accessibility services" }
+            check(putSecureStringForCurrentUser(
                 resolver,
                 Settings.Secure.ACCESSIBILITY_ENABLED,
                 "1",
-            )
+            )) { "failed to enable accessibility" }
             Log.i(TAG, "Nova Text accessibility service enabled")
         }.onFailure { Log.e(TAG, "Unable to enable Nova Text accessibility service", it) }
     }
@@ -80,14 +85,14 @@ object NovaTextAccessibilityBridge {
             Int::class.javaPrimitiveType,
         ).invoke(null, resolver, key, currentUserId()) as? String
 
-    private fun putSecureStringForCurrentUser(resolver: ContentResolver, key: String, value: String) {
-        Settings.Secure::class.java.getDeclaredMethod(
+    private fun putSecureStringForCurrentUser(resolver: ContentResolver, key: String, value: String): Boolean {
+        return Settings.Secure::class.java.getDeclaredMethod(
             "putStringForUser",
             ContentResolver::class.java,
             String::class.java,
             String::class.java,
             Int::class.javaPrimitiveType,
-        ).invoke(null, resolver, key, value, currentUserId())
+        ).invoke(null, resolver, key, value, currentUserId()) as? Boolean ?: false
     }
 
     private fun currentUserId(): Int = Class.forName("android.app.ActivityManager")

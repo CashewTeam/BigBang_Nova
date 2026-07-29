@@ -1,6 +1,10 @@
 package com.cashewteam.novatext.extra
 
 import android.os.Bundle
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -40,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -168,6 +173,7 @@ private fun NavigationCard(title: String, subtitle: String, onClick: () -> Unit)
 @Composable
 private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit) {
     val context = LocalContext.current
+    val novaTextAccessibilityEnabled = rememberNovaTextAccessibilityEnabled(context)
     PageList {
         item {
             ExtraCard {
@@ -207,13 +213,34 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
                     refresh()
                 }
                 Text(
-                    if (NovaTextAccessibilityBridge.isEnabled(context)) "Nova Text 无障碍：已开启" else "Nova Text 无障碍：未开启",
+                    if (novaTextAccessibilityEnabled) "Nova Text 无障碍：已开启" else "Nova Text 无障碍：未开启",
                     color = Color(0xFF60656D),
                     fontSize = 13.sp,
                 )
             }
         }
     }
+}
+
+@Composable
+private fun rememberNovaTextAccessibilityEnabled(context: android.content.Context): Boolean {
+    val appContext = context.applicationContext
+    var enabled by remember { mutableStateOf(NovaTextAccessibilityBridge.isEnabled(appContext)) }
+    DisposableEffect(appContext) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                enabled = NovaTextAccessibilityBridge.isEnabled(appContext)
+            }
+        }
+        appContext.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
+            false,
+            observer,
+        )
+        enabled = NovaTextAccessibilityBridge.isEnabled(appContext)
+        onDispose { appContext.contentResolver.unregisterContentObserver(observer) }
+    }
+    return enabled
 }
 
 @Composable
