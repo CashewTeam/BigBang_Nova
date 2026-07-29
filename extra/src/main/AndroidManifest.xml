@@ -19,11 +19,6 @@
             </intent-filter>
         </activity>
 
-        <provider
-            android:name="io.github.libxposed.service.XposedProvider"
-            android:authorities="${applicationId}.XposedService"
-            android:exported="false" />
-
         <receiver
             android:name=".TriggerDiagnosticReceiver"
             android:exported="true">

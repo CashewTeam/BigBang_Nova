@@ -7,7 +7,6 @@ import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import java.util.ArrayDeque
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 
@@ -135,35 +134,17 @@ object VectorServiceBridge {
             .filter { it.packageName != own && !TriggerPolicy.isExcludedPackage(it.packageName) }
             .map { it.packageName }
             .toList()
-        val pending = ArrayDeque(packages)
-        var approved = 0
-        fun requestNext() {
-            val next = pending.poll() ?: run {
-                mainHandler.post { onResult("已授权 $approved 个应用，请重启目标应用") }
-                return
-            }
-            runCatching {
-                vector.requestScope(next, object : XposedService.OnScopeEventListener {
-                    override fun onScopeRequestApproved(packageName: String) {
-                        approved++
-                        mainHandler.post(::requestNext)
-                    }
+        runCatching {
+            vector.requestScope(packages, object : XposedService.OnScopeEventListener {
+                override fun onScopeRequestApproved(approved: List<String>) {
+                    mainHandler.post { onResult("已授权 ${approved.size} 个应用，请重启目标应用") }
+                }
 
-                    override fun onScopeRequestDenied(packageName: String) {
-                        mainHandler.post { onResult("已授权 $approved 个应用；Xposed 拒绝了 $packageName") }
-                    }
-
-                    override fun onScopeRequestTimeout(packageName: String) {
-                        mainHandler.post { onResult("已授权 $approved 个应用；$packageName 授权超时") }
-                    }
-
-                    override fun onScopeRequestFailed(packageName: String, message: String) {
-                        mainHandler.post { onResult(message) }
-                    }
-                })
-            }.onFailure { mainHandler.post { onResult(it.message ?: "Xposed 作用域请求失败") } }
-        }
-        requestNext()
+                override fun onScopeRequestFailed(message: String) {
+                    mainHandler.post { onResult(message) }
+                }
+            })
+        }.onFailure { mainHandler.post { onResult(it.message ?: "Xposed 作用域请求失败") } }
     }
 
     fun scopeStatus(): String = service?.let {

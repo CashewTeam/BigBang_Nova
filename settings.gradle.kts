@@ -30,6 +30,3 @@ dependencyResolutionManagement {
 rootProject.name = "BigBang_Nova"
 include(":app")
 include(":extra")
-include(":extra:libxposed-api")
-include(":extra:libxposed-service-interface")
-include(":extra:libxposed-service")

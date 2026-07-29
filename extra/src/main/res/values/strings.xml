@@ -1,4 +1,3 @@
 <resources>
     <string name="app_name">Nova Text Extra</string>
-    <string name="extra_accessibility_summary">在 Android 13 及以上监听触控，并将普通操作原样交给当前应用。</string>
 </resources>

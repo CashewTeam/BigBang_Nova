@@ -20,8 +20,8 @@ android {
         applicationId = "com.cashewteam.novatext.extra"
         minSdk = 27
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.2.0"
+        versionCode = 6
+        versionName = "0.2.1"
     }
 
     signingConfigs {
@@ -66,8 +66,10 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation(project(":extra:libxposed-service"))
-    compileOnly(project(":extra:libxposed-api"))
+    implementation("io.github.libxposed:service:101.0.0") {
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
+    }
+    compileOnly("io.github.libxposed:api:101.0.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }

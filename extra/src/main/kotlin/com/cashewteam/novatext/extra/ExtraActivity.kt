@@ -270,7 +270,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
         item {
             ExtraCard {
                 Text("重要提醒", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("请确认触发设置正确并且设备支持，否则可能会导致无障碍触控拦截无法关闭。")
+                Text("请确认触发设置正确且设备支持，避免普通触控被误判为触发。")
             }
         }
         item {
