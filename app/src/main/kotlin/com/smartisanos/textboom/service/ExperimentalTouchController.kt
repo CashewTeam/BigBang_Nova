@@ -33,6 +33,7 @@ data class ExperimentalTriggerConfig(
     val configured: Boolean,
     val mode: ExperimentalTriggerMode,
     val threshold: Float,
+    val maximumTapDurationMs: Float,
 )
 
 object ExperimentalTouchPolicy {
@@ -49,7 +50,12 @@ object ExperimentalTouchPolicy {
             ExperimentalTriggerMode.TWO_FINGER_TAP -> settings.experimentalTouchTwoFingerDuration
             ExperimentalTriggerMode.THREE_FINGER_TAP -> settings.experimentalTouchThreeFingerDuration
         }
-        return ExperimentalTriggerConfig(settings.isExperimentalTouchConfigured, mode, threshold)
+        val maximumTapDurationMs = if (isSensorMode(mode)) {
+            settings.experimentalTouchSensorDuration
+        } else {
+            threshold
+        }
+        return ExperimentalTriggerConfig(settings.isExperimentalTouchConfigured, mode, threshold, maximumTapDurationMs)
     }
 
     fun isSensorMode(mode: ExperimentalTriggerMode): Boolean = when (mode) {
@@ -81,6 +87,9 @@ object ExperimentalTouchPolicy {
 
     fun hasUsableThreshold(config: ExperimentalTriggerConfig): Boolean =
         config.configured && config.threshold.isFinite() && config.threshold > 0f
+
+    fun hasUsableCandidateDuration(config: ExperimentalTriggerConfig): Boolean =
+        config.maximumTapDurationMs.isFinite() && config.maximumTapDurationMs > 0f
 
     fun hasExactPointerCount(mode: ExperimentalTriggerMode, currentCount: Int, maximumCount: Int): Boolean =
         currentCount == requiredPointerCount(mode) && maximumCount == currentCount
@@ -115,7 +124,8 @@ object ExperimentalTouchController {
         val config = ExperimentalTouchPolicy.config(settings)
         val service = NovaTextAccessibilityService.activeInstance
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || service == null ||
-            !ExperimentalTouchPolicy.hasUsableThreshold(config) || !hasBatteryExemption(context)
+            !ExperimentalTouchPolicy.hasUsableThreshold(config) ||
+            !ExperimentalTouchPolicy.hasUsableCandidateDuration(config) || !hasBatteryExemption(context)
         ) return false
         settings.setExperimentalTouchEnabled(true)
         running = true
@@ -134,9 +144,11 @@ object ExperimentalTouchController {
 
     fun connect(service: NovaTextAccessibilityService) {
         val settings = BigBangSettings.get(service)
+        val config = ExperimentalTouchPolicy.config(settings)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !settings.isExperimentalTouchSelected ||
             !settings.isExperimentalTouchEnabled ||
-            !ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTouchPolicy.config(settings)) ||
+            !ExperimentalTouchPolicy.hasUsableThreshold(config) ||
+            !ExperimentalTouchPolicy.hasUsableCandidateDuration(config) ||
             !hasBatteryExemption(service)
         ) return
         running = true
@@ -212,7 +224,9 @@ object ExperimentalTouchController {
                         }
                         MotionEvent.ACTION_POINTER_UP -> if (multiFingerCandidate) finishMultiFingerTap(event, currentController)
                         MotionEvent.ACTION_UP -> {
-                            if (multiFingerCandidate && maximumPointerCount == 1) {
+                            if (multiFingerCandidate && requiredPointers == 1) {
+                                finishSensorTap(event, currentController)
+                            } else if (multiFingerCandidate && maximumPointerCount == 1) {
                                 replayShortTap(accessibilityService ?: return, candidateRawX, candidateRawY, elapsed(event.eventTime))
                             }
                             clearCandidate()
@@ -268,16 +282,21 @@ object ExperimentalTouchController {
             consumingInteraction = false
             val service = accessibilityService ?: return
             val config = ExperimentalTouchPolicy.config(BigBangSettings.get(service))
-            val sample = ExperimentalTouchPolicy.readSample(event, config.mode, 0)
             when {
                 service.isInputMethodVisible() -> requestDelegating(controller, "input_method_visible")
                 ExperimentalTouchPolicy.isExcludedPackage(foregroundPackage) -> requestDelegating(controller, "excluded_package package=$foregroundPackage")
-                ExperimentalTouchPolicy.isMultiFingerTap(config.mode) -> beginMultiFingerCandidate(event, config, controller)
-                !ExperimentalTouchPolicy.hasUsableThreshold(config) || sample <= config.threshold ->
-                    requestDelegating(controller, "normal_down mode=${config.mode} sample=$sample threshold=${config.threshold}")
+                !ExperimentalTouchPolicy.hasUsableThreshold(config) || !config.maximumTapDurationMs.isFinite() ||
+                    config.maximumTapDurationMs <= 0f -> requestDelegating(controller, "invalid_trigger_config")
                 !ExperimentalTouchPolicy.isCooldownElapsed(lastTriggeredAt, event.eventTime) ->
                     requestDelegating(controller, "cooldown")
-                else -> trigger(service, foregroundPackage, event.rawX.toInt(), event.rawY.toInt(), sample, controller)
+                else -> {
+                    val sample = ExperimentalTouchPolicy.readSample(event, config.mode, 0)
+                    if (ExperimentalTouchPolicy.isSensorMode(config.mode) && sample > config.threshold) {
+                        trigger(service, foregroundPackage, event.rawX.toInt(), event.rawY.toInt(), sample, controller)
+                    } else {
+                        beginCandidate(event, config, controller)
+                    }
+                }
             }
         }
 
@@ -314,17 +333,22 @@ object ExperimentalTouchController {
             }
         }
 
-        private fun beginMultiFingerCandidate(event: MotionEvent, config: ExperimentalTriggerConfig, controller: TouchInteractionController) {
+        private fun beginCandidate(event: MotionEvent, config: ExperimentalTriggerConfig, controller: TouchInteractionController) {
             multiFingerCandidate = true
             gestureStartTime = event.eventTime
             requiredPointers = ExperimentalTouchPolicy.requiredPointerCount(config.mode)
-            maximumDurationMs = config.threshold
+            maximumDurationMs = config.maximumTapDurationMs
             maximumPointerCount = 1
             candidateRawX = event.rawX
             candidateRawY = event.rawY
             tapStartPositions[event.getPointerId(0)] = event.getX(0) to event.getY(0)
-            scheduleTimeout(controller, minOf(ViewConfiguration.getTapTimeout().toFloat(), maximumDurationMs).toLong(), "pointer_wait_timeout")
-            Log.d(TAG, "route=hold mode=${config.mode} requiredPointers=$requiredPointers")
+            val timeoutMs = if (requiredPointers == 1) {
+                maximumDurationMs
+            } else {
+                minOf(ViewConfiguration.getTapTimeout().toFloat(), maximumDurationMs)
+            }
+            scheduleTimeout(controller, timeoutMs.toLong(), "candidate_timeout")
+            Log.d(TAG, "route=hold mode=${config.mode} requiredPointers=$requiredPointers timeoutMs=$timeoutMs")
         }
 
         private fun onPointerDown(event: MotionEvent, controller: TouchInteractionController) {
@@ -343,6 +367,18 @@ object ExperimentalTouchController {
         }
 
         private fun onCandidateMove(event: MotionEvent, controller: TouchInteractionController) {
+            if (requiredPointers == 1) {
+                val service = accessibilityService ?: return
+                val config = ExperimentalTouchPolicy.config(BigBangSettings.get(service))
+                val sample = ExperimentalTouchPolicy.readSample(event, config.mode, 0)
+                if (ExperimentalTouchPolicy.isSensorMode(config.mode) && sample > config.threshold &&
+                    ExperimentalTouchPolicy.isWithinDuration(gestureStartTime, event.eventTime, maximumDurationMs) &&
+                    ExperimentalTouchPolicy.isCooldownElapsed(lastTriggeredAt, event.eventTime)
+                ) {
+                    trigger(service, foregroundPackage, event.rawX.toInt(), event.rawY.toInt(), sample, controller)
+                    return
+                }
+            }
             val slop = accessibilityService?.let { ViewConfiguration.get(it).scaledTouchSlop } ?: 0
             val moved = tapStartPositions.any { (pointerId, start) ->
                 val index = event.findPointerIndex(pointerId)
@@ -365,6 +401,20 @@ object ExperimentalTouchController {
             val y = (0 until event.pointerCount).sumOf { event.getRawY(it).toDouble() } / event.pointerCount
             clearCandidate()
             trigger(service, foregroundPackage, x.toInt(), y.toInt(), elapsed(event.eventTime), controller)
+        }
+
+        private fun finishSensorTap(event: MotionEvent, controller: TouchInteractionController) {
+            val service = accessibilityService ?: return
+            val config = ExperimentalTouchPolicy.config(BigBangSettings.get(service))
+            val sample = ExperimentalTouchPolicy.readSample(event, config.mode, 0)
+            val matched = ExperimentalTouchPolicy.isSensorMode(config.mode) && sample > config.threshold &&
+                ExperimentalTouchPolicy.isWithinDuration(gestureStartTime, event.eventTime, maximumDurationMs) &&
+                ExperimentalTouchPolicy.isCooldownElapsed(lastTriggeredAt, event.eventTime)
+            if (matched) {
+                trigger(service, foregroundPackage, event.rawX.toInt(), event.rawY.toInt(), sample, controller)
+            } else {
+                replayShortTap(service, candidateRawX, candidateRawY, elapsed(event.eventTime))
+            }
         }
 
         private fun scheduleTimeout(controller: TouchInteractionController, delayMs: Long, reason: String) {

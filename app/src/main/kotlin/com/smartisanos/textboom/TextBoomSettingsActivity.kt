@@ -2331,6 +2331,7 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
             },
         )
     }
+    var sensorTapDuration by remember(revision) { mutableStateOf(settings.experimentalTouchSensorDuration) }
     var showRiskDialog by remember { mutableStateOf(false) }
     val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val accessibilityConnected = NovaTextAccessibilityService.activeInstance != null
@@ -2423,7 +2424,22 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
                 ExperimentalTriggerMode.THREE_FINGER_TAP -> 100f..600f
             },
         )
-        if (ExperimentalTouchPolicy.isSensorMode(mode)) ExperimentalTouchDataTest()
+        if (ExperimentalTouchPolicy.isSensorMode(mode)) {
+            Text("单击最长识别时长", color = LocalSettingsPalette.current.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+            Text("%.0f ms".format(sensorTapDuration), color = LocalSettingsPalette.current.textSecondary, fontSize = 15.sp)
+            Slider(
+                value = sensorTapDuration,
+                onValueChange = { sensorTapDuration = it },
+                valueRange = 100f..600f,
+            )
+            Text(
+                "在该时长内持续观察压感、Size 或面积变化；超时、滑动、多指、输入法和排除页面会走与双/三指相同的委托或回放分流。",
+                color = LocalSettingsPalette.current.textSecondary,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+            ExperimentalTouchDataTest()
+        }
         if (threshold <= 0f || !threshold.isFinite()) {
             Text("阈值必须大于 0，否则普通触控可能被误判。", color = Color(0xFFB05D00), fontSize = 13.sp)
         }
@@ -2439,6 +2455,9 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
                     ExperimentalTriggerMode.TOUCH_AREA -> settings.setExperimentalTouchAreaThreshold(threshold)
                     ExperimentalTriggerMode.TWO_FINGER_TAP -> settings.setExperimentalTouchTwoFingerDuration(threshold)
                     ExperimentalTriggerMode.THREE_FINGER_TAP -> settings.setExperimentalTouchThreeFingerDuration(threshold)
+                }
+                if (ExperimentalTouchPolicy.isSensorMode(mode)) {
+                    settings.setExperimentalTouchSensorDuration(sensorTapDuration)
                 }
                 settings.setExperimentalTouchConfigured(threshold > 0f && threshold.isFinite())
                 revision++

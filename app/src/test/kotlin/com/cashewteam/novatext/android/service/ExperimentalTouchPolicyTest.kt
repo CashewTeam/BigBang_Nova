@@ -13,9 +13,11 @@ class ExperimentalTouchPolicyTest {
 
     @Test
     fun thresholdRequiresSavedPositiveFiniteValue() {
-        assertFalse(ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTriggerConfig(false, ExperimentalTriggerMode.PRESSURE, 1f)))
-        assertFalse(ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTriggerConfig(true, ExperimentalTriggerMode.PRESSURE, 0f)))
-        assertTrue(ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTriggerConfig(true, ExperimentalTriggerMode.PRESSURE, 1f)))
+        assertFalse(ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTriggerConfig(false, ExperimentalTriggerMode.PRESSURE, 1f, 300f)))
+        assertFalse(ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTriggerConfig(true, ExperimentalTriggerMode.PRESSURE, 0f, 300f)))
+        assertTrue(ExperimentalTouchPolicy.hasUsableThreshold(ExperimentalTriggerConfig(true, ExperimentalTriggerMode.PRESSURE, 1f, 300f)))
+        assertFalse(ExperimentalTouchPolicy.hasUsableCandidateDuration(ExperimentalTriggerConfig(true, ExperimentalTriggerMode.PRESSURE, 1f, 0f)))
+        assertTrue(ExperimentalTouchPolicy.hasUsableCandidateDuration(ExperimentalTriggerConfig(true, ExperimentalTriggerMode.PRESSURE, 1f, 300f)))
     }
 
     @Test
