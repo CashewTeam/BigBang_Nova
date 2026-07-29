@@ -1,6 +1,6 @@
 ## 更新日志
 
-### [Nova Text 1.16.1](https://github.com/CashewTeam/BigBang_NovaText/commits/smartisan-m-onestep_bigboom/)
+### [Nova Text 1.16.1]
 
 #### 新增功能
 
@@ -19,13 +19,15 @@
 #### 问题修复
 - 修复安卓 11 系统状态栏被显示为黑色的问题。
 
-### [Extra 0.2.2](https://github.com/CashewTeam/BigBang_NovaText/commits/smartisan-m-onestep_bigboom/)
+### [Extra 0.2.2]
 
 #### 新增功能
 
 - 升级到 LibXposed API 101，提高扩展模块与新版本 Xposed 环境的兼容性。
 - 支持通过 Extra 模块自动开启 Nova Text 无障碍服务，减少首次配置步骤。
 - 实验性免 Root 触控事件监听已迁移至主 App
+
+**Full Changelog**: https://github.com/CashewTeam/BigBang_NovaText/compare/Beta_1.15.2...Beta_1.16.1
 
 ### [Beta 1.15.2](https://github.com/CashewTeam/BigBang_NovaText/releases/tag/Beta_1.15.2)
 
