@@ -128,21 +128,24 @@ object VectorServiceBridge {
             .apply()
     }
 
-    fun requestAllThirdPartyApps(context: Context, onResult: (String) -> Unit) {
+    fun requestRequiredScopes(context: Context, onResult: (String) -> Unit) {
         val vector = service ?: run {
             mainHandler.post { onResult("请先在 Xposed 管理器中启用模块") }
             return
         }
         val own = context.packageName
-        val packages = context.packageManager.getInstalledApplications(0)
+        val scopes = context.packageManager.getInstalledApplications(0)
             .asSequence()
             .filter { it.packageName != own && !TriggerPolicy.isExcludedPackage(it.packageName) }
             .map { it.packageName }
             .toList()
+            .toMutableList()
+            .apply { add("android") }
         runCatching {
-            vector.requestScope(packages, object : XposedService.OnScopeEventListener {
+            vector.requestScope(scopes, object : XposedService.OnScopeEventListener {
                 override fun onScopeRequestApproved(approved: List<String>) {
-                    mainHandler.post { onResult("已授权 ${approved.size} 个应用，请重启目标应用") }
+                    val restartHint = if (approved.contains("android")) "；请重启设备以加载系统进程模块" else ""
+                    mainHandler.post { onResult("已授权 ${approved.size} 个作用域$restartHint") }
                 }
 
                 override fun onScopeRequestFailed(message: String) {
@@ -156,31 +159,4 @@ object VectorServiceBridge {
         runCatching { "已授权 ${it.scope.size} 个应用" }.getOrElse { "Xposed 服务不可用" }
     } ?: "未连接 Xposed"
 
-    fun enableNovaTextAccessibility(settings: ExtraSettings, onResult: (String) -> Unit) {
-        val vector = service ?: run {
-            mainHandler.post { onResult("请先在 Xposed 管理器中启用模块") }
-            return
-        }
-        val systemScope = listOf("android")
-        val enable = {
-            settings.autoEnableNovaTextAccessibility = true
-            mainHandler.post { onResult("已保存自动开启请求；若刚授权系统作用域，请重启设备后生效") }
-        }
-        if (runCatching { vector.scope.contains("android") }.getOrDefault(false)) {
-            enable()
-            return
-        }
-        runCatching {
-            vector.requestScope(systemScope, object : XposedService.OnScopeEventListener {
-                override fun onScopeRequestApproved(approved: List<String>) {
-                    if (approved.contains("android")) enable()
-                    else mainHandler.post { onResult("Xposed 未授权 Android 系统作用域") }
-                }
-
-                override fun onScopeRequestFailed(message: String) {
-                    mainHandler.post { onResult(message) }
-                }
-            })
-        }.onFailure { mainHandler.post { onResult(it.message ?: "Android 系统作用域请求失败") } }
-    }
 }

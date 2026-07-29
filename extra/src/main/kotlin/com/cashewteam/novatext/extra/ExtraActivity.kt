@@ -174,18 +174,23 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
                 Text("Xposed 模块", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(VectorServiceBridge.status, color = Color(0xFF60656D))
                 Button(onClick = {
-                    VectorServiceBridge.requestAllThirdPartyApps(context) {
-                        Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                    VectorServiceBridge.requestRequiredScopes(context) {
+                        Toast.makeText(context, it, Toast.LENGTH_LONG).show()
                     }
                 }) {
-                    Text("授权全部第三方应用")
+                    Text("授权所需作用域")
                 }
             }
         }
         item {
             ExtraCard {
                 SwitchRow("启用系统触控监听", "仅观察触控，不接管或回放事件", config.enabled, enabled = config.calibrated) {
-                    settings.triggerEnabled = it; refresh()
+                    if (it && !NovaTextAccessibilityBridge.isEnabled(context)) {
+                        Toast.makeText(context, "请先开启 Nova Text 无障碍", Toast.LENGTH_LONG).show()
+                    } else {
+                        settings.triggerEnabled = it
+                        refresh()
+                    }
                 }
                 if (!config.calibrated) Text("请先保存触发设置", color = Color(0xFFB05D00), fontSize = 13.sp)
             }
@@ -195,18 +200,11 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
                 Text("Nova Text 无障碍", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 SwitchRow(
                     "自动开启 Nova Text 无障碍",
-                    "需要 Xposed 授权 Android 系统作用域；首次授权后请重启设备。",
+                    "启用前请先授权所需作用域；首次授权 Android 系统作用域后请重启设备。",
                     settings.autoEnableNovaTextAccessibility,
                 ) { enabled ->
-                    if (!enabled) {
-                        settings.autoEnableNovaTextAccessibility = false
-                        refresh()
-                    } else {
-                        VectorServiceBridge.enableNovaTextAccessibility(settings) {
-                            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-                            refresh()
-                        }
-                    }
+                    settings.autoEnableNovaTextAccessibility = enabled
+                    refresh()
                 }
                 Text(
                     if (NovaTextAccessibilityBridge.isEnabled(context)) "Nova Text 无障碍：已开启" else "Nova Text 无障碍：未开启",
