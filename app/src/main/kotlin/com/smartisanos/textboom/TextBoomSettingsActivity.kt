@@ -2343,7 +2343,7 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
     SettingsSectionCard {
         Text("实验性功能", color = Color(0xFFB05D00), fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(
-            "使用 Android 13 的 TouchInteractionController。压感、Size、面积会在按下时立即决定触发或委托；双指、三指模式会短暂保留起始触摸。",
+            "使用 Android 13 的 TouchInteractionController。所有触发方式都会在各自的单击最长时长内观察起始触摸，再决定触发、委托或回放。",
             color = LocalSettingsPalette.current.textSecondary,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -2383,7 +2383,7 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
         }
         Text(
             if (ExperimentalTouchPolicy.isSensorMode(mode)) {
-                "普通点击、滑动和多指手势会立即委托给当前应用，不增加识别等待。"
+                "会在单击最长识别时长内持续观察触控数据；滑动、多指、输入法和排除页面会立即退出观察并委托。"
             } else {
                 "识别期间会暂时拦截起始触摸，普通点击、滚动和多指操作可能延迟。"
             },
@@ -2520,7 +2520,7 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
                     if (ExperimentalTouchPolicy.isMultiFingerTap(savedConfig.mode)) {
                         "双指/三指识别会暂时拦截起始触摸，可能造成普通操作延迟；未形成多指手势的短点击会在抬起后补发。"
                     } else {
-                        "普通触控会立即委托给当前应用；触控数据达到阈值时，本次触控将被消费并触发 Nova Text。"
+                        "压感、Size 和面积会在单击最长识别时长内持续观察；阈值命中后消费本次触控并触发 Nova Text，未命中则委托或回放普通操作。"
                     },
                 )
             },
