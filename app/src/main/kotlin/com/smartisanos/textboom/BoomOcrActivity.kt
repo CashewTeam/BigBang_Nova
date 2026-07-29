@@ -76,7 +76,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
@@ -120,9 +119,7 @@ class BoomOcrActivity : ComponentActivity() {
             return
         }
         settings = BigBangSettings.get(this)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        configureNovaEdgeToEdgeWindow()
 
         touchX = readTouchCoordinate("boom_startx", true)
         touchY = readTouchCoordinate("boom_starty", false)

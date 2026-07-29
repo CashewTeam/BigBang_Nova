@@ -57,15 +57,10 @@
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="18dp"
         android:alpha="0"
-        android:background="@drawable/boom_multi_select_bg"
         android:ellipsize="end"
         android:gravity="center"
         android:maxLines="1"
-        android:paddingLeft="12dp"
-        android:paddingTop="8dp"
-        android:paddingRight="12dp"
-        android:paddingBottom="8dp"
-        android:textColor="@color/boom_chip_text_color"
+        android:textColor="#FFFFFFFF"
         android:textSize="15sp"
         android:visibility="gone" />
 
@@ -76,15 +71,10 @@
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="18dp"
         android:alpha="0"
-        android:background="@drawable/boom_multi_select_bg"
         android:ellipsize="end"
         android:gravity="center"
         android:maxLines="1"
-        android:paddingLeft="12dp"
-        android:paddingTop="8dp"
-        android:paddingRight="12dp"
-        android:paddingBottom="8dp"
-        android:textColor="@color/boom_chip_text_color"
+        android:textColor="#FFFFFFFF"
         android:textSize="15sp"
         android:visibility="gone" />
 

@@ -68,7 +68,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
-import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.data.CppJiebaTokenizer
 import com.cashewteam.novatext.android.domain.capture.CaptureTextBlockContract
@@ -107,9 +106,7 @@ class BoomActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = BigBangSettings.get(this)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        configureNovaEdgeToEdgeWindow()
         launchTouchX = intent.getIntExtra("boom_startx", -1)
         launchTouchY = intent.getIntExtra("boom_starty", -1)
         manualOcrSourceToken = intent.getStringExtra(EXTRA_MANUAL_OCR_SOURCE_TOKEN)

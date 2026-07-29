@@ -15,7 +15,6 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
-import androidx.core.view.WindowCompat
 import com.cashewteam.novatext.android.data.BigBangSettings
 import com.cashewteam.novatext.android.domain.capture.CaptureTextBlockContract
 import com.cashewteam.novatext.android.domain.capture.CaptureRequestContract
@@ -70,9 +69,7 @@ class OcrLaunchActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        configureNovaEdgeToEdgeWindow()
         captureOcrScreenshotRequested = intent.getBooleanExtra(BoomOcrLauncher.EXTRA_CAPTURE_OCR_SCREENSHOT, false)
         clipboardTextRequested = intent.getBooleanExtra(EXTRA_PROCESS_CLIPBOARD_TEXT, false)
         captureSelectionScreenshotRequested = intent.getBooleanExtra(

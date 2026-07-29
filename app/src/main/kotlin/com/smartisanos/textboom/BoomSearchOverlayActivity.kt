@@ -82,7 +82,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.cashewteam.novatext.android.data.BigBangSettings
@@ -102,9 +101,7 @@ class BoomSearchOverlayActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = BigBangSettings.get(this)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        configureNovaEdgeToEdgeWindow()
 
         val searchText = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
         val initialType = intent.getIntExtra(EXTRA_SEARCH_TYPE, settings.webSearchType)

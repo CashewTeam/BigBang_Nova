@@ -2,8 +2,10 @@ package com.cashewteam.novatext.android
 
 import android.app.Activity
 import android.content.res.Configuration
+import android.graphics.Color as AndroidColor
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.os.Build
 import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
@@ -60,6 +63,16 @@ private val InvertAssetColorFilter = ColorMatrixColorFilter(
         ),
     ),
 )
+
+internal fun Activity.configureNovaEdgeToEdgeWindow() {
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    window.statusBarColor = AndroidColor.TRANSPARENT
+    window.navigationBarColor = AndroidColor.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
+    }
+}
 
 internal fun effectiveOverlayBottomInset(
     systemInset: Dp,
@@ -236,6 +249,10 @@ internal fun ApplyOverlaySystemBars(
         val window = (view.context as? Activity)?.window ?: return@SideEffect
         window.statusBarColor = statusBarColor.toArgb()
         window.navigationBarColor = navigationBarColor.toArgb()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
         val controller = WindowInsetsControllerCompat(window, view)
         controller.isAppearanceLightStatusBars = darkIcons
         controller.isAppearanceLightNavigationBars = darkIcons

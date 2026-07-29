@@ -440,6 +440,8 @@ public class BoomChipPage {
         mScroller = (CustomScrollView) contentView.findViewById(R.id.boom_scroller);
         mAdjacentTopHint = (TextView) contentView.findViewById(R.id.boom_adjacent_top_hint);
         mAdjacentBottomHint = (TextView) contentView.findViewById(R.id.boom_adjacent_bottom_hint);
+        configureAdjacentHintShadow(mAdjacentTopHint);
+        configureAdjacentHintShadow(mAdjacentBottomHint);
         mScrollerBaseInset = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP,
                 28,
@@ -664,6 +666,11 @@ public class BoomChipPage {
         mTableBasePaddingTop = mBoomTable.getPaddingTop();
         mTableBasePaddingBottom = mBoomTable.getPaddingBottom();
         mBoomPage.addOnLayoutChangeListener(mEditorViewportLayoutListener);
+    }
+
+    private void configureAdjacentHintShadow(TextView hint) {
+        final float density = mActivity.getResources().getDisplayMetrics().density;
+        hint.setShadowLayer(2f * density, 0f, density, 0x66000000);
     }
 
     public interface OnAdjacentRequestListener {

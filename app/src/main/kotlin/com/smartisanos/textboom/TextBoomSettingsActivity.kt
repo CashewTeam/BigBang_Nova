@@ -133,7 +133,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -194,11 +193,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         settings = BigBangSettings.get(this)
         initialPage = resolveStartPage(intent)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            window.navigationBarColor = android.graphics.Color.TRANSPARENT
-        }
+        configureNovaEdgeToEdgeWindow()
 
         val searchOptions = loadOptions(
             R.array.text_boom_search_ways,
