@@ -20,8 +20,8 @@ android {
         applicationId = "com.cashewteam.novatext.android"
         minSdk = 24
         targetSdk = 36
-        versionCode = 317
-        versionName = "1.15.2"
+        versionCode = 318
+        versionName = "1.15.3"
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -86,6 +86,7 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")

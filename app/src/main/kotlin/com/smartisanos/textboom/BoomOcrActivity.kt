@@ -1,5 +1,9 @@
 package com.cashewteam.novatext.android
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -53,6 +57,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +82,8 @@ import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
 import com.cashewteam.novatext.android.util.LogUtils
 import com.cashewteam.novatext.android.util.NovaTextLogger
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text as MlKitText
 import java.util.UUID
 
@@ -97,6 +105,10 @@ class BoomOcrActivity : ComponentActivity() {
     private var launchTouchY = 0
     private var manualOcrSourceToken: String? = null
     private var lastSelectionRect: Rect? = null
+    private var qrResults by mutableStateOf<List<String>?>(null)
+    private var weChatPaymentQr by mutableStateOf<String?>(null)
+    private var unhandledQrValue by mutableStateOf<String?>(null)
+    private var wifiQr by mutableStateOf<QrPayloadRouter.Payload.Wifi?>(null)
     private val traceId = UUID.randomUUID().toString().take(8)
     private var floatingBallHideToken: Int? = null
 
@@ -135,12 +147,46 @@ class BoomOcrActivity : ComponentActivity() {
                 onBack = { stopOcr() },
                 onOpenLanguageMenu = { },
                 onStartOcr = { startOcr() },
-                onQrClick = {
-                    Toast.makeText(this, R.string.ocr_qr_placeholder, Toast.LENGTH_SHORT).show()
-                },
+                onQrClick = ::startQrRecognition,
                 onCancelLoading = { stopOcr() },
                 onContainerReady = { selectionContainer = it },
             )
+            qrResults?.let { results ->
+                QrResultDialog(
+                    results = results,
+                    onSelected = { value ->
+                        qrResults = null
+                        handleQrPayload(value)
+                    },
+                    onDismiss = { qrResults = null },
+                )
+            }
+            weChatPaymentQr?.let {
+                WeChatPaymentDialog(
+                    onOpenWeChat = ::openWeChat,
+                    onDismiss = { weChatPaymentQr = null },
+                )
+            }
+            unhandledQrValue?.let { value ->
+                UnhandledQrDialog(
+                    value = value,
+                    onCopy = { copyQrText(value) },
+                    onOpenBigBang = {
+                        unhandledQrValue = null
+                        openQrText(value)
+                    },
+                    onDismiss = { unhandledQrValue = null },
+                )
+            }
+            wifiQr?.let { wifi ->
+                QrWifiDialog(
+                    wifi = wifi,
+                    onCopySsid = { copyWifiSsid(wifi.ssid) },
+                    onCopyPassword = { copyWifiPassword(wifi.password) },
+                    onCopyAll = { copyWifiAll(wifi) },
+                    onDismiss = { wifiQr = null },
+                )
+            }
         }
     }
 
@@ -187,34 +233,10 @@ class BoomOcrActivity : ComponentActivity() {
     }
 
     private fun startOcr() {
-        val bitmap = preparedBitmap ?: run {
-            showImageUnavailableAndFinish()
-            return
-        }
-        if (ocrStarted) return
-        val container = selectionContainer ?: return
-        val selectionRect = container.getSelectionRectInBitmap()
-        val selectionCenter = container.getSelectionCenterOnScreen()
-        if (selectionRect.width() <= 0 || selectionRect.height() <= 0) {
-            Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (selectionCenter != null) {
-            launchTouchX = selectionCenter.x
-            launchTouchY = selectionCenter.y
-        }
-        lastSelectionRect = Rect(selectionRect)
-        recycleBitmap(ocrBitmap, false)
-        ocrBitmap = Bitmap.createBitmap(
-            bitmap,
-            selectionRect.left,
-            selectionRect.top,
-            selectionRect.width(),
-            selectionRect.height(),
-        )
+        val bitmap = prepareSelectedBitmap() ?: return
         ocrStarted = true
         stage = OcrStage.Recognizing
-        MlKitOcrEngine.recognize(ocrBitmap!!, settings.ocrRecognizerMode)
+        MlKitOcrEngine.recognize(bitmap, settings.ocrRecognizerMode)
             .addOnSuccessListener(this, this::handleOcrSuccess)
             .addOnFailureListener(this) { throwable ->
                 LogUtils.e("ML Kit OCR failed", throwable)
@@ -224,6 +246,54 @@ class BoomOcrActivity : ComponentActivity() {
                 ocrStarted = false
                 stage = OcrStage.Selecting
             }
+    }
+
+    private fun startQrRecognition() {
+        val bitmap = prepareSelectedBitmap() ?: return
+        ocrStarted = true
+        stage = OcrStage.Recognizing
+        val scanner = BarcodeScanning.getClient()
+        scanner.process(InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener(this) { barcodes ->
+                scanner.close()
+                handleQrSuccess(barcodes.mapNotNull { it.rawValue })
+            }
+            .addOnFailureListener(this) { throwable ->
+                scanner.close()
+                LogUtils.e("ML Kit QR scan failed", throwable)
+                if (!isFinishing) {
+                    Toast.makeText(this, R.string.ocr_qr_scan_failed, Toast.LENGTH_SHORT).show()
+                }
+                resetRecognizingState()
+            }
+    }
+
+    private fun prepareSelectedBitmap(): Bitmap? {
+        val bitmap = preparedBitmap ?: run {
+            showImageUnavailableAndFinish()
+            return null
+        }
+        if (ocrStarted) return null
+        val container = selectionContainer ?: return null
+        val selectionRect = container.getSelectionRectInBitmap()
+        val selectionCenter = container.getSelectionCenterOnScreen()
+        if (selectionRect.width() <= 0 || selectionRect.height() <= 0) {
+            Toast.makeText(this, R.string.ocr_image_unavailable, Toast.LENGTH_SHORT).show()
+            return null
+        }
+        if (selectionCenter != null) {
+            launchTouchX = selectionCenter.x
+            launchTouchY = selectionCenter.y
+        }
+        lastSelectionRect = Rect(selectionRect)
+        recycleBitmap(ocrBitmap, false)
+        return Bitmap.createBitmap(
+            bitmap,
+            selectionRect.left,
+            selectionRect.top,
+            selectionRect.width(),
+            selectionRect.height(),
+        ).also { ocrBitmap = it }
     }
 
     private fun handleOcrSuccess(result: MlKitText?) {
@@ -238,8 +308,7 @@ class BoomOcrActivity : ComponentActivity() {
             stage = OcrStage.Selecting
             return
         }
-        ocrStarted = false
-        stage = OcrStage.Selecting
+        resetRecognizingState()
         updateManualOcrReplayContext()
         BoomActivityLauncher.openText(
             this,
@@ -251,6 +320,106 @@ class BoomOcrActivity : ComponentActivity() {
             manualOcrSourceToken = manualOcrSourceToken,
         )
         finish()
+    }
+
+    private fun handleQrSuccess(rawResults: List<String>) {
+        if (isFinishing) return
+        resetRecognizingState()
+        val results = QrPayloadRouter.distinctNonBlank(rawResults)
+        if (results.isEmpty()) {
+            Toast.makeText(this, R.string.ocr_qr_not_found, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (results.size == 1) {
+            handleQrPayload(results.single())
+        } else {
+            qrResults = results
+        }
+    }
+
+    private fun handleQrPayload(rawValue: String) {
+        when (val payload = QrPayloadRouter.classify(rawValue)) {
+            is QrPayloadRouter.Payload.PlainText -> openQrText(payload.text)
+            is QrPayloadRouter.Payload.HttpUrl -> openQrUri(payload.url, useChooser = true)
+            is QrPayloadRouter.Payload.AppLink -> openQrUri(payload.uri, useChooser = false)
+            is QrPayloadRouter.Payload.WeChatPaymentCode -> weChatPaymentQr = payload.value
+            is QrPayloadRouter.Payload.Wifi -> wifiQr = payload
+        }
+    }
+
+    private fun openQrUri(value: String, useChooser: Boolean) {
+        val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(value))
+        if (viewIntent.resolveActivity(packageManager) == null) {
+            unhandledQrValue = value
+            return
+        }
+        val targetIntent = if (useChooser) {
+            Intent.createChooser(viewIntent, getString(R.string.ocr_qr_browser_chooser))
+        } else {
+            viewIntent
+        }
+        try {
+            startActivity(targetIntent)
+            finish()
+        } catch (_: ActivityNotFoundException) {
+            unhandledQrValue = value
+        }
+    }
+
+    private fun openQrText(text: String) {
+        updateManualOcrReplayContext()
+        BoomActivityLauncher.openText(
+            this,
+            text,
+            launchTouchX,
+            launchTouchY,
+            false,
+            true,
+            manualOcrSourceToken = manualOcrSourceToken,
+        )
+        finish()
+    }
+
+    private fun copyQrText(value: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.ocr_qr_unhandled_title), value))
+        Toast.makeText(this, R.string.ocr_qr_text_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun openWeChat() {
+        val launchIntent = packageManager.getLaunchIntentForPackage(WECHAT_PACKAGE)
+        if (launchIntent == null) {
+            Toast.makeText(this, R.string.ocr_qr_wechat_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(launchIntent)
+        finish()
+    }
+
+    private fun copyWifiPassword(password: String) {
+        if (password.isEmpty()) return
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.ocr_qr_wifi_password), password))
+        Toast.makeText(this, R.string.ocr_qr_password_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun copyWifiSsid(ssid: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.ocr_qr_wifi_ssid), ssid))
+        Toast.makeText(this, R.string.ocr_qr_ssid_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun copyWifiAll(wifi: QrPayloadRouter.Payload.Wifi) {
+        val password = wifi.password.ifEmpty { getString(R.string.ocr_qr_wifi_no_password) }
+        val content = getString(R.string.ocr_qr_wifi_copy_all_content, wifi.ssid, password)
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.ocr_qr_wifi_copy_all), content))
+        Toast.makeText(this, R.string.ocr_qr_wifi_all_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun resetRecognizingState() {
+        ocrStarted = false
+        stage = OcrStage.Selecting
     }
 
     private fun logOcrTrace(result: MlKitText) {
@@ -400,6 +569,7 @@ class BoomOcrActivity : ComponentActivity() {
         var sBoomCancel: Boolean = false
 
         private var instance: BoomOcrActivity? = null
+        private const val WECHAT_PACKAGE = "com.tencent.mm"
 
         @JvmStatic
         fun getInstance(): BoomOcrActivity? = instance
@@ -617,7 +787,7 @@ private fun OcrOverlayScreen(
                     text = stringResource(R.string.ocr_action_qr),
                     icon = Icons.Outlined.QrCodeScanner,
                     palette = palette,
-                    enabled = stage == OcrStage.Selecting,
+                    enabled = stage == OcrStage.Selecting && bitmap != null,
                     onClick = onQrClick,
                 )
                 OcrBottomPrimaryButton(
@@ -642,6 +812,135 @@ private fun OcrOverlayScreen(
             )
         }
     }
+}
+
+@Composable
+private fun QrResultDialog(
+    results: List<String>,
+    onSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ocr_qr_result_title)) },
+        text = {
+            Column {
+                results.forEach { value ->
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onSelected(value) },
+                    ) {
+                        Text(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = value,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.ocr_qr_result_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun QrWifiDialog(
+    wifi: QrPayloadRouter.Payload.Wifi,
+    onCopySsid: () -> Unit,
+    onCopyPassword: () -> Unit,
+    onCopyAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ocr_qr_wifi_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.ocr_qr_wifi_ssid), fontWeight = FontWeight.Medium)
+                Text(wifi.ssid)
+                Text(stringResource(R.string.ocr_qr_wifi_password), fontWeight = FontWeight.Medium)
+                Text(wifi.password.ifEmpty { stringResource(R.string.ocr_qr_wifi_no_password) })
+            }
+        },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onCopySsid) {
+                        Text(stringResource(R.string.ocr_qr_copy_ssid))
+                    }
+                    TextButton(onClick = onCopyPassword, enabled = wifi.password.isNotEmpty()) {
+                        Text(stringResource(R.string.ocr_qr_copy_password))
+                    }
+                    TextButton(onClick = onCopyAll) {
+                        Text(stringResource(R.string.ocr_qr_wifi_copy_all))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.ocr_qr_close))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun WeChatPaymentDialog(
+    onOpenWeChat: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ocr_qr_wechat_payment_title)) },
+        text = { Text(stringResource(R.string.ocr_qr_wechat_payment_message)) },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onOpenWeChat) {
+                    Text(stringResource(R.string.ocr_qr_open_wechat))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.ocr_qr_close))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun UnhandledQrDialog(
+    value: String,
+    onCopy: () -> Unit,
+    onOpenBigBang: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ocr_qr_unhandled_title)) },
+        text = {
+            Text(
+                text = value,
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onCopy) {
+                    Text(stringResource(R.string.ocr_qr_copy_text))
+                }
+                TextButton(onClick = onOpenBigBang) {
+                    Text(stringResource(R.string.ocr_qr_open_bigbang))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.ocr_qr_close))
+                }
+            }
+        },
+    )
 }
 
 @Composable
