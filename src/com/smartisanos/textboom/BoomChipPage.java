@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -151,6 +152,7 @@ public class BoomChipPage {
     // Original editor keeps the cursor hidden while its 300ms reflow animation runs.
     private boolean mEditMutationTransitionRunning;
     private int mEditMutationGeneration;
+    private boolean mModeTransitionPreparing;
     private Animator mCopyAnimationAnimator;
     private int mCopyAnimationGeneration;
     private ImageView mCopyAnimationTarget;
@@ -2407,6 +2409,7 @@ public class BoomChipPage {
             return true;
         }
         final String text = mLayout.getOriText();
+        final ModeTransitionState modeTransition = captureModeTransitionState();
         final Serializable savedSelection = captureSelectedState();
         // Normal mode permits disjoint selections. Editing has one replacement
         // range, so include every source character between its two outer bounds.
@@ -2414,6 +2417,7 @@ public class BoomChipPage {
                 ? collapseSelectionRangesForEdit((int[][]) savedSelection)
                 : savedSelection;
         if (!mLayout.layoutEditWords(text)) {
+            modeTransition.recycle();
             return false;
         }
         // Entering edit mode starts at the paragraph tail, matching the original BigBang editor.
@@ -2427,8 +2431,13 @@ public class BoomChipPage {
                 new EditHistorySnapshot[0],
                 new EditHistorySnapshot[0]
         );
-        rebuildChips(selectedState);
-        animateEditEntry();
+        mModeTransitionPreparing = !modeTransition.chips.isEmpty();
+        try {
+            rebuildChips(selectedState);
+        } finally {
+            mModeTransitionPreparing = false;
+        }
+        animateModeTransition(modeTransition);
         resetEditInputBuffer(initialCursorOffset);
         mBoomActionHandler.refreshToolbarForCurrentMode();
         notifyEditUiStateChanged();
@@ -2473,7 +2482,9 @@ public class BoomChipPage {
     public boolean commitEditMode(int[] segment) {
         // Keep edit-mode character ranges through re-segmentation, including spaces between selected words.
         final Serializable selectedState = captureSelectedState();
+        final ModeTransitionState modeTransition = captureModeTransitionState();
         if (mEditSession == null || !mLayout.layoutWords(segment, mEditSession.text, -1)) {
+            modeTransition.recycle();
             return false;
         }
         endCursorDrag();
@@ -2483,7 +2494,13 @@ public class BoomChipPage {
         resetEditInputBuffer(0);
         mEditCommitPending = false;
         mEditSession = null;
-        rebuildChips(selectedState);
+        mModeTransitionPreparing = !modeTransition.chips.isEmpty();
+        try {
+            rebuildChips(selectedState);
+        } finally {
+            mModeTransitionPreparing = false;
+        }
+        animateModeTransition(modeTransition);
         mBoomActionHandler.refreshToolbarForCurrentMode();
         notifyEditUiStateChanged();
         finishAdjacentPull();
@@ -2491,7 +2508,9 @@ public class BoomChipPage {
     }
 
     public boolean discardEditMode(int[] segment, String text) {
+        final ModeTransitionState modeTransition = captureModeTransitionState();
         if (mEditSession == null || !mLayout.layoutWords(segment, text, -1)) {
+            modeTransition.recycle();
             return false;
         }
         endCursorDrag();
@@ -2501,7 +2520,13 @@ public class BoomChipPage {
         resetEditInputBuffer(0);
         mEditCommitPending = false;
         mEditSession = null;
-        rebuildChips(null);
+        mModeTransitionPreparing = !modeTransition.chips.isEmpty();
+        try {
+            rebuildChips(null);
+        } finally {
+            mModeTransitionPreparing = false;
+        }
+        animateModeTransition(modeTransition);
         mBoomActionHandler.refreshToolbarForCurrentMode();
         notifyEditUiStateChanged();
         finishAdjacentPull();
@@ -2866,39 +2891,212 @@ public class BoomChipPage {
         mEditMutationOverlay.removeAllViews();
     }
 
+    private ModeTransitionState captureModeTransitionState() {
+        final ArrayList<ModeTransitionChip> chips = new ArrayList<ModeTransitionChip>();
+        for (int rowIndex = 0; rowIndex < mBoomConent.getChildCount(); ++rowIndex) {
+            final View row = mBoomConent.getChildAt(rowIndex);
+            if (!(row instanceof LinearLayout)) {
+                continue;
+            }
+            for (int childIndex = 0; childIndex < ((LinearLayout) row).getChildCount(); ++childIndex) {
+                final View child = ((LinearLayout) row).getChildAt(childIndex);
+                if (!(child.getTag() instanceof BoomChip)) {
+                    continue;
+                }
+                final BoomChip chip = (BoomChip) child.getTag();
+                chips.add(new ModeTransitionChip(
+                        mLayout.getWordStart(chip.index),
+                        mLayout.getWordEnd(chip.index),
+                        row.getX() + child.getX(),
+                        row.getY() + child.getY()));
+            }
+        }
+        final Rect visible = new Rect();
+        if (chips.isEmpty() || !mBoomConent.getGlobalVisibleRect(visible)
+                || visible.width() <= 0 || visible.height() <= 0) {
+            return new ModeTransitionState(chips, null, 0, 0);
+        }
+        final Bitmap bitmap = Bitmap.createBitmap(
+                visible.width(), visible.height(), Bitmap.Config.ARGB_8888);
+        final Canvas canvas = new Canvas(bitmap);
+        final int[] contentLocation = new int[2];
+        mBoomConent.getLocationOnScreen(contentLocation);
+        canvas.translate(
+                contentLocation[0] - visible.left,
+                contentLocation[1] - visible.top);
+        mBoomConent.draw(canvas);
+        return new ModeTransitionState(
+                chips,
+                bitmap,
+                visible.left,
+                visible.top);
+    }
+
     /**
-     * The original editor lets its rebuilt chips softly emerge instead of
-     * replacing the normal-mode grid in a single frame.  Mutations intentionally
-     * skip this animation so typing remains immediate.
+     * Original BigBang keeps each word visually attached to its previous text
+     * range while normal/edit layouts are exchanged. A split character starts
+     * at its old word position; a merged word starts at its first old character.
      */
-    private void animateEditEntry() {
-        mBoomConent.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+    private void animateModeTransition(final ModeTransitionState transition) {
+        final ArrayList<ModeTransitionChip> previous = transition.chips;
+        if (previous.isEmpty()) {
+            transition.recycle();
+            return;
+        }
+        final ImageView oldLayout = createModeTransitionGhost(transition);
+        if (oldLayout != null) {
+            transition.anchorListener = new OnPreDrawListener() {
+                @Override
+                public boolean onPreDraw() {
+                    if (oldLayout.getParent() != mEditMutationOverlay) {
+                        removeModeTransitionAnchor(transition);
+                        return true;
+                    }
+                    anchorModeTransitionGhost(oldLayout, transition);
+                    return true;
+                }
+            };
+            mBoomPage.getViewTreeObserver().addOnPreDrawListener(transition.anchorListener);
+        }
+        mBoomConent.getViewTreeObserver().addOnPreDrawListener(new OnPreDrawListener() {
             @Override
-            public void onGlobalLayout() {
-                mBoomConent.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                final int rows = Math.min(mBoomConent.getChildCount(), 12);
-                for (int rowIndex = 0; rowIndex < rows; ++rowIndex) {
+            public boolean onPreDraw() {
+                mBoomConent.getViewTreeObserver().removeOnPreDrawListener(this);
+                // Fade the rebuilt layout as one composited layer. The chip
+                // background and glyph must share the same opacity; fading the
+                // TextView separately lets its bright 9-patch become visible
+                // for a few frames before the dark glyph is readable.
+                final ObjectAnimator contentOpacity = ObjectAnimator.ofFloat(
+                        mBoomConent, View.ALPHA, 0f, 1f);
+                contentOpacity.setDuration(300L);
+                contentOpacity.setInterpolator(new DecelerateInterpolator(1.5f));
+                contentOpacity.start();
+                if (oldLayout != null) {
+                    oldLayout.animate()
+                            .alpha(0f)
+                            .setDuration(220L)
+                            .setInterpolator(new DecelerateInterpolator(1.5f))
+                            .setListener(new AnimatorListenerAdapter() {
+                                @Override
+                                public void onAnimationEnd(Animator animation) {
+                                    removeModeTransitionGhost(oldLayout, transition);
+                                }
+
+                                @Override
+                                public void onAnimationCancel(Animator animation) {
+                                    removeModeTransitionGhost(oldLayout, transition);
+                                }
+                            })
+                            .start();
+                }
+                int originIndex = 0;
+                final Rect visibleRect = new Rect();
+                for (int rowIndex = 0; rowIndex < mBoomConent.getChildCount(); ++rowIndex) {
                     final View row = mBoomConent.getChildAt(rowIndex);
                     if (!(row instanceof LinearLayout)) {
                         continue;
                     }
                     for (int childIndex = 0; childIndex < ((LinearLayout) row).getChildCount(); ++childIndex) {
                         final View chip = ((LinearLayout) row).getChildAt(childIndex);
-                        final long delay = Math.min(96L, rowIndex * 12L);
-                        chip.setScaleX(0.92f);
-                        chip.setScaleY(0.92f);
-                        chip.setAlpha(0f);
-                        chip.setTranslationY(6f * mActivity.getResources().getDisplayMetrics().density);
-                        chip.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                BoomAnimator.makeBoomAnimation(chip);
-                            }
-                        }, delay);
+                        if (!(chip.getTag() instanceof BoomChip)) {
+                            continue;
+                        }
+                        final BoomChip boomChip = (BoomChip) chip.getTag();
+                        final boolean targetVisible = chip.getGlobalVisibleRect(visibleRect);
+                        final int wordStart = mLayout.getWordStart(boomChip.index);
+                        final int wordEnd = mLayout.getWordEnd(boomChip.index);
+                        // Both layouts are ordered by source offset. Keep a
+                        // forward-only cursor instead of scanning every old
+                        // chip for every new chip on long documents.
+                        while (originIndex + 1 < previous.size()
+                                && previous.get(originIndex).end <= wordStart) {
+                            ++originIndex;
+                        }
+                        ModeTransitionChip origin = previous.get(originIndex);
+                        if (!(origin.start < wordEnd && origin.end > wordStart)
+                                && originIndex + 1 < previous.size()) {
+                            origin = previous.get(originIndex + 1);
+                        }
+                        if (origin == null) {
+                            boomChip.word.setAlpha(1f);
+                        } else {
+                            // Map within mBoomContent. Screen coordinates include
+                            // the helper's simultaneous full-screen resize and
+                            // caused large, sometimes off-screen translations.
+                            final float targetX = row.getX() + chip.getX();
+                            final float targetY = row.getY() + chip.getY();
+                            chip.setTranslationX(origin.x - targetX);
+                            chip.setTranslationY(origin.y - targetY);
+                            boomChip.word.setAlpha(1f);
+                        }
+                        // Each chip owns only movement. Opacity belongs to the
+                        // complete content layer above so background and glyph
+                        // can never enter the frame at different strengths.
+                        chip.setAlpha(1f);
+                        // Off-screen rows are already at their final layout.
+                        // Avoid creating hundreds of render-thread animators for
+                        // long text that cannot contribute to the transition.
+                        if (!targetVisible) {
+                            chip.setTranslationX(0f);
+                            chip.setTranslationY(0f);
+                            continue;
+                        }
+                        chip.animate()
+                                .translationX(0f)
+                                .translationY(0f)
+                                .setDuration(300L)
+                                .setInterpolator(new DecelerateInterpolator(1.5f))
+                                .start();
                     }
                 }
+                return true;
             }
         });
+    }
+
+    private ImageView createModeTransitionGhost(ModeTransitionState transition) {
+        if (transition.bitmap == null || transition.bitmap.isRecycled()) {
+            return null;
+        }
+        final ImageView ghost = new ImageView(mActivity);
+        ghost.setImageBitmap(transition.bitmap);
+        ghost.setScaleType(ImageView.ScaleType.FIT_XY);
+        ghost.setTag(transition.bitmap);
+        final FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                transition.bitmap.getWidth(), transition.bitmap.getHeight());
+        mEditMutationOverlay.addView(ghost, params);
+        anchorModeTransitionGhost(ghost, transition);
+        return ghost;
+    }
+
+    private void anchorModeTransitionGhost(ImageView ghost, ModeTransitionState transition) {
+        final int[] overlayLocation = new int[2];
+        mEditMutationOverlay.getLocationOnScreen(overlayLocation);
+        ghost.setX(transition.screenLeft - overlayLocation[0]);
+        ghost.setY(transition.screenTop - overlayLocation[1]);
+    }
+
+    private void removeModeTransitionAnchor(ModeTransitionState transition) {
+        if (transition.anchorListener == null) {
+            return;
+        }
+        if (mBoomPage.getViewTreeObserver().isAlive()) {
+            mBoomPage.getViewTreeObserver().removeOnPreDrawListener(
+                    transition.anchorListener);
+        }
+        transition.anchorListener = null;
+    }
+
+    private void removeModeTransitionGhost(ImageView ghost, ModeTransitionState transition) {
+        removeModeTransitionAnchor(transition);
+        if (ghost.getParent() == mEditMutationOverlay) {
+            mEditMutationOverlay.removeView(ghost);
+        }
+        ghost.setImageDrawable(null);
+        ghost.setTag(null);
+        if (transition.bitmap != null && !transition.bitmap.isRecycled()) {
+            transition.bitmap.recycle();
+        }
     }
 
     public void resetChips() {
@@ -3505,12 +3703,19 @@ public class BoomChipPage {
         public BoomChip(final int id, View chipView) {
             index = id;
             container = chipView;
+            // Mode switches replace the chip background resource. Hide the
+            // replacement before it is attached so no normal/edit background
+            // can draw during the frame before the pre-draw transition starts.
+            if (mModeTransitionPreparing) {
+                container.setAlpha(0f);
+            }
             punc = mLayout.isPunc(id);
             if (punc) {
                 word = (TextView) chipView.findViewById(R.id.punc);
             } else {
                 word = (TextView) chipView.findViewById(R.id.word);
             }
+            word.setAlpha(1f);
             word.setText(mLayout.getWord(id));
             if (mLayout.isEditLayout()) {
                 // The original edit 9-patch is exactly 40dp high.  Remove the
@@ -3600,6 +3805,46 @@ public class BoomChipPage {
         EditTextMutation(String text, int cursorOffset) {
             this.text = text;
             this.cursorOffset = cursorOffset;
+        }
+    }
+
+    private static final class ModeTransitionChip {
+        final int start;
+        final int end;
+        final float x;
+        final float y;
+
+        ModeTransitionChip(int start, int end, float x, float y) {
+            this.start = start;
+            this.end = end;
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    private static final class ModeTransitionState {
+        final ArrayList<ModeTransitionChip> chips;
+        final Bitmap bitmap;
+        final int screenLeft;
+        final int screenTop;
+        OnPreDrawListener anchorListener;
+
+        ModeTransitionState(
+                ArrayList<ModeTransitionChip> chips,
+                Bitmap bitmap,
+                int screenLeft,
+                int screenTop
+        ) {
+            this.chips = chips;
+            this.bitmap = bitmap;
+            this.screenLeft = screenLeft;
+            this.screenTop = screenTop;
+        }
+
+        void recycle() {
+            if (bitmap != null && !bitmap.isRecycled()) {
+                bitmap.recycle();
+            }
         }
     }
 

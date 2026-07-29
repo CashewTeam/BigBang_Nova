@@ -11,7 +11,15 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -28,13 +36,12 @@ import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -45,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -777,6 +785,38 @@ class BoomActivity : ComponentActivity() {
 }
 
 @Composable
+private fun EditToolbarIconsTransition(
+    editMode: Boolean,
+    content: @Composable androidx.compose.foundation.layout.RowScope.(Boolean) -> Unit,
+) {
+    AnimatedContent(
+        targetState = editMode,
+        transitionSpec = {
+            val direction = if (targetState) 1 else -1
+            (
+                slideInHorizontally(
+                    animationSpec = tween(300, easing = FastOutSlowInEasing),
+                    initialOffsetX = { direction * it / 3 },
+                ) + fadeIn(tween(180))
+            ).togetherWith(
+                slideOutHorizontally(
+                    animationSpec = tween(240, easing = FastOutSlowInEasing),
+                    targetOffsetX = { -direction * it / 3 },
+                ) + fadeOut(tween(160)),
+            ).using(SizeTransform(clip = false))
+        },
+        label = "bigbang_edit_toolbar_icons",
+    ) { editing ->
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            content(editing)
+        }
+    }
+}
+
+@Composable
 private fun BigBangOverlayContent(
     contentView: View,
     touchX: Int,
@@ -818,7 +858,54 @@ private fun BigBangOverlayContent(
     val bottomBarColor = if (dark) Color(0xFF1D2126) else Color.White
     val scrimColor = if (dark) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.48f)
     val shadowColor = Color.Black.copy(alpha = 0.5f)
-    val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(panelMetrics.cornerRadius)
+    val editModeDpTransition = tween<androidx.compose.ui.unit.Dp>(
+        durationMillis = 300,
+        easing = FastOutSlowInEasing,
+    )
+    val targetToolbarContentHeight = if (isEditMode) 48.dp else 52.dp
+    val targetToolbarBottomInset = panelMetrics.effectiveBottomInset(isEditMode)
+    val targetLegacyViewportHeight = (
+        panelMetrics.height -
+            targetToolbarContentHeight * 2 -
+            panelMetrics.topSystemInset -
+            targetToolbarBottomInset
+        ).coerceAtLeast(1.dp)
+    val panelHeight by animateDpAsState(
+        targetValue = panelMetrics.height,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_helper_height",
+    )
+    val panelOffsetY by animateDpAsState(
+        targetValue = panelMetrics.offsetY,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_helper_offset",
+    )
+    val panelCornerRadius by animateDpAsState(
+        targetValue = panelMetrics.cornerRadius,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_helper_corner",
+    )
+    val toolbarContentHeight by animateDpAsState(
+        targetValue = targetToolbarContentHeight,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_toolbar_height",
+    )
+    val toolbarHorizontalPadding by animateDpAsState(
+        targetValue = if (isEditMode) 12.dp else 14.dp,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_toolbar_padding",
+    )
+    val toolbarTopInset by animateDpAsState(
+        targetValue = panelMetrics.topSystemInset,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_toolbar_top_inset",
+    )
+    val toolbarBottomInset by animateDpAsState(
+        targetValue = targetToolbarBottomInset,
+        animationSpec = editModeDpTransition,
+        label = "bigbang_toolbar_bottom_inset",
+    )
+    val panelShape = androidx.compose.foundation.shape.RoundedCornerShape(panelCornerRadius)
     var panelVisible by remember { mutableStateOf(false) }
     var dismissing by remember { mutableStateOf(false) }
     var panelBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
@@ -903,9 +990,14 @@ private fun BigBangOverlayContent(
     OverlayScene(scrimColor = scrimColor.copy(alpha = scrimColor.alpha * scrimProgress), onDismiss = requestDismiss) {
         FloatingPanel(
             width = panelMetrics.width,
-            height = panelMetrics.height,
-            fillMax = panelMetrics.fullScreen,
-            modifier = overlayPanelPlacement(panelMetrics)
+            height = panelHeight,
+            // Required-size interpolation keeps the helper itself in one
+            // layout tree; toggling fillMax replaced the size immediately and
+            // swallowed the toolbar height animation.
+            fillMax = false,
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.Center)
+                .offset(y = panelOffsetY)
                 .onGloballyPositioned { coordinates ->
                     panelBounds = coordinates.boundsInWindow()
                 }
@@ -924,44 +1016,46 @@ private fun BigBangOverlayContent(
                 topBar = {
                     OverlayHeaderBar(
                         backgroundColor = topBarColor,
-                        topInset = panelMetrics.topSystemInset,
+                        topInset = toolbarTopInset,
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
-                        contentHeight = if (isEditMode) 48.dp else 52.dp,
-                        horizontalPadding = if (isEditMode) 12.dp else 14.dp,
+                        contentHeight = toolbarContentHeight,
+                        horizontalPadding = toolbarHorizontalPadding,
                         leadingItemSpacing = if (isEditMode) 12.dp else 8.dp,
                         trailingItemSpacing = if (isEditMode) 11.dp else 8.dp,
                         leading = {
-                            if (isEditMode) {
-                                OverlayIconAction(
-                                    iconRes = R.drawable.action_bar_back_selector,
-                                    tint = null,
-                                    invertAssetColors = dark,
-                                    enabled = !editTransitioning,
-                                    onClick = onExitEditMode,
-                                    contentDescription = stringResource(R.string.bigbang_action_exit_edit),
-                                )
-                                OverlayIconAction(
-                                    iconRes = R.drawable.action_bar_close_selector,
-                                    tint = null,
-                                    invertAssetColors = dark,
-                                    enabled = !editTransitioning,
-                                    onClick = requestDismiss,
-                                    contentDescription = stringResource(R.string.bigbang_action_close),
-                                )
-                            } else {
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.Edit,
-                                    tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
-                                    onClick = onEditMode,
-                                    contentDescription = stringResource(R.string.bigbang_action_edit),
-                                )
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.SelectAll,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
-                                    onClick = onSelectAll,
-                                    contentDescription = stringResource(R.string.bigbang_action_select_all),
-                                )
+                            EditToolbarIconsTransition(isEditMode) { editing ->
+                                if (editing) {
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.action_bar_back_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
+                                        enabled = !editTransitioning,
+                                        onClick = onExitEditMode,
+                                        contentDescription = stringResource(R.string.bigbang_action_exit_edit),
+                                    )
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.action_bar_close_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
+                                        enabled = !editTransitioning,
+                                        onClick = requestDismiss,
+                                        contentDescription = stringResource(R.string.bigbang_action_close),
+                                    )
+                                } else {
+                                    OverlayIconAction(
+                                        imageVector = Icons.Outlined.Edit,
+                                        tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                        onClick = onEditMode,
+                                        contentDescription = stringResource(R.string.bigbang_action_edit),
+                                    )
+                                    OverlayIconAction(
+                                        imageVector = Icons.Outlined.SelectAll,
+                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                        onClick = onSelectAll,
+                                        contentDescription = stringResource(R.string.bigbang_action_select_all),
+                                    )
+                                }
                             }
                         },
                         center = {
@@ -973,47 +1067,45 @@ private fun BigBangOverlayContent(
                             )
                         },
                         trailing = {
-                            if (isEditMode) {
-                                OverlayIconAction(
-                                    iconRes = R.drawable.action_bar_choosetext_selector,
-                                    tint = null,
-                                    invertAssetColors = dark,
-                                    enabled = editSelectAllEnabled && !editTransitioning,
-                                    onClick = onSelectAll,
-                                    contentDescription = stringResource(
-                                        if (editAllSelected) {
-                                            R.string.bigbang_action_cancel_select_all
-                                        } else {
-                                            R.string.bigbang_action_select_all
-                                        },
-                                    ),
-                                )
-                            }
-                            if (isEditMode) {
-                                OverlayIconAction(
-                                    iconRes = R.drawable.action_bar_share_selector,
-                                    tint = null,
-                                    invertAssetColors = dark,
-                                    enabled = !editTransitioning,
-                                    onClick = onShareAll,
-                                    contentDescription = stringResource(R.string.bigbang_action_share_all),
-                                )
-                            } else {
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.Share,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
-                                    enabled = !editTransitioning,
-                                    onClick = onShareAll,
-                                    contentDescription = stringResource(R.string.bigbang_action_share_all),
-                                )
-                            }
-                            if (!isEditMode) {
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.MoreHoriz,
-                                    tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
-                                    onClick = onMore,
-                                    contentDescription = stringResource(R.string.bigbang_action_more),
-                                )
+                            EditToolbarIconsTransition(isEditMode) { editing ->
+                                if (editing) {
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.action_bar_choosetext_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
+                                        enabled = editSelectAllEnabled && !editTransitioning,
+                                        onClick = onSelectAll,
+                                        contentDescription = stringResource(
+                                            if (editAllSelected) {
+                                                R.string.bigbang_action_cancel_select_all
+                                            } else {
+                                                R.string.bigbang_action_select_all
+                                            },
+                                        ),
+                                    )
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.action_bar_share_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
+                                        enabled = !editTransitioning,
+                                        onClick = onShareAll,
+                                        contentDescription = stringResource(R.string.bigbang_action_share_all),
+                                    )
+                                } else {
+                                    OverlayIconAction(
+                                        imageVector = Icons.Outlined.Share,
+                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                        enabled = !editTransitioning,
+                                        onClick = onShareAll,
+                                        contentDescription = stringResource(R.string.bigbang_action_share_all),
+                                    )
+                                    OverlayIconAction(
+                                        imageVector = Icons.Outlined.MoreHoriz,
+                                        tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                        onClick = onMore,
+                                        contentDescription = stringResource(R.string.bigbang_action_more),
+                                    )
+                                }
                             }
                         },
                     )
@@ -1021,29 +1113,31 @@ private fun BigBangOverlayContent(
                 bottomBar = {
                     OverlayBottomBar(
                         backgroundColor = bottomBarColor,
-                        bottomInset = panelMetrics.effectiveBottomInset(isEditMode),
+                        bottomInset = toolbarBottomInset,
                         leftInset = panelMetrics.leftSystemInset,
                         rightInset = panelMetrics.rightSystemInset,
-                        contentHeight = if (isEditMode) 48.dp else 52.dp,
-                        horizontalPadding = if (isEditMode) 12.dp else 14.dp,
+                        contentHeight = toolbarContentHeight,
+                        horizontalPadding = toolbarHorizontalPadding,
                         leading = {
-                            if (!isEditMode) {
-                                OverlayIconAction(
-                                    imageVector = Icons.Outlined.DocumentScanner,
-                                    tint = if (ocrEnabled) {
-                                        if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                    } else {
-                                        if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
-                                    },
-                                    enabled = ocrEnabled,
-                                    onClick = onOcr,
-                                    contentDescription = stringResource(R.string.bigbang_action_ocr),
-                                )
+                            EditToolbarIconsTransition(isEditMode) { editing ->
+                                if (!editing) {
+                                    OverlayIconAction(
+                                        imageVector = Icons.Outlined.DocumentScanner,
+                                        tint = if (ocrEnabled) {
+                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                        } else {
+                                            if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                        },
+                                        enabled = ocrEnabled,
+                                        onClick = onOcr,
+                                        contentDescription = stringResource(R.string.bigbang_action_ocr),
+                                    )
+                                }
                             }
                         },
                         center = {
-                            if (isEditMode) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            EditToolbarIconsTransition(isEditMode) { editing ->
+                                if (editing) {
                                     OverlayIconAction(
                                         // Legacy asset names are visually reversed: revoke is the left-facing undo arrow.
                                         iconRes = R.drawable.action_bar_revoke_selector,
@@ -1062,58 +1156,64 @@ private fun BigBangOverlayContent(
                                         onClick = onRedo,
                                         contentDescription = stringResource(R.string.bigbang_action_redo),
                                     )
+                                } else {
+                                    OverlayIconAction(
+                                        iconRes = R.drawable.boom_cancel,
+                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                        onClick = requestDismiss,
+                                        contentDescription = stringResource(R.string.search_overlay_close),
+                                    )
                                 }
-                            } else {
-                                OverlayIconAction(
-                                    iconRes = R.drawable.boom_cancel,
-                                    tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
-                                    onClick = requestDismiss,
-                                    contentDescription = stringResource(R.string.search_overlay_close),
-                                )
                             }
                         },
                         trailing = {
-                            if (isEditMode) {
-                                OverlayIconAction(
-                                    iconRes = R.drawable.action_bar_keyboard_selector,
-                                    tint = null,
-                                    invertAssetColors = dark,
-                                    enabled = !editTransitioning,
-                                    onClick = onShowKeyboard,
-                                    contentDescription = stringResource(R.string.bigbang_action_keyboard),
-                                )
-                            } else {
-                                Box {
+                            EditToolbarIconsTransition(isEditMode) { editing ->
+                                if (editing) {
                                     OverlayIconAction(
-                                        imageVector = Icons.Outlined.Language,
-                                        tint = if (languageEnabled) {
-                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
-                                        } else {
-                                            if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
-                                        },
-                                        enabled = languageEnabled,
-                                        onClick = { languageMenuExpanded = true },
-                                        contentDescription = stringResource(R.string.bigbang_action_language),
+                                        iconRes = R.drawable.action_bar_keyboard_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
+                                        enabled = !editTransitioning,
+                                        onClick = onShowKeyboard,
+                                        contentDescription = stringResource(R.string.bigbang_action_keyboard),
                                     )
-                                    DropdownMenu(
-                                        expanded = languageMenuExpanded,
-                                        onDismissRequest = { languageMenuExpanded = false },
-                                        containerColor = if (dark) Color(0xFF20252B) else Color.White,
-                                    ) {
-                                        languageOptions.forEach { (title, value) ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    androidx.compose.material3.Text(
-                                                        text = title,
-                                                        color = if (dark) Color(0xFFF2F5F8) else Color(0xFF3B3B3B),
-                                                    )
-                                                },
-                                                onClick = {
-                                                    languageMenuExpanded = false
-                                                    onLanguageSelected(value)
-                                                },
-                                                enabled = value != activeOcrMode,
-                                            )
+                                } else {
+                                    Box {
+                                        OverlayIconAction(
+                                            imageVector = Icons.Outlined.Language,
+                                            tint = if (languageEnabled) {
+                                                if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                            } else {
+                                                if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                            },
+                                            enabled = languageEnabled,
+                                            onClick = { languageMenuExpanded = true },
+                                            contentDescription = stringResource(R.string.bigbang_action_language),
+                                        )
+                                        DropdownMenu(
+                                            expanded = languageMenuExpanded,
+                                            onDismissRequest = { languageMenuExpanded = false },
+                                            containerColor = if (dark) Color(0xFF20252B) else Color.White,
+                                        ) {
+                                            languageOptions.forEach { (title, value) ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        androidx.compose.material3.Text(
+                                                            text = title,
+                                                            color = if (dark) {
+                                                                Color(0xFFF2F5F8)
+                                                            } else {
+                                                                Color(0xFF3B3B3B)
+                                                            },
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        languageMenuExpanded = false
+                                                        onLanguageSelected(value)
+                                                    },
+                                                    enabled = value != activeOcrMode,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1122,13 +1222,20 @@ private fun BigBangOverlayContent(
                     )
                 },
             ) { bodyModifier ->
-                Column(modifier = bodyModifier.fillMaxSize()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = bodyModifier
+                        .fillMaxSize()
+                        .clipToBounds(),
+                ) {
                     AndroidView(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                            .padding(bottom = 4.dp),
+                            // Measure the legacy chip tree once at the final
+                            // mode viewport. The animated helper body clips it
+                            // while expanding instead of remeasuring every row
+                            // on every frame.
+                            .height(targetLegacyViewportHeight)
+                            .padding(top = 4.dp, bottom = 4.dp),
                         factory = {
                             contentView
                         },
