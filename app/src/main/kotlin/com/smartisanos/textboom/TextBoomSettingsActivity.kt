@@ -95,6 +95,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
@@ -110,6 +111,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -146,6 +148,11 @@ import com.cashewteam.novatext.android.data.JiebaWarmUpTracker
 import com.cashewteam.novatext.android.service.BoomActivityLauncher
 import com.cashewteam.novatext.android.service.BoomOcrLauncher
 import com.cashewteam.novatext.android.service.FloatingBallService
+import com.cashewteam.novatext.android.service.FloatingBallTileService
+import com.cashewteam.novatext.android.service.ExperimentalTouchController
+import com.cashewteam.novatext.android.service.ExperimentalTouchPolicy
+import com.cashewteam.novatext.android.service.ExperimentalTriggerMode
+import com.cashewteam.novatext.android.service.NovaTextAccessibilityService
 import com.cashewteam.novatext.android.service.MediaProjectionScreenshotCapture
 import com.cashewteam.novatext.android.service.ShizukuScreenshotCapture
 import com.cashewteam.novatext.android.util.DesktopShortcutPermission
@@ -175,6 +182,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                 startFloatingBallAfterNotificationPermission = false
                 FloatingBallService.resetStateMachine()
                 FloatingBallService.start(this)
+                FloatingBallTileService.requestRefresh(this)
             }
         }
     private val pickOcrImageLauncher =
@@ -225,8 +233,8 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onRequestProjectionPermission = { requestProjectionPermission() },
                     onRequestNotificationPermission = { requestNotificationPermission() },
                     onOpenBackgroundPopupSettings = { openBackgroundPopupSettings() },
-                    onStartFloatingBall = { startFloatingBall() },
-                    onStopFloatingBall = { stopFloatingBall() },
+                    onStartPrimaryInput = { startPrimaryInput() },
+                    onStopPrimaryInput = { stopPrimaryInput() },
                     onResetFloatingBall = { resetFloatingBall() },
                     onFloatingBallSizeChange = { updateFloatingBallSizePercent(it) },
                     onFloatingBallActiveAlphaChange = { updateFloatingBallActiveAlphaPercent(it) },
@@ -357,6 +365,18 @@ class TextBoomSettingsActivity : ComponentActivity() {
         FloatingBallService.start(this)
     }
 
+    private fun startPrimaryInput() {
+        if (settings.isExperimentalTouchSelected) {
+            FloatingBallService.stop(this)
+            if (!ExperimentalTouchController.start(this)) {
+                Toast.makeText(this, "请先保存触发设置，并完成无障碍与后台运行授权", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            startFloatingBall()
+        }
+        FloatingBallTileService.requestRefresh(this)
+    }
+
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -367,6 +387,15 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun stopFloatingBall() {
         FloatingBallService.stop(this)
+    }
+
+    private fun stopPrimaryInput() {
+        if (settings.isExperimentalTouchSelected) {
+            ExperimentalTouchController.stop(this)
+        } else {
+            stopFloatingBall()
+        }
+        FloatingBallTileService.requestRefresh(this)
     }
 
     private fun resetFloatingBall() {
@@ -461,16 +490,17 @@ class TextBoomSettingsActivity : ComponentActivity() {
     }
 
     private fun resolveStartPage(intent: Intent?): SettingsPage {
-        return if (intent?.getStringExtra(EXTRA_START_PAGE) == START_PAGE_OCR_WHITELIST) {
-            SettingsPage.OcrWhitelist
-        } else {
-            SettingsPage.Main
+        return when (intent?.getStringExtra(EXTRA_START_PAGE)) {
+            START_PAGE_OCR_WHITELIST -> SettingsPage.OcrWhitelist
+            START_PAGE_EXPERIMENTAL_TOUCH -> SettingsPage.ExperimentalTouch
+            else -> SettingsPage.Main
         }
     }
 
     companion object {
         private const val EXTRA_START_PAGE = "extra_start_page"
         private const val START_PAGE_OCR_WHITELIST = "ocr_whitelist"
+        private const val START_PAGE_EXPERIMENTAL_TOUCH = "experimental_touch"
         private const val DESKTOP_OCR_SHORTCUT_ID = "desktop_ocr"
         private const val ACTION_DESKTOP_OCR_SHORTCUT =
             "com.cashewteam.novatext.android.action.DESKTOP_OCR_SHORTCUT"
@@ -479,6 +509,15 @@ class TextBoomSettingsActivity : ComponentActivity() {
         fun createOcrWhitelistIntent(context: Context): Intent {
             return Intent(context, TextBoomSettingsActivity::class.java).apply {
                 putExtra(EXTRA_START_PAGE, START_PAGE_OCR_WHITELIST)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+        }
+
+        fun createExperimentalTouchIntent(context: Context): Intent {
+            return Intent(context, TextBoomSettingsActivity::class.java).apply {
+                putExtra(EXTRA_START_PAGE, START_PAGE_EXPERIMENTAL_TOUCH)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -550,6 +589,7 @@ private enum class SettingsPage {
     FloatingBall,
     Ui,
     Search,
+    ExperimentalTouch,
     About,
 }
 
@@ -763,8 +803,8 @@ private fun SettingsScreen(
     onRequestProjectionPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenBackgroundPopupSettings: () -> Unit,
-    onStartFloatingBall: () -> Unit,
-    onStopFloatingBall: () -> Unit,
+    onStartPrimaryInput: () -> Unit,
+    onStopPrimaryInput: () -> Unit,
     onResetFloatingBall: () -> Unit,
     onFloatingBallSizeChange: (Int) -> Unit,
     onFloatingBallActiveAlphaChange: (Int) -> Unit,
@@ -827,6 +867,12 @@ private fun SettingsScreen(
     val floatingBallRunning by FloatingBallService.getActiveStateFlow().collectAsState(
         initial = FloatingBallService.isActive(),
     )
+    val experimentalTouchSelected = settings.isExperimentalTouchSelected
+    val primaryInputRunning = if (experimentalTouchSelected) {
+        ExperimentalTouchController.running
+    } else {
+        floatingBallRunning
+    }
     val currentPermissionState = {
             val backgroundPopupSystem = detectBackgroundPopupSystem()
             PermissionState(
@@ -1173,6 +1219,11 @@ private fun SettingsScreen(
                         }
                     }
                 }
+                SettingsPage.ExperimentalTouch.name -> {
+                    SettingsDetailPage(topPadding = listTopPadding, onBack = { currentPage = SettingsPage.Main.name }) {
+                        ExperimentalTouchSettingsPage(settings)
+                    }
+                }
                 SettingsPage.OcrWhitelist.name -> {
                     OcrWhitelistPage(
                 topPadding = listTopPadding,
@@ -1226,15 +1277,17 @@ private fun SettingsScreen(
                         SettingsSectionCard {
                             PermissionSection(
                                 state = permissionState,
+                                experimentalTouchSelected = experimentalTouchSelected,
+                                primaryInputRunning = primaryInputRunning,
                                 onOpenStartupWizard = { showStartupWizard = true },
-                                onStartFloatingBall = {
-                                    if (isPermissionSetupComplete(permissionState)) {
-                                        onStartFloatingBall()
+                                onStartPrimaryInput = {
+                                    if (experimentalTouchSelected || isPermissionSetupComplete(permissionState)) {
+                                        onStartPrimaryInput()
                                     } else {
                                         showStartupWizard = true
                                     }
                                 },
-                                onStopFloatingBall = onStopFloatingBall,
+                                onStopPrimaryInput = onStopPrimaryInput,
                                 onOpenFloatingBallSettings = { currentPage = SettingsPage.FloatingBall.name },
                                 onOpenUiSettings = { currentPage = SettingsPage.Ui.name },
                                 onOpenSearchSettings = { currentPage = SettingsPage.Search.name },
@@ -1270,6 +1323,16 @@ private fun SettingsScreen(
                                     showStartupWizard = true
                                 }
                             },
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSectionCard {
+                        SettingsNavigationRow(
+                            title = "实验性触控监听",
+                            subtitle = "Android 13+ 免 Root 触控触发，可能影响普通操作体验",
+                            onClick = { currentPage = SettingsPage.ExperimentalTouch.name },
                         )
                     }
                 }
@@ -1331,6 +1394,7 @@ private fun SettingsScreen(
                 SettingsPage.FloatingBall.name -> stringResource(R.string.floating_ball_settings_title)
                 SettingsPage.Ui.name -> stringResource(R.string.ui_settings_title)
                 SettingsPage.Search.name -> stringResource(R.string.search_settings_title)
+                SettingsPage.ExperimentalTouch.name -> "实验性触控监听"
                 SettingsPage.About.name -> stringResource(R.string.about_title)
                 else -> stringResource(R.string.text_boom_settings)
             },
@@ -2251,11 +2315,284 @@ private fun DebugSection(
 }
 
 @Composable
+private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings) {
+    val context = LocalContext.current
+    var revision by remember { mutableIntStateOf(0) }
+    val savedConfig = remember(revision) { ExperimentalTouchPolicy.config(settings) }
+    var mode by remember(savedConfig.mode) { mutableStateOf(savedConfig.mode) }
+    var threshold by remember(mode, revision) {
+        mutableStateOf(
+            when (mode) {
+                ExperimentalTriggerMode.PRESSURE -> settings.experimentalTouchPressureThreshold
+                ExperimentalTriggerMode.SIZE -> settings.experimentalTouchSizeThreshold
+                ExperimentalTriggerMode.TOUCH_AREA -> settings.experimentalTouchAreaThreshold
+                ExperimentalTriggerMode.TWO_FINGER_TAP -> settings.experimentalTouchTwoFingerDuration
+                ExperimentalTriggerMode.THREE_FINGER_TAP -> settings.experimentalTouchThreeFingerDuration
+            },
+        )
+    }
+    var showRiskDialog by remember { mutableStateOf(false) }
+    val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    val accessibilityConnected = NovaTextAccessibilityService.activeInstance != null
+    val accessibilityEnabled = FloatingBallService.isAccessibilityEnabled(context)
+    val batteryExempt = ExperimentalTouchController.hasBatteryExemption(context)
+    val controllerRunning = ExperimentalTouchController.running
+    val experimentalTouchSelected = settings.isExperimentalTouchSelected
+
+    SettingsSectionCard {
+        Text("实验性功能", color = Color(0xFFB05D00), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "使用 Android 13 的 TouchInteractionController。压感、Size、面积会在按下时立即决定触发或委托；双指、三指模式会短暂保留起始触摸。",
+            color = LocalSettingsPalette.current.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        DebugSwitchRow(
+            title = "使用触控事件监听",
+            subtitle = if (experimentalTouchSelected) {
+                "主页与快捷中心将控制触控事件监听"
+            } else {
+                "当前使用悬浮球触发；开启后会切换为触控事件监听"
+            },
+            checked = experimentalTouchSelected,
+            onCheckedChange = { enabled ->
+                if (enabled) showRiskDialog = true
+                else {
+                    val wasRunning = controllerRunning
+                    ExperimentalTouchController.stop(context)
+                    settings.setExperimentalTouchSelected(false)
+                    if (wasRunning) FloatingBallService.start(context)
+                    FloatingBallTileService.requestRefresh(context)
+                    revision++
+                }
+            },
+        )
+    }
+
+    SettingsSectionCard {
+        Text("触发方式", color = LocalSettingsPalette.current.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExperimentalModeButton("压感", mode == ExperimentalTriggerMode.PRESSURE) { mode = ExperimentalTriggerMode.PRESSURE }
+            ExperimentalModeButton("Size", mode == ExperimentalTriggerMode.SIZE) { mode = ExperimentalTriggerMode.SIZE }
+            ExperimentalModeButton("椭圆面积", mode == ExperimentalTriggerMode.TOUCH_AREA) { mode = ExperimentalTriggerMode.TOUCH_AREA }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExperimentalModeButton("双指单击", mode == ExperimentalTriggerMode.TWO_FINGER_TAP) { mode = ExperimentalTriggerMode.TWO_FINGER_TAP }
+            ExperimentalModeButton("三指单击", mode == ExperimentalTriggerMode.THREE_FINGER_TAP) { mode = ExperimentalTriggerMode.THREE_FINGER_TAP }
+        }
+        Text(
+            if (ExperimentalTouchPolicy.isSensorMode(mode)) {
+                "普通点击、滑动和多指手势会立即委托给当前应用，不增加识别等待。"
+            } else {
+                "识别期间会暂时拦截起始触摸，普通点击、滚动和多指操作可能延迟。"
+            },
+            color = LocalSettingsPalette.current.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+    }
+
+    SettingsSectionCard {
+        val title = when (mode) {
+            ExperimentalTriggerMode.PRESSURE -> "压感阈值"
+            ExperimentalTriggerMode.SIZE -> "Size 阈值"
+            ExperimentalTriggerMode.TOUCH_AREA -> "椭圆接触面积阈值"
+            ExperimentalTriggerMode.TWO_FINGER_TAP -> "双指单击最长时长"
+            ExperimentalTriggerMode.THREE_FINGER_TAP -> "三指单击最长时长"
+        }
+        Text(title, color = LocalSettingsPalette.current.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            when (mode) {
+                ExperimentalTriggerMode.PRESSURE -> "%.3f".format(threshold)
+                ExperimentalTriggerMode.SIZE -> "%d%%  ·  %.3f".format((threshold * 100f).toInt(), threshold)
+                ExperimentalTriggerMode.TOUCH_AREA -> "%.1f px²".format(threshold)
+                ExperimentalTriggerMode.TWO_FINGER_TAP,
+                ExperimentalTriggerMode.THREE_FINGER_TAP -> "%.0f ms".format(threshold)
+            },
+            color = LocalSettingsPalette.current.textSecondary,
+            fontSize = 15.sp,
+        )
+        Slider(
+            value = threshold,
+            onValueChange = { threshold = it },
+            valueRange = when (mode) {
+                ExperimentalTriggerMode.PRESSURE -> 0f..3f
+                ExperimentalTriggerMode.SIZE -> 0.01f..1f
+                ExperimentalTriggerMode.TOUCH_AREA -> 0f..2_000f
+                ExperimentalTriggerMode.TWO_FINGER_TAP,
+                ExperimentalTriggerMode.THREE_FINGER_TAP -> 100f..600f
+            },
+        )
+        if (ExperimentalTouchPolicy.isSensorMode(mode)) ExperimentalTouchDataTest()
+        if (threshold <= 0f || !threshold.isFinite()) {
+            Text("阈值必须大于 0，否则普通触控可能被误判。", color = Color(0xFFB05D00), fontSize = 13.sp)
+        }
+        SecondaryActionButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = "保存触发设置",
+            onClick = {
+                ExperimentalTouchController.stop(context)
+                settings.setExperimentalTouchMode(mode.name)
+                when (mode) {
+                    ExperimentalTriggerMode.PRESSURE -> settings.setExperimentalTouchPressureThreshold(threshold)
+                    ExperimentalTriggerMode.SIZE -> settings.setExperimentalTouchSizeThreshold(threshold)
+                    ExperimentalTriggerMode.TOUCH_AREA -> settings.setExperimentalTouchAreaThreshold(threshold)
+                    ExperimentalTriggerMode.TWO_FINGER_TAP -> settings.setExperimentalTouchTwoFingerDuration(threshold)
+                    ExperimentalTriggerMode.THREE_FINGER_TAP -> settings.setExperimentalTouchThreeFingerDuration(threshold)
+                }
+                settings.setExperimentalTouchConfigured(threshold > 0f && threshold.isFinite())
+                revision++
+            },
+        )
+    }
+
+    SettingsSectionCard {
+        Text("权限与运行状态", color = LocalSettingsPalette.current.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        ExperimentalStatusRow("系统版本", if (supported) "Android 13+，已支持" else "需要 Android 13+")
+        ExperimentalStatusRow("当前触发方式", if (experimentalTouchSelected) "触控事件监听" else "悬浮球触发")
+        ExperimentalStatusRow("触发设置", if (savedConfig.configured) "已保存" else "未保存")
+        ExperimentalStatusRow("后台持续运行", if (batteryExempt) "已允许" else "未允许")
+        ExperimentalStatusRow("后台弹出页面", "需在系统权限管理中手动允许")
+        ExperimentalStatusRow("无障碍权限", when {
+            accessibilityConnected -> "已授权并连接"
+            accessibilityEnabled -> "已授权，等待连接"
+            else -> "未授权"
+        })
+        ExperimentalStatusRow("触控控制器", when {
+            ExperimentalTouchController.listening -> "监听中"
+            controllerRunning -> "等待无障碍连接"
+            else -> "未监听"
+        })
+        if (!accessibilityEnabled || !accessibilityConnected) {
+            SecondaryActionButton(
+                modifier = Modifier.fillMaxWidth(),
+                text = "打开无障碍设置",
+                onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+            )
+        }
+        if (!batteryExempt) {
+            SecondaryActionButton(
+                modifier = Modifier.fillMaxWidth(),
+                text = "允许后台持续运行",
+                onClick = {
+                    context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    })
+                },
+            )
+        }
+        SecondaryActionButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = "打开应用权限设置",
+            onClick = {
+                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                })
+            },
+        )
+    }
+
+    if (showRiskDialog) {
+        AlertDialog(
+            onDismissRequest = { showRiskDialog = false },
+            title = { Text("启用实验性触控监听？") },
+            text = {
+                Text(
+                    if (ExperimentalTouchPolicy.isMultiFingerTap(savedConfig.mode)) {
+                        "双指/三指识别会暂时拦截起始触摸，可能造成普通操作延迟；未形成多指手势的短点击会在抬起后补发。"
+                    } else {
+                        "普通触控会立即委托给当前应用；触控数据达到阈值时，本次触控将被消费并触发 Nova Text。"
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRiskDialog = false
+                    if (!supported) {
+                        Toast.makeText(context, "实验模式需要 Android 13 或更高版本", Toast.LENGTH_SHORT).show()
+                    } else if (!batteryExempt) {
+                        Toast.makeText(context, "请先允许 Nova Text 在后台持续运行", Toast.LENGTH_SHORT).show()
+                    } else if (!accessibilityConnected) {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    } else {
+                        FloatingBallService.stop(context)
+                        settings.setExperimentalTouchSelected(true)
+                        if (!ExperimentalTouchController.start(context)) {
+                            settings.setExperimentalTouchSelected(false)
+                            Toast.makeText(context, "请先保存触发设置，并完成无障碍授权", Toast.LENGTH_SHORT).show()
+                        }
+                        FloatingBallTileService.requestRefresh(context)
+                    }
+                    revision++
+                }) { Text("继续") }
+            },
+            dismissButton = { TextButton(onClick = { showRiskDialog = false }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun ExperimentalModeButton(title: String, selected: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) LocalSettingsPalette.current.accent else LocalSettingsPalette.current.cardInset,
+            contentColor = if (selected) Color.White else LocalSettingsPalette.current.textPrimary,
+        ),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp),
+    ) { Text(title, fontSize = 13.sp) }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun ExperimentalTouchDataTest() {
+    var pressure by remember { mutableStateOf(0f) }
+    var size by remember { mutableStateOf(0f) }
+    var touchMajor by remember { mutableStateOf(0f) }
+    var touchMinor by remember { mutableStateOf(0f) }
+    val palette = LocalSettingsPalette.current
+    Text("触控数据测试", color = palette.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+            .background(palette.cardInset, RoundedCornerShape(14.dp))
+            .pointerInteropFilter { event ->
+                if (event.pointerCount > 0) {
+                    pressure = event.getPressure(0)
+                    size = event.getSize(0)
+                    touchMajor = event.getTouchMajor(0)
+                    touchMinor = event.getTouchMinor(0)
+                }
+                true
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("压感 %.3f · Size %.3f".format(pressure, size), color = palette.textPrimary, fontSize = 15.sp)
+            Text("面积 %.1f px²".format(ExperimentalTouchPolicy.touchArea(touchMajor, touchMinor)), color = palette.textPrimary, fontSize = 15.sp)
+            Text("TouchMajor %.1f · TouchMinor %.1f".format(touchMajor, touchMinor), color = palette.textSecondary, fontSize = 13.sp)
+        }
+    }
+    Text("在此区域按压或滑动，数值仅用于观察和设置阈值。", color = palette.textSecondary, fontSize = 13.sp)
+}
+
+@Composable
+private fun ExperimentalStatusRow(name: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(name, color = LocalSettingsPalette.current.textSecondary, fontSize = 14.sp)
+        Text(value, color = LocalSettingsPalette.current.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
 private fun PermissionSection(
     state: PermissionState,
+    experimentalTouchSelected: Boolean,
+    primaryInputRunning: Boolean,
     onOpenStartupWizard: () -> Unit,
-    onStartFloatingBall: () -> Unit,
-    onStopFloatingBall: () -> Unit,
+    onStartPrimaryInput: () -> Unit,
+    onStopPrimaryInput: () -> Unit,
     onOpenFloatingBallSettings: () -> Unit,
     onOpenUiSettings: () -> Unit,
     onOpenSearchSettings: () -> Unit,
@@ -2276,12 +2613,12 @@ private fun PermissionSection(
             lineHeight = 20.sp,
         )
         ShadowedPrimaryButton(
-            text = if (state.floatingBallRunning) {
-                stringResource(R.string.permission_stop_floating_ball)
+            text = if (primaryInputRunning) {
+                if (experimentalTouchSelected) "关闭触控事件监听" else stringResource(R.string.permission_stop_floating_ball)
             } else {
-                stringResource(R.string.permission_start_floating_ball)
+                if (experimentalTouchSelected) "启动触控事件监听" else stringResource(R.string.permission_start_floating_ball)
             },
-            onClick = if (state.floatingBallRunning) onStopFloatingBall else onStartFloatingBall,
+            onClick = if (primaryInputRunning) onStopPrimaryInput else onStartPrimaryInput,
         )
         SecondaryActionButton(
             modifier = Modifier.fillMaxWidth(),

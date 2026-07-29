@@ -38,6 +38,15 @@ public final class BigBangSettings {
     public static final String KEY_GAP_ROW_HEIGHT_PERCENT = "gap_row_height_percent";
     public static final String KEY_CUSTOM_SEARCH_PROVIDERS = "custom_search_providers";
     public static final String KEY_NEXT_CUSTOM_SEARCH_TYPE = "next_custom_search_type";
+    public static final String KEY_EXPERIMENTAL_TOUCH_ENABLED = "experimental_touch_enabled";
+    public static final String KEY_EXPERIMENTAL_TOUCH_SELECTED = "experimental_touch_selected";
+    public static final String KEY_EXPERIMENTAL_TOUCH_CONFIGURED = "experimental_touch_configured";
+    public static final String KEY_EXPERIMENTAL_TOUCH_MODE = "experimental_touch_mode";
+    public static final String KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD = "experimental_touch_pressure_threshold";
+    public static final String KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD = "experimental_touch_size_threshold";
+    public static final String KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD = "experimental_touch_area_threshold";
+    public static final String KEY_EXPERIMENTAL_TOUCH_TWO_FINGER_DURATION = "experimental_touch_two_finger_duration";
+    public static final String KEY_EXPERIMENTAL_TOUCH_THREE_FINGER_DURATION = "experimental_touch_three_finger_duration";
 
     public static final int TYPE_BAIDU = 0x000;
     public static final int TYPE_GOOGLE = 0x001;
@@ -80,6 +89,9 @@ public final class BigBangSettings {
     private static final int DEFAULT_FLOATING_BALL_IDLE_ALPHA_PERCENT = 20;
     private static final int DEFAULT_FLOATING_BALL_ONE_HAND_ANGLE_DEGREES = 18;
     private static final int DEFAULT_GAP_ROW_HEIGHT_PERCENT = 15;
+    private static final String DEFAULT_EXPERIMENTAL_TOUCH_MODE = "PRESSURE";
+    private static final float DEFAULT_EXPERIMENTAL_TOUCH_AREA_THRESHOLD = 500f;
+    private static final float DEFAULT_EXPERIMENTAL_TOUCH_TAP_DURATION = 300f;
 
     private final SharedPreferences preferences;
 
@@ -182,6 +194,78 @@ public final class BigBangSettings {
 
     public void setDebugModeEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_DEBUG_MODE, enabled).apply();
+    }
+
+    public boolean isExperimentalTouchEnabled() {
+        return preferences.getBoolean(KEY_EXPERIMENTAL_TOUCH_ENABLED, false);
+    }
+
+    public void setExperimentalTouchEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_EXPERIMENTAL_TOUCH_ENABLED, enabled).apply();
+    }
+
+    public boolean isExperimentalTouchSelected() {
+        return preferences.getBoolean(KEY_EXPERIMENTAL_TOUCH_SELECTED, false);
+    }
+
+    public void setExperimentalTouchSelected(boolean selected) {
+        preferences.edit().putBoolean(KEY_EXPERIMENTAL_TOUCH_SELECTED, selected).apply();
+    }
+
+    public boolean isExperimentalTouchConfigured() {
+        return preferences.getBoolean(KEY_EXPERIMENTAL_TOUCH_CONFIGURED, false);
+    }
+
+    public void setExperimentalTouchConfigured(boolean configured) {
+        preferences.edit().putBoolean(KEY_EXPERIMENTAL_TOUCH_CONFIGURED, configured).apply();
+    }
+
+    public String getExperimentalTouchMode() {
+        return preferences.getString(KEY_EXPERIMENTAL_TOUCH_MODE, DEFAULT_EXPERIMENTAL_TOUCH_MODE);
+    }
+
+    public void setExperimentalTouchMode(String mode) {
+        preferences.edit().putString(KEY_EXPERIMENTAL_TOUCH_MODE, mode).apply();
+    }
+
+    public float getExperimentalTouchPressureThreshold() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD, 0f);
+    }
+
+    public void setExperimentalTouchPressureThreshold(float threshold) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD, threshold).apply();
+    }
+
+    public float getExperimentalTouchSizeThreshold() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD, 0f);
+    }
+
+    public void setExperimentalTouchSizeThreshold(float threshold) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD, threshold).apply();
+    }
+
+    public float getExperimentalTouchAreaThreshold() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD, DEFAULT_EXPERIMENTAL_TOUCH_AREA_THRESHOLD);
+    }
+
+    public void setExperimentalTouchAreaThreshold(float threshold) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD, threshold).apply();
+    }
+
+    public float getExperimentalTouchTwoFingerDuration() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_TWO_FINGER_DURATION, DEFAULT_EXPERIMENTAL_TOUCH_TAP_DURATION);
+    }
+
+    public void setExperimentalTouchTwoFingerDuration(float duration) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_TWO_FINGER_DURATION, duration).apply();
+    }
+
+    public float getExperimentalTouchThreeFingerDuration() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_THREE_FINGER_DURATION, DEFAULT_EXPERIMENTAL_TOUCH_TAP_DURATION);
+    }
+
+    public void setExperimentalTouchThreeFingerDuration(float duration) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_THREE_FINGER_DURATION, duration).apply();
     }
 
     public String getBackgroundPopupGuideOs() {

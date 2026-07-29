@@ -51,10 +51,6 @@ class ExtraSettings(context: Context) {
     var threeFingerTapDuration: Float
         get() = preferences.getFloat(KEY_THREE_FINGER_TAP_DURATION, 300f)
         set(value) = write { putFloat(KEY_THREE_FINGER_TAP_DURATION, value) }
-    var experimentalEnabled: Boolean
-        get() = preferences.getBoolean(KEY_EXPERIMENTAL, false)
-        set(value) = write { putBoolean(KEY_EXPERIMENTAL, value) }
-
     fun config(): TriggerConfig = TriggerConfig(
         enabled = triggerEnabled,
         calibrated = calibrated,
@@ -85,7 +81,6 @@ class ExtraSettings(context: Context) {
         const val KEY_LONG_PRESS_DURATION = "long_press_duration"
         const val KEY_TWO_FINGER_TAP_DURATION = "two_finger_tap_duration"
         const val KEY_THREE_FINGER_TAP_DURATION = "three_finger_tap_duration"
-        const val KEY_EXPERIMENTAL = "experimental_enabled"
         private const val PREFS = "nova_text_extra"
     }
 }

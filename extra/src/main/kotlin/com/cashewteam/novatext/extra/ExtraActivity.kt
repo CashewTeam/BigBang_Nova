@@ -1,10 +1,6 @@
 package com.cashewteam.novatext.extra
 
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -78,25 +74,13 @@ class ExtraActivity : ComponentActivity() {
                 ExtraScreen(
                     settings = settings,
                     resumeVersion = resumeVersion,
-                    requestAccessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                    requestBatteryExemption = {
-                        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:$packageName")
-                        })
-                    },
-                    requestAppPermissions = {
-                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.parse("package:$packageName")
-                        })
-                    },
-                    onMessage = { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() },
                 )
             }
         }
     }
 }
 
-private enum class ExtraPage { HOME, SYSTEM, TRIGGER, EXPERIMENTAL, STATUS }
+private enum class ExtraPage { HOME, SYSTEM, TRIGGER, STATUS }
 
 @Composable
 private fun ExtraTheme(content: @Composable () -> Unit) {
@@ -111,15 +95,9 @@ private fun ExtraTheme(content: @Composable () -> Unit) {
 private fun ExtraScreen(
     settings: ExtraSettings,
     @Suppress("UNUSED_PARAMETER") resumeVersion: Int,
-    requestAccessibility: () -> Unit,
-    requestBatteryExemption: () -> Unit,
-    requestAppPermissions: () -> Unit,
-    onMessage: (String) -> Unit,
 ) {
-    val context = LocalContext.current
     var page by remember { mutableStateOf(ExtraPage.HOME) }
     var version by remember { mutableIntStateOf(0) }
-    var riskDialog by remember { mutableStateOf(false) }
     val refresh = { version += 1; Unit }
     val config = remember(version) { settings.config() }
     BackHandler(enabled = page != ExtraPage.HOME) { page = ExtraPage.HOME }
@@ -133,47 +111,11 @@ private fun ExtraScreen(
                     enabled = config.enabled,
                     calibrated = config.calibrated,
                 )
-                ExtraPage.SYSTEM -> SystemPage(settings, config, refresh, onMessage)
-                ExtraPage.TRIGGER -> TriggerSettingsPage(settings, config, refresh, onMessage)
-                ExtraPage.EXPERIMENTAL -> ExperimentalPage(
-                    settings = settings,
-                    onEnable = { riskDialog = true },
-                    onStop = { ExperimentalTouchController.stop(context); refresh() },
-                    requestAccessibility = requestAccessibility,
-                    requestBatteryExemption = requestBatteryExemption,
-                    requestAppPermissions = requestAppPermissions,
-                )
+                ExtraPage.SYSTEM -> SystemPage(settings, config, refresh)
+                ExtraPage.TRIGGER -> TriggerSettingsPage(settings, config, refresh)
                 ExtraPage.STATUS -> StatusPage(settings, config, version)
             }
         }
-    }
-    if (riskDialog) {
-        AlertDialog(
-            onDismissRequest = { riskDialog = false },
-            title = { Text("启用实验性触控监听？") },
-            text = { Text(
-                if (TriggerPolicy.isMultiFingerTap(config.mode))
-                    "仅支持 Android 13 及以上。双指/三指识别会暂时拦截起始触摸，可能造成普通操作延迟；未形成多指手势的短点击会在抬起后补发。命中后将消费本次触控并触发 Nova Text。"
-                else
-                    "仅支持 Android 13 及以上。普通触控会立即委托给当前应用；触控数据达到阈值时，本次触控将被消费并触发 Nova Text。",
-            ) },
-            confirmButton = {
-                TextButton(onClick = {
-                    riskDialog = false
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                        onMessage("实验模式需要 Android 13 或更高版本")
-                    } else if (!ExperimentalTouchController.hasBatteryExemption(context)) {
-                        onMessage("请先允许 Extra 在后台持续运行")
-                        requestBatteryExemption()
-                    } else if (ExtraAccessibilityService.active == null) {
-                        requestAccessibility()
-                    } else if (!ExperimentalTouchController.start(context)) {
-                        onMessage("请先保存触发设置，并完成无障碍授权")
-                    } else refresh()
-                }) { Text("继续") }
-            },
-            dismissButton = { TextButton(onClick = { riskDialog = false }) { Text("取消") } },
-        )
     }
 }
 
@@ -184,7 +126,6 @@ private fun ExtraTopBar(page: ExtraPage, onBack: () -> Unit) {
         ExtraPage.HOME -> "Nova Text Extra"
         ExtraPage.SYSTEM -> "系统触控监听"
         ExtraPage.TRIGGER -> "触发设置"
-        ExtraPage.EXPERIMENTAL -> "实验性触控监听"
         ExtraPage.STATUS -> "状态与诊断"
     }
     TopAppBar(
@@ -204,7 +145,6 @@ private fun HomePage(onOpen: (ExtraPage) -> Unit, enabled: Boolean, calibrated: 
         item { IntroCard(enabled, calibrated) }
         item { NavigationCard("系统触控监听", "Xposed 模块、作用域与稳定触发", { onOpen(ExtraPage.SYSTEM) }) }
         item { NavigationCard("触发设置", "App 内实时读取触控数据并设置阈值", { onOpen(ExtraPage.TRIGGER) }) }
-        item { NavigationCard("实验性触控监听", "免 Root，Android 13+ 原样委托普通触控", { onOpen(ExtraPage.EXPERIMENTAL) }) }
         item { NavigationCard("状态与诊断", "框架、权限与最近配置状态", { onOpen(ExtraPage.STATUS) }) }
     }
 }
@@ -225,14 +165,18 @@ private fun NavigationCard(title: String, subtitle: String, onClick: () -> Unit)
 }
 
 @Composable
-private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit, onMessage: (String) -> Unit) {
+private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit) {
     val context = LocalContext.current
     PageList {
         item {
             ExtraCard {
                 Text("Xposed 模块", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(VectorServiceBridge.status, color = Color(0xFF60656D))
-                Button(onClick = { VectorServiceBridge.requestAllThirdPartyApps(context, onMessage) }) {
+                Button(onClick = {
+                    VectorServiceBridge.requestAllThirdPartyApps(context) {
+                        Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                    }
+                }) {
                     Text("授权全部第三方应用")
                 }
             }
@@ -249,8 +193,7 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
 }
 
 @Composable
-private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit, onMessage: (String) -> Unit) {
-    val context = LocalContext.current
+private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit) {
     var mode by remember { mutableStateOf(config.mode) }
     var threshold by remember(mode) {
         mutableFloatStateOf(when (mode) {
@@ -280,8 +223,8 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                 }
                 Text(
                     when {
-                        TriggerPolicy.isSensorMode(mode) -> "支持 Xposed 与免 Root；测试区域直接读取本机触控数据，不使用 Xposed。"
-                        TriggerPolicy.isMultiFingerTap(mode) -> "支持 Xposed 与免 Root；免 Root 识别期间会暂时保留起始触摸。"
+                        TriggerPolicy.isSensorMode(mode) -> "支持 Xposed；免 Root 实验性触控监听已迁移至 Nova Text。"
+                        TriggerPolicy.isMultiFingerTap(mode) -> "支持 Xposed；免 Root 双指/三指触发已迁移至 Nova Text。"
                         else -> "该触发方式仅在 Xposed 系统触控监听中生效。"
                     },
                     color = Color(0xFF60656D),
@@ -328,9 +271,6 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
             ExtraCard {
                 Text("重要提醒", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("请确认触发设置正确并且设备支持，否则可能会导致无障碍触控拦截无法关闭。")
-                if (TriggerPolicy.isMultiFingerTap(mode)) {
-                    Text("免 Root 使用双指或三指触发时，识别期间会暂时拦截起始触摸，点击、滚动和多指操作可能延迟；未形成多指手势的短点击会在抬起后补发。可通过常驻通知进入 Extra 或在实验模式页面关闭监听。")
-                }
             }
         }
         item {
@@ -349,9 +289,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.THREE_FINGER_TAP -> settings.threeFingerTapDuration = threshold
                     }
                     settings.triggerEnabled = false
-                    if (!TriggerPolicy.supportsExperimental(mode)) ExperimentalTouchController.stop(context)
                     refresh()
-                    onMessage("触发阈值已保存")
                 },
             ) { Text("保存触发设置") }
             if (threshold <= 0f || !threshold.isFinite()) {
@@ -404,63 +342,6 @@ private fun TouchValue(label: String, value: Float) = Column(horizontalAlignment
 }
 
 @Composable
-private fun ExperimentalPage(
-    settings: ExtraSettings,
-    onEnable: () -> Unit,
-    onStop: () -> Unit,
-    requestAccessibility: () -> Unit,
-    requestBatteryExemption: () -> Unit,
-    requestAppPermissions: () -> Unit,
-) {
-    val context = LocalContext.current
-    val accessibilityEnabled = ExtraAccessibilityService.isEnabled(context)
-    val accessibilityConnected = ExtraAccessibilityService.active != null
-    val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-    val batteryExempt = ExperimentalTouchController.hasBatteryExemption(context)
-    val running = ExperimentalTouchController.running
-    PageList {
-        item {
-            ExtraCard {
-                Text("实验性功能", color = Color(0xFFB05D00), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("使用 Android 13 的 TouchInteractionController。压感、Size、面积模式会在按下时立即决定触发或委托，不增加识别等待。")
-                if (TriggerPolicy.isMultiFingerTap(settings.mode)) {
-                    Text("当前双指/三指模式会暂时保留起始触摸，可能造成点击、滚动和多指操作延迟；未形成多指手势的短点击会在抬起后补发。", color = Color(0xFFB05D00), fontWeight = FontWeight.Bold)
-                }
-                SwitchRow("启用实验模式", "仅 Android 13+，不需要悬浮窗或手势回放", running, enabled = supported) { enabled ->
-                    if (enabled) onEnable() else onStop()
-                }
-            }
-        }
-        item {
-            ExtraCard {
-                Text("权限与运行状态", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                StatusRow("系统版本", if (supported) "Android 13+，已支持" else "需要 Android 13+")
-                StatusRow("后台持续运行", if (batteryExempt) "已允许" else "未允许，触控监听不会启动")
-                StatusRow("后台弹出页面", "需在系统权限管理中手动允许")
-                StatusRow("无障碍权限", when {
-                    accessibilityConnected -> "已授权并连接"
-                    accessibilityEnabled -> "已授权，等待连接"
-                    else -> "未授权"
-                })
-                StatusRow("触控控制器", when {
-                    ExperimentalTouchController.listening -> "监听中"
-                    running -> "等待无障碍连接"
-                    else -> "未监听"
-                })
-                if (!accessibilityEnabled || !accessibilityConnected) {
-                    OutlinedButton(onClick = requestAccessibility) { Text("打开无障碍设置") }
-                }
-                if (!batteryExempt) {
-                    OutlinedButton(onClick = requestBatteryExemption) { Text("允许后台持续运行") }
-                }
-                OutlinedButton(onClick = requestAppPermissions) { Text("打开应用权限设置") }
-                if (!settings.calibrated) Text("请先在“触发设置”中保存阈值", color = Color(0xFFB05D00), fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-@Composable
 private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress("UNUSED_PARAMETER") version: Int) {
     val context = LocalContext.current
     val novaInstalled = remember { context.packageManager.getLaunchIntentForPackage(TriggerPolicy.NOVA_TEXT) != null }
@@ -486,13 +367,7 @@ private fun StatusPage(settings: ExtraSettings, config: TriggerConfig, @Suppress
                     else -> "%.3f".format(config.threshold)
                 })
                 StatusRow("系统监听", if (settings.triggerEnabled) "已启用" else "未启用")
-                StatusRow("后台持续运行", if (ExperimentalTouchController.hasBatteryExemption(context)) "已允许" else "未允许")
-                StatusRow("实验触控监听", when {
-                    ExperimentalTouchController.listening -> "运行中"
-                    ExperimentalTouchController.running -> "等待无障碍连接"
-                    else -> "未运行"
-                })
-                StatusRow("Extra 无障碍", if (ExtraAccessibilityService.active != null) "已连接" else "未连接")
+                StatusRow("免 Root 监听", "已迁移至 Nova Text")
                 StatusRow("最近触发", ExtraDiagnostics.last(context))
             }
         }
