@@ -45,6 +45,9 @@ public final class BigBangSettings {
     public static final String KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD = "experimental_touch_pressure_threshold";
     public static final String KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD = "experimental_touch_size_threshold";
     public static final String KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD = "experimental_touch_area_threshold";
+    public static final String KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD_MAX = "experimental_touch_pressure_threshold_max";
+    public static final String KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD_MAX = "experimental_touch_size_threshold_max";
+    public static final String KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD_MAX = "experimental_touch_area_threshold_max";
     public static final String KEY_EXPERIMENTAL_TOUCH_SENSOR_DURATION = "experimental_touch_sensor_duration";
     public static final String KEY_EXPERIMENTAL_TOUCH_TWO_FINGER_DURATION = "experimental_touch_two_finger_duration";
     public static final String KEY_EXPERIMENTAL_TOUCH_THREE_FINGER_DURATION = "experimental_touch_three_finger_duration";
@@ -93,6 +96,9 @@ public final class BigBangSettings {
     private static final String DEFAULT_EXPERIMENTAL_TOUCH_MODE = "PRESSURE";
     private static final float DEFAULT_EXPERIMENTAL_TOUCH_AREA_THRESHOLD = 500f;
     private static final float DEFAULT_EXPERIMENTAL_TOUCH_TAP_DURATION = 300f;
+    private static final float DEFAULT_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD_MAX = 3f;
+    private static final float DEFAULT_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD_MAX = 1f;
+    private static final float DEFAULT_EXPERIMENTAL_TOUCH_AREA_THRESHOLD_MAX = 2000f;
 
     private final SharedPreferences preferences;
 
@@ -251,6 +257,30 @@ public final class BigBangSettings {
 
     public void setExperimentalTouchAreaThreshold(float threshold) {
         preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD, threshold).apply();
+    }
+
+    public float getExperimentalTouchPressureThresholdMax() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD_MAX, DEFAULT_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD_MAX);
+    }
+
+    public void setExperimentalTouchPressureThresholdMax(float max) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_PRESSURE_THRESHOLD_MAX, max).apply();
+    }
+
+    public float getExperimentalTouchSizeThresholdMax() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD_MAX, DEFAULT_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD_MAX);
+    }
+
+    public void setExperimentalTouchSizeThresholdMax(float max) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_SIZE_THRESHOLD_MAX, max).apply();
+    }
+
+    public float getExperimentalTouchAreaThresholdMax() {
+        return preferences.getFloat(KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD_MAX, DEFAULT_EXPERIMENTAL_TOUCH_AREA_THRESHOLD_MAX);
+    }
+
+    public void setExperimentalTouchAreaThresholdMax(float max) {
+        preferences.edit().putFloat(KEY_EXPERIMENTAL_TOUCH_AREA_THRESHOLD_MAX, max).apply();
     }
 
     public float getExperimentalTouchSensorDuration() {

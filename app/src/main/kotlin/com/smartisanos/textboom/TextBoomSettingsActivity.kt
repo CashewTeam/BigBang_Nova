@@ -127,6 +127,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
@@ -2326,6 +2327,18 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
             },
         )
     }
+    var sensorThresholdMax by remember(mode, revision) {
+        mutableStateOf(
+            when (mode) {
+                ExperimentalTriggerMode.PRESSURE -> settings.experimentalTouchPressureThresholdMax
+                ExperimentalTriggerMode.SIZE -> settings.experimentalTouchSizeThresholdMax
+                ExperimentalTriggerMode.TOUCH_AREA -> settings.experimentalTouchAreaThresholdMax
+                ExperimentalTriggerMode.TWO_FINGER_TAP,
+                ExperimentalTriggerMode.THREE_FINGER_TAP -> 0f
+            },
+        )
+    }
+    var showThresholdMaxDialog by remember { mutableStateOf(false) }
     var sensorTapDuration by remember(revision) { mutableStateOf(settings.experimentalTouchSensorDuration) }
     var showRiskDialog by remember { mutableStateOf(false) }
     val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -2396,7 +2409,25 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
             ExperimentalTriggerMode.TWO_FINGER_TAP -> "双指单击最长时长"
             ExperimentalTriggerMode.THREE_FINGER_TAP -> "三指单击最长时长"
         }
-        Text(title, color = LocalSettingsPalette.current.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                modifier = Modifier.weight(1f),
+                color = LocalSettingsPalette.current.textPrimary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (ExperimentalTouchPolicy.isSensorMode(mode)) {
+                Button(
+                    onClick = { showThresholdMaxDialog = true },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LocalSettingsPalette.current.cardInset,
+                        contentColor = LocalSettingsPalette.current.textPrimary,
+                    ),
+                ) { Text("最大值", fontSize = 13.sp) }
+            }
+        }
         Text(
             when (mode) {
                 ExperimentalTriggerMode.PRESSURE -> "%.3f".format(threshold)
@@ -2412,11 +2443,11 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
             value = threshold,
             onValueChange = { threshold = it },
             valueRange = when (mode) {
-                ExperimentalTriggerMode.PRESSURE -> 0f..3f
-                ExperimentalTriggerMode.SIZE -> 0.01f..1f
-                ExperimentalTriggerMode.TOUCH_AREA -> 0f..2_000f
+                ExperimentalTriggerMode.PRESSURE -> 0f..sensorThresholdMax
+                ExperimentalTriggerMode.SIZE -> 0.01f..sensorThresholdMax
+                ExperimentalTriggerMode.TOUCH_AREA -> 0f..sensorThresholdMax
                 ExperimentalTriggerMode.TWO_FINGER_TAP,
-                ExperimentalTriggerMode.THREE_FINGER_TAP -> 100f..600f
+                ExperimentalTriggerMode.THREE_FINGER_TAP -> 0f..400f
             },
         )
         if (ExperimentalTouchPolicy.isSensorMode(mode)) {
@@ -2425,7 +2456,7 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
             Slider(
                 value = sensorTapDuration,
                 onValueChange = { sensorTapDuration = it },
-                valueRange = 100f..600f,
+                valueRange = 0f..400f,
             )
             Text(
                 "在该时长内持续观察压感、Size 或面积变化；超时、滑动、多指、输入法和排除页面会走与双/三指相同的委托或回放分流。",
@@ -2453,6 +2484,13 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
                 }
                 if (ExperimentalTouchPolicy.isSensorMode(mode)) {
                     settings.setExperimentalTouchSensorDuration(sensorTapDuration)
+                    when (mode) {
+                        ExperimentalTriggerMode.PRESSURE -> settings.setExperimentalTouchPressureThresholdMax(sensorThresholdMax)
+                        ExperimentalTriggerMode.SIZE -> settings.setExperimentalTouchSizeThresholdMax(sensorThresholdMax)
+                        ExperimentalTriggerMode.TOUCH_AREA -> settings.setExperimentalTouchAreaThresholdMax(sensorThresholdMax)
+                        ExperimentalTriggerMode.TWO_FINGER_TAP,
+                        ExperimentalTriggerMode.THREE_FINGER_TAP -> Unit
+                    }
                 }
                 settings.setExperimentalTouchConfigured(threshold > 0f && threshold.isFinite())
                 revision++
@@ -2543,6 +2581,93 @@ private fun ColumnScope.ExperimentalTouchSettingsPage(settings: BigBangSettings)
             dismissButton = { TextButton(onClick = { showRiskDialog = false }) { Text("取消") } },
         )
     }
+    if (showThresholdMaxDialog) {
+        ExperimentalThresholdMaxDialog(
+            mode = mode,
+            initialMax = sensorThresholdMax,
+            onDismiss = { showThresholdMaxDialog = false },
+            onSave = { newMax ->
+                sensorThresholdMax = newMax
+                if (threshold > newMax) threshold = newMax
+                showThresholdMaxDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ExperimentalThresholdMaxDialog(
+    mode: ExperimentalTriggerMode,
+    initialMax: Float,
+    onDismiss: () -> Unit,
+    onSave: (Float) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    val label = when (mode) {
+        ExperimentalTriggerMode.PRESSURE -> "压感阈值最大值"
+        ExperimentalTriggerMode.SIZE -> "Size 阈值最大值"
+        ExperimentalTriggerMode.TOUCH_AREA -> "椭圆接触面积阈值最大值"
+        ExperimentalTriggerMode.TWO_FINGER_TAP,
+        ExperimentalTriggerMode.THREE_FINGER_TAP -> "阈值最大值"
+    }
+    val initialText = when (mode) {
+        ExperimentalTriggerMode.TOUCH_AREA -> "%.1f".format(initialMax)
+        else -> "%.3f".format(initialMax)
+    }
+    var input by remember(initialMax) { mutableStateOf(initialText) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("设置阈值最大值") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "不同机型的压感、Size、面积数值范围可能不同，可调整滑块上限以适配。",
+                    color = palette.textSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        input = it
+                        errorMessage = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(label) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = palette.cardInset,
+                        unfocusedContainerColor = palette.cardInset,
+                        focusedIndicatorColor = palette.accent,
+                        unfocusedIndicatorColor = palette.cardBorder,
+                    ),
+                )
+                if (errorMessage != null) {
+                    Text(
+                        errorMessage.orEmpty(),
+                        color = Color(0xFFB05D00),
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val value = input.toFloatOrNull()
+                if (value == null || !value.isFinite() || value <= 0f) {
+                    errorMessage = "请输入大于 0 的数值"
+                } else if (mode == ExperimentalTriggerMode.SIZE && value < 0.01f) {
+                    errorMessage = "Size 阈值最大值不能小于 0.01"
+                } else {
+                    onSave(value)
+                }
+            }) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @Composable
