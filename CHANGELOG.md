@@ -1,5 +1,12 @@
 ## 更新日志
 
+### [Nova Text 1.16.3 & Extra 0.2.5]
+- 修改顶栏图标资源为原版图标
+- 新增复制后关闭大爆炸选项 https://github.com/CashewTeam/BigBang_NovaText/issues/29
+- 实验性选项和模块添加最大阈值配置 https://github.com/CashewTeam/BigBang_NovaText/issues/30
+- 多指触发时间范围改为 0-400ms
+- 优化 Extra 模块 UI 层级
+
 ### [Nova Text 1.16.1]
 
 #### 新增功能
