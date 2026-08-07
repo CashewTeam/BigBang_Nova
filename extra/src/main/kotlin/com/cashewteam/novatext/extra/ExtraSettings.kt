@@ -45,6 +45,15 @@ class ExtraSettings(context: Context) {
     var touchAreaThreshold: Float
         get() = preferences.getFloat(KEY_TOUCH_AREA, 500f)
         set(value) = write { putFloat(KEY_TOUCH_AREA, value) }
+    var pressureThresholdMax: Float
+        get() = preferences.getFloat(KEY_PRESSURE_MAX, 3f)
+        set(value) = write { putFloat(KEY_PRESSURE_MAX, value) }
+    var sizeThresholdMax: Float
+        get() = preferences.getFloat(KEY_SIZE_MAX, 1f)
+        set(value) = write { putFloat(KEY_SIZE_MAX, value) }
+    var touchAreaThresholdMax: Float
+        get() = preferences.getFloat(KEY_TOUCH_AREA_MAX, 2000f)
+        set(value) = write { putFloat(KEY_TOUCH_AREA_MAX, value) }
     var longPressDuration: Float
         get() = preferences.getFloat(KEY_LONG_PRESS_DURATION, 600f)
         set(value) = write { putFloat(KEY_LONG_PRESS_DURATION, value) }
@@ -89,6 +98,9 @@ class ExtraSettings(context: Context) {
         const val KEY_PRESSURE = "pressure_threshold"
         const val KEY_SIZE = "size_threshold"
         const val KEY_TOUCH_AREA = "touch_area_threshold"
+        const val KEY_PRESSURE_MAX = "pressure_threshold_max"
+        const val KEY_SIZE_MAX = "size_threshold_max"
+        const val KEY_TOUCH_AREA_MAX = "touch_area_threshold_max"
         const val KEY_LONG_PRESS_DURATION = "long_press_duration"
         const val KEY_TWO_FINGER_TAP_DURATION = "two_finger_tap_duration"
         const val KEY_THREE_FINGER_TAP_DURATION = "three_finger_tap_duration"
@@ -131,6 +143,9 @@ object VectorServiceBridge {
                 .putFloat(ExtraSettings.KEY_PRESSURE, settings.pressureThreshold)
                 .putFloat(ExtraSettings.KEY_SIZE, settings.sizeThreshold)
                 .putFloat(ExtraSettings.KEY_TOUCH_AREA, settings.touchAreaThreshold)
+                .putFloat(ExtraSettings.KEY_PRESSURE_MAX, settings.pressureThresholdMax)
+                .putFloat(ExtraSettings.KEY_SIZE_MAX, settings.sizeThresholdMax)
+                .putFloat(ExtraSettings.KEY_TOUCH_AREA_MAX, settings.touchAreaThresholdMax)
                 .putFloat(ExtraSettings.KEY_LONG_PRESS_DURATION, settings.longPressDuration)
                 .putFloat(ExtraSettings.KEY_TWO_FINGER_TAP_DURATION, settings.twoFingerTapDuration)
                 .putFloat(ExtraSettings.KEY_THREE_FINGER_TAP_DURATION, settings.threeFingerTapDuration)

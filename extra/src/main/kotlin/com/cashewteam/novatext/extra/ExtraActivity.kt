@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,11 +37,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -58,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -256,6 +260,15 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
             TriggerMode.THREE_FINGER_TAP -> settings.threeFingerTapDuration
         })
     }
+    var thresholdMax by remember(mode) {
+        mutableFloatStateOf(when (mode) {
+            TriggerMode.PRESSURE -> settings.pressureThresholdMax
+            TriggerMode.SIZE -> settings.sizeThresholdMax
+            TriggerMode.TOUCH_AREA -> settings.touchAreaThresholdMax
+            else -> 0f
+        })
+    }
+    var showThresholdMaxDialog by remember { mutableStateOf(false) }
     PageList {
         item {
             ExtraCard {
@@ -285,14 +298,31 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
         }
         item {
             ExtraCard {
-                Text(when (mode) {
-                    TriggerMode.PRESSURE -> "压感阈值"
-                    TriggerMode.SIZE -> "Size 阈值"
-                    TriggerMode.TOUCH_AREA -> "椭圆接触面积阈值"
-                    TriggerMode.SINGLE_LONG_PRESS -> "单指长按时长"
-                    TriggerMode.TWO_FINGER_TAP -> "双指单击最长时长"
-                    TriggerMode.THREE_FINGER_TAP -> "三指单击最长时长"
-                }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        when (mode) {
+                            TriggerMode.PRESSURE -> "压感阈值"
+                            TriggerMode.SIZE -> "Size 阈值"
+                            TriggerMode.TOUCH_AREA -> "椭圆接触面积阈值"
+                            TriggerMode.SINGLE_LONG_PRESS -> "单指长按时长"
+                            TriggerMode.TWO_FINGER_TAP -> "双指单击最长时长"
+                            TriggerMode.THREE_FINGER_TAP -> "三指单击最长时长"
+                        },
+                        modifier = Modifier.weight(1f),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (TriggerPolicy.isSensorMode(mode)) {
+                        Button(
+                            onClick = { showThresholdMaxDialog = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFEFF2F7),
+                                contentColor = Color(0xFF22262B),
+                            ),
+                        ) { Text("最大值", fontSize = 13.sp) }
+                    }
+                }
                 Text(
                     when (mode) {
                         TriggerMode.PRESSURE -> "%.3f".format(threshold)
@@ -306,11 +336,11 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                     value = threshold,
                     onValueChange = { threshold = it },
                     valueRange = when (mode) {
-                        TriggerMode.PRESSURE -> 0f..3f
-                        TriggerMode.SIZE -> 0.01f..1f
-                        TriggerMode.TOUCH_AREA -> 0f..2_000f
+                        TriggerMode.PRESSURE -> 0f..thresholdMax
+                        TriggerMode.SIZE -> 0.01f..thresholdMax
+                        TriggerMode.TOUCH_AREA -> 0f..thresholdMax
                         TriggerMode.SINGLE_LONG_PRESS -> 300f..1_500f
-                        TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> 100f..600f
+                        TriggerMode.TWO_FINGER_TAP, TriggerMode.THREE_FINGER_TAP -> 0f..400f
                     },
                 )
             }
@@ -339,6 +369,12 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.TWO_FINGER_TAP -> settings.twoFingerTapDuration = threshold
                         TriggerMode.THREE_FINGER_TAP -> settings.threeFingerTapDuration = threshold
                     }
+                    when (mode) {
+                        TriggerMode.PRESSURE -> settings.pressureThresholdMax = thresholdMax
+                        TriggerMode.SIZE -> settings.sizeThresholdMax = thresholdMax
+                        TriggerMode.TOUCH_AREA -> settings.touchAreaThresholdMax = thresholdMax
+                        else -> Unit
+                    }
                     settings.triggerEnabled = false
                     refresh()
                 },
@@ -348,6 +384,88 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
             }
         }
     }
+    if (showThresholdMaxDialog) {
+        TriggerThresholdMaxDialog(
+            mode = mode,
+            initialMax = thresholdMax,
+            onDismiss = { showThresholdMaxDialog = false },
+            onSave = { newMax ->
+                thresholdMax = newMax
+                if (threshold > newMax) threshold = newMax
+                showThresholdMaxDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun TriggerThresholdMaxDialog(
+    mode: TriggerMode,
+    initialMax: Float,
+    onDismiss: () -> Unit,
+    onSave: (Float) -> Unit,
+) {
+    val label = when (mode) {
+        TriggerMode.PRESSURE -> "压感阈值最大值"
+        TriggerMode.SIZE -> "Size 阈值最大值"
+        TriggerMode.TOUCH_AREA -> "椭圆接触面积阈值最大值"
+        else -> "阈值最大值"
+    }
+    val initialText = if (mode == TriggerMode.TOUCH_AREA) "%.1f".format(initialMax) else "%.3f".format(initialMax)
+    var input by remember(initialMax) { mutableStateOf(initialText) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("设置阈值最大值") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "不同机型的压感、Size、面积数值范围可能不同，可调整滑块上限以适配。",
+                    color = Color(0xFF60656D),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        input = it
+                        errorMessage = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(label) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedIndicatorColor = Color(0xFF4E7EDB),
+                        unfocusedIndicatorColor = Color(0xFFE2E4E8),
+                    ),
+                )
+                if (errorMessage != null) {
+                    Text(
+                        errorMessage.orEmpty(),
+                        color = Color(0xFFB05D00),
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val value = input.toFloatOrNull()
+                if (value == null || !value.isFinite() || value <= 0f) {
+                    errorMessage = "请输入大于 0 的数值"
+                } else if (mode == TriggerMode.SIZE && value < 0.01f) {
+                    errorMessage = "Size 阈值最大值不能小于 0.01"
+                } else {
+                    onSave(value)
+                }
+            }) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
