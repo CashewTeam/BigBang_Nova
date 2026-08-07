@@ -24,14 +24,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.automirrored.outlined.Redo
-import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -1064,14 +1060,16 @@ private fun BigBangOverlayContent(
                                     )
                                 } else {
                                     OverlayIconAction(
-                                        imageVector = Icons.Outlined.Edit,
-                                        tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                        iconRes = R.drawable.action_bar_write_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
                                         onClick = onEditMode,
                                         contentDescription = stringResource(R.string.bigbang_action_edit),
                                     )
                                     OverlayIconAction(
-                                        imageVector = Icons.Outlined.SelectAll,
-                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                        iconRes = R.drawable.action_bar_choosetext_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
                                         onClick = onSelectAll,
                                         contentDescription = stringResource(R.string.bigbang_action_select_all),
                                     )
@@ -1113,15 +1111,17 @@ private fun BigBangOverlayContent(
                                     )
                                 } else {
                                     OverlayIconAction(
-                                        imageVector = Icons.Outlined.Share,
-                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF6C6760),
+                                        iconRes = R.drawable.action_bar_share_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
                                         enabled = !editTransitioning,
                                         onClick = onShareAll,
                                         contentDescription = stringResource(R.string.bigbang_action_share_all),
                                     )
                                     OverlayIconAction(
-                                        imageVector = Icons.Outlined.ContentCopy,
-                                        tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
+                                        iconRes = R.drawable.action_bar_copy_selector,
+                                        tint = null,
+                                        invertAssetColors = dark,
                                         onClick = onMore,
                                         contentDescription = stringResource(R.string.bigbang_action_copy_all),
                                     )
@@ -1144,9 +1144,9 @@ private fun BigBangOverlayContent(
                                     OverlayIconAction(
                                         imageVector = Icons.Outlined.DocumentScanner,
                                         tint = if (ocrEnabled) {
-                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                            if (dark) Color(0xFFF2F5F8) else Color(0xFF1A1A1A)
                                         } else {
-                                            if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                            if (dark) Color(0x66F2F5F8) else Color(0x661A1A1A)
                                         },
                                         enabled = ocrEnabled,
                                         onClick = onOcr,
@@ -1179,7 +1179,7 @@ private fun BigBangOverlayContent(
                                 } else {
                                     OverlayIconAction(
                                         iconRes = R.drawable.boom_cancel,
-                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983),
+                                        tint = if (dark) Color(0xFFF2F5F8) else Color(0xFF1A1A1A),
                                         onClick = requestDismiss,
                                         contentDescription = stringResource(R.string.search_overlay_close),
                                     )
@@ -1202,9 +1202,9 @@ private fun BigBangOverlayContent(
                                         OverlayIconAction(
                                             imageVector = Icons.Outlined.Language,
                                             tint = if (languageEnabled) {
-                                                if (dark) Color(0xFFF2F5F8) else Color(0xFF8D8983)
+                                                if (dark) Color(0xFFF2F5F8) else Color(0xFF1A1A1A)
                                             } else {
-                                                if (dark) Color(0x66F2F5F8) else Color(0x668D8983)
+                                                if (dark) Color(0x66F2F5F8) else Color(0x661A1A1A)
                                             },
                                             enabled = languageEnabled,
                                             onClick = { languageMenuExpanded = true },
