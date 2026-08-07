@@ -73,6 +73,7 @@
     <string name="ocr_action_qr">扫码</string>
     <string name="ocr_action_language">识别语言</string>
     <string name="bigbang_action_ocr">OCR</string>
+    <string name="bigbang_action_copy_all">复制全部</string>
     <string name="bigbang_action_language">语言</string>
     <string name="bigbang_pull_previous">松手后获取上一段文本</string>
     <string name="bigbang_pull_next">松手后获取下一段文本</string>
@@ -95,6 +96,10 @@
     <string name="floating_ball_settings_summary">调整悬浮球大小、透明度、停靠和单手模式。</string>
     <string name="ui_settings_title">UI 设置</string>
     <string name="ui_settings_summary">设置启动图标和大爆炸界面样式。</string>
+    <string name="copy_close_section_title">复制行为</string>
+    <string name="copy_close_section_summary">控制非编辑模式下复制文本后的大爆炸行为。</string>
+    <string name="close_big_bang_after_copy_title">复制后关闭大爆炸</string>
+    <string name="close_big_bang_after_copy_summary">开启后，在非编辑模式点击顶部全文复制或内容页工具栏复制，动画结束后会自动关闭大爆炸页面。</string>
     <string name="gap_row_spacing_section_title">词块布局</string>
     <string name="gap_row_spacing_section_summary">调整原始文本换行在大爆炸词块中的空行高度。</string>
     <string name="gap_row_spacing_title">行距设置</string>

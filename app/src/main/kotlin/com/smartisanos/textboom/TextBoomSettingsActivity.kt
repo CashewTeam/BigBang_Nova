@@ -244,6 +244,7 @@ class TextBoomSettingsActivity : ComponentActivity() {
                     onAdaptiveLauncherIconChange = { updateAdaptiveLauncherIcon(it) },
                     onRequestDesktopOcrShortcut = { requestDesktopOcrShortcut() },
                     onClassicOverlayStyleChange = { updateClassicOverlayStyle(it) },
+                    onCloseBigBangAfterCopyChange = { updateCloseBigBangAfterCopy(it) },
                     onGapRowHeightPercentChange = { settings.setGapRowHeightPercent(it) },
                     onOpenOcrDebugPicker = { openOcrDebugPicker() },
                 )
@@ -483,6 +484,10 @@ class TextBoomSettingsActivity : ComponentActivity() {
 
     private fun updateClassicOverlayStyle(enabled: Boolean) {
         settings.setClassicOverlayStyleEnabled(enabled)
+    }
+
+    private fun updateCloseBigBangAfterCopy(enabled: Boolean) {
+        settings.setCloseBigBangAfterCopyEnabled(enabled)
     }
 
     private fun resolveStartPage(intent: Intent?): SettingsPage {
@@ -814,6 +819,7 @@ private fun SettingsScreen(
     onAdaptiveLauncherIconChange: (Boolean) -> Unit,
     onRequestDesktopOcrShortcut: () -> Unit,
     onClassicOverlayStyleChange: (Boolean) -> Unit,
+    onCloseBigBangAfterCopyChange: (Boolean) -> Unit,
     onGapRowHeightPercentChange: (Int) -> Unit,
     onOpenOcrDebugPicker: () -> Unit,
 ) {
@@ -924,6 +930,9 @@ private fun SettingsScreen(
     }
     var classicOverlayStyleEnabled by rememberSaveable {
         mutableStateOf(settings.isClassicOverlayStyleEnabled)
+    }
+    var closeBigBangAfterCopyEnabled by rememberSaveable {
+        mutableStateOf(settings.isCloseBigBangAfterCopyEnabled)
     }
     var gapRowHeightPercent by rememberSaveable {
         mutableIntStateOf(settings.gapRowHeightPercent)
@@ -1157,6 +1166,15 @@ private fun SettingsScreen(
                             OverlayStyleSection(
                                 classicOverlayStyleEnabled = classicOverlayStyleEnabled,
                                 onClassicOverlayStyleChange = { classicOverlayStyleEnabled = it; onClassicOverlayStyleChange(it) },
+                            )
+                        }
+                        SettingsSectionCard {
+                            CopyCloseSection(
+                                closeBigBangAfterCopyEnabled = closeBigBangAfterCopyEnabled,
+                                onCloseBigBangAfterCopyChange = {
+                                    closeBigBangAfterCopyEnabled = it
+                                    onCloseBigBangAfterCopyChange(it)
+                                },
                             )
                         }
                         SettingsSectionCard {
@@ -2142,6 +2160,34 @@ private fun OverlayStyleSection(
             subtitle = stringResource(R.string.overlay_style_classic_summary),
             checked = classicOverlayStyleEnabled,
             onCheckedChange = onClassicOverlayStyleChange,
+        )
+    }
+}
+
+@Composable
+private fun CopyCloseSection(
+    closeBigBangAfterCopyEnabled: Boolean,
+    onCloseBigBangAfterCopyChange: (Boolean) -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = stringResource(R.string.copy_close_section_title),
+            color = palette.textPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.copy_close_section_summary),
+            color = palette.textSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        DebugSwitchRow(
+            title = stringResource(R.string.close_big_bang_after_copy_title),
+            subtitle = stringResource(R.string.close_big_bang_after_copy_summary),
+            checked = closeBigBangAfterCopyEnabled,
+            onCheckedChange = onCloseBigBangAfterCopyChange,
         )
     }
 }

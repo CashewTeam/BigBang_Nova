@@ -246,7 +246,19 @@ public class BoomActionHandler implements CustomScrollView.OnScrollListener {
         mToast.show();
         ClipboardManager clipboard = (ClipboardManager) mBoomPage.mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText(null, text));
-        mBoomPage.playCopyChipAnimation(toolbarActionId);
+        Runnable closeAfterCopy = null;
+        if (!mBoomPage.isEditMode()
+                && BigBangSettings.get(mBoomPage.mActivity).isCloseBigBangAfterCopyEnabled()) {
+            closeAfterCopy = new Runnable() {
+                @Override
+                public void run() {
+                    if (!mBoomPage.isEditMode()) {
+                        mBoomPage.requestCloseAfterCopy();
+                    }
+                }
+            };
+        }
+        mBoomPage.playCopyChipAnimation(toolbarActionId, closeAfterCopy);
     }
 
     public void search(String text, int type) {

@@ -90,7 +90,7 @@ class ExtraActivity : ComponentActivity() {
     }
 }
 
-private enum class ExtraPage { HOME, SYSTEM, TRIGGER, STATUS }
+private enum class ExtraPage { HOME, TRIGGER, STATUS }
 
 @Composable
 private fun ExtraTheme(content: @Composable () -> Unit) {
@@ -117,11 +117,11 @@ private fun ExtraScreen(
         AnimatedContent(page, label = "extra-page") { current ->
             when (current) {
                 ExtraPage.HOME -> HomePage(
+                    settings = settings,
+                    config = config,
                     onOpen = { page = it },
-                    enabled = config.enabled,
-                    calibrated = config.calibrated,
+                    refresh = refresh,
                 )
-                ExtraPage.SYSTEM -> SystemPage(settings, config, refresh)
                 ExtraPage.TRIGGER -> TriggerSettingsPage(settings, config, refresh)
                 ExtraPage.STATUS -> StatusPage(settings, config, version)
             }
@@ -134,7 +134,6 @@ private fun ExtraScreen(
 private fun ExtraTopBar(page: ExtraPage, onBack: () -> Unit) {
     val title = when (page) {
         ExtraPage.HOME -> "Nova Text Extra"
-        ExtraPage.SYSTEM -> "系统触控监听"
         ExtraPage.TRIGGER -> "触发设置"
         ExtraPage.STATUS -> "状态与诊断"
     }
@@ -146,39 +145,19 @@ private fun ExtraTopBar(page: ExtraPage, onBack: () -> Unit) {
 }
 
 @Composable
-private fun HomePage(onOpen: (ExtraPage) -> Unit, enabled: Boolean, calibrated: Boolean) {
+private fun HomePage(
+    settings: ExtraSettings,
+    config: TriggerConfig,
+    onOpen: (ExtraPage) -> Unit,
+    refresh: () -> Unit,
+) {
+    val context = LocalContext.current
+    val novaTextAccessibilityEnabled = rememberNovaTextAccessibilityEnabled(context)
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { IntroCard(enabled, calibrated) }
-        item { NavigationCard("系统触控监听", "Xposed 模块、作用域与稳定触发", { onOpen(ExtraPage.SYSTEM) }) }
-        item { NavigationCard("触发设置", "App 内实时读取触控数据并设置阈值", { onOpen(ExtraPage.TRIGGER) }) }
-        item { NavigationCard("状态与诊断", "框架、权限与最近配置状态", { onOpen(ExtraPage.STATUS) }) }
-    }
-}
-
-@Composable
-private fun IntroCard(enabled: Boolean, calibrated: Boolean) = ExtraCard {
-    Text("触控触发扩展", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-    Text(
-        if (enabled) "系统监听已启用" else if (calibrated) "阈值已保存，等待启用" else "先设置触发阈值，再启用系统监听",
-        color = Color(0xFF60656D),
-    )
-}
-
-@Composable
-private fun NavigationCard(title: String, subtitle: String, onClick: () -> Unit) = ExtraCard(Modifier.clickable(onClick = onClick)) {
-    Text(title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-    Text(subtitle, color = Color(0xFF60656D), fontSize = 14.sp)
-}
-
-@Composable
-private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: () -> Unit) {
-    val context = LocalContext.current
-    val novaTextAccessibilityEnabled = rememberNovaTextAccessibilityEnabled(context)
-    PageList {
         item {
             ExtraCard {
                 Text("Xposed 模块", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
@@ -194,20 +173,32 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
         }
         item {
             ExtraCard {
-                SwitchRow("启用系统触控监听", "仅观察触控，不接管或回放事件", config.enabled, enabled = config.calibrated) {
-                    if (it && !NovaTextAccessibilityBridge.isEnabled(context)) {
-                        Toast.makeText(context, "请先开启 Nova Text 无障碍", Toast.LENGTH_LONG).show()
-                    } else {
-                        settings.triggerEnabled = it
-                        refresh()
-                    }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "启用系统触控监听",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Switch(checked = config.enabled, enabled = config.calibrated, onCheckedChange = { enabled ->
+                        if (enabled && !NovaTextAccessibilityBridge.isEnabled(context)) {
+                            Toast.makeText(context, "请先开启 Nova Text 无障碍", Toast.LENGTH_LONG).show()
+                        } else {
+                            settings.triggerEnabled = enabled
+                            refresh()
+                        }
+                    })
                 }
+                Text(
+                    "注意 Extra 模块 App 也需要授予“后台弹出页面”权限",
+                    color = Color(0xFF60656D),
+                    fontSize = 13.sp,
+                )
                 if (!config.calibrated) Text("请先保存触发设置", color = Color(0xFFB05D00), fontSize = 13.sp)
             }
         }
         item {
             ExtraCard {
-                Text("Nova Text 无障碍", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 SwitchRow(
                     "自动开启 Nova Text 无障碍",
                     "启用前请先授权所需作用域；首次授权 Android 系统作用域后请重启设备。",
@@ -223,7 +214,15 @@ private fun SystemPage(settings: ExtraSettings, config: TriggerConfig, refresh: 
                 )
             }
         }
+        item { NavigationCard("触发设置", "App 内实时读取触控数据并设置阈值", { onOpen(ExtraPage.TRIGGER) }) }
+        item { NavigationCard("状态与诊断", "框架、权限与最近配置状态", { onOpen(ExtraPage.STATUS) }) }
     }
+}
+
+@Composable
+private fun NavigationCard(title: String, subtitle: String, onClick: () -> Unit) = ExtraCard(Modifier.clickable(onClick = onClick)) {
+    Text(title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+    Text(subtitle, color = Color(0xFF60656D), fontSize = 14.sp)
 }
 
 @Composable
@@ -359,6 +358,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                 modifier = Modifier.fillMaxWidth(),
                 enabled = threshold > 0f && threshold.isFinite(),
                 onClick = {
+                    val wasEnabled = config.enabled
                     settings.mode = mode
                     settings.calibrated = true
                     when (mode) {
@@ -375,7 +375,7 @@ private fun TriggerSettingsPage(settings: ExtraSettings, config: TriggerConfig, 
                         TriggerMode.TOUCH_AREA -> settings.touchAreaThresholdMax = thresholdMax
                         else -> Unit
                     }
-                    settings.triggerEnabled = false
+                    settings.triggerEnabled = wasEnabled
                     refresh()
                 },
             ) { Text("保存触发设置") }

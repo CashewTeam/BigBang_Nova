@@ -457,11 +457,7 @@ public class BoomChipPage {
             @Override
             public void onClick(View v) {
                 if (!handleClick() && !isEditMode()) {
-                    if (mActivity instanceof BoomActivity) {
-                        ((BoomActivity) mActivity).requestAnimatedDismissFromLegacy();
-                    } else {
-                        mActivity.finish();
-                    }
+                    requestAnimatedDismiss();
                 }
             }
         };
@@ -666,6 +662,22 @@ public class BoomChipPage {
         mTableBasePaddingTop = mBoomTable.getPaddingTop();
         mTableBasePaddingBottom = mBoomTable.getPaddingBottom();
         mBoomPage.addOnLayoutChangeListener(mEditorViewportLayoutListener);
+    }
+
+    void requestAnimatedDismiss() {
+        if (mActivity instanceof BoomActivity) {
+            ((BoomActivity) mActivity).requestAnimatedDismissFromLegacy();
+        } else {
+            mActivity.finish();
+        }
+    }
+
+    void requestCloseAfterCopy() {
+        if (mActivity instanceof BoomActivity) {
+            ((BoomActivity) mActivity).requestCloseAfterCopyFromLegacy();
+        } else {
+            mActivity.finish();
+        }
     }
 
     private void configureAdjacentHintShadow(TextView hint) {
@@ -2759,9 +2771,14 @@ public class BoomChipPage {
      * button, including the pinned fake bar used after scrolling.
      */
     void playCopyChipAnimation(int toolbarActionId) {
+        playCopyChipAnimation(toolbarActionId, null);
+    }
+
+    void playCopyChipAnimation(int toolbarActionId, Runnable onAnimationFinished) {
         final ImageView target = mBoomActionHandler.getVisibleToolbarAction(toolbarActionId);
         if (target == null || target.getWidth() <= 0 || target.getHeight() <= 0
                 || !mBoomActionHandler.hasSelection()) {
+            runCopyAnimationFinished(onAnimationFinished);
             return;
         }
         clearCopyAnimationOverlay();
@@ -2806,9 +2823,10 @@ public class BoomChipPage {
         }
         if (chipAnimators.isEmpty()) {
             recycleCopyAnimationClones();
+            runCopyAnimationFinished(onAnimationFinished);
             return;
         }
-        playOriginalCopyIconAnimation(target, generation);
+        playOriginalCopyIconAnimation(target, generation, onAnimationFinished);
         final AnimatorSet animatorSet = new AnimatorSet();
         animatorSet.playTogether(chipAnimators);
         mCopyAnimationAnimator = animatorSet;
@@ -2825,13 +2843,17 @@ public class BoomChipPage {
         animatorSet.start();
     }
 
-    private void playOriginalCopyIconAnimation(final ImageView target, final int generation) {
+    private void playOriginalCopyIconAnimation(
+            final ImageView target,
+            final int generation,
+            final Runnable onAnimationFinished) {
         mCopyAnimationTarget = target;
         mCopyAnimationTargetDrawable = target.getDrawable();
         target.setImageResource(R.drawable.copy_animation);
         final Drawable drawable = target.getDrawable();
         if (!(drawable instanceof AnimationDrawable)) {
             restoreCopyIcon();
+            runCopyAnimationFinished(onAnimationFinished);
             return;
         }
         final AnimationDrawable animation = (AnimationDrawable) drawable;
@@ -2845,11 +2867,18 @@ public class BoomChipPage {
             public void run() {
                 if (generation == mCopyAnimationGeneration) {
                     restoreCopyIcon();
+                    runCopyAnimationFinished(onAnimationFinished);
                 }
             }
         };
         // Original keeps the last icon frame briefly after the word flow ends.
         target.postDelayed(mCopyIconRestoreRunnable, duration + 150L);
+    }
+
+    private void runCopyAnimationFinished(Runnable onAnimationFinished) {
+        if (onAnimationFinished != null) {
+            onAnimationFinished.run();
+        }
     }
 
     private void clearCopyAnimationOverlay() {

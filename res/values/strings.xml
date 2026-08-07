@@ -181,13 +181,12 @@
     <string name="bigbang_action_select_all">全选</string>
     <string name="bigbang_action_cancel_select_all">取消全选</string>
     <string name="bigbang_action_share_all">分享全部</string>
+    <string name="bigbang_action_copy_all">复制全部</string>
     <string name="bigbang_action_undo">撤销</string>
     <string name="bigbang_action_redo">重做</string>
     <string name="bigbang_action_keyboard">键盘</string>
-    <string name="bigbang_action_more">更多</string>
     <string name="bigbang_action_ocr">OCR</string>
     <string name="bigbang_action_language">语言</string>
-    <string name="bigbang_action_placeholder">功能建设中</string>
     <string name="bigbang_edit_commit_failed">无法完成编辑模式切换，请重试</string>
     <string name="bigbang_edit_selection_delete">删除所选文字</string>
     <string name="bigbang_edit_selection_cancel">取消选择</string>
@@ -232,6 +231,10 @@
     <string name="floating_ball_settings_summary">调整悬浮球大小、透明度、停靠和单手模式。</string>
     <string name="ui_settings_title">UI 设置</string>
     <string name="ui_settings_summary">设置启动图标和大爆炸界面样式。</string>
+    <string name="copy_close_section_title">Copy behavior</string>
+    <string name="copy_close_section_summary">Control how BigBang behaves after copying text outside edit mode.</string>
+    <string name="close_big_bang_after_copy_title">Close BigBang after copy</string>
+    <string name="close_big_bang_after_copy_summary">When enabled, copying from the full-text or toolbar button outside edit mode closes BigBang after the copy animation finishes.</string>
     <string name="gap_row_spacing_section_title">词块布局</string>
     <string name="gap_row_spacing_section_summary">调整原始文本换行在大爆炸词块中的空行高度。</string>
     <string name="gap_row_spacing_title">行距设置</string>

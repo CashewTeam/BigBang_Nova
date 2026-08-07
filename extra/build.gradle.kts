@@ -20,8 +20,8 @@ android {
         applicationId = "com.cashewteam.novatext.extra"
         minSdk = 27
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.2.3"
+        versionCode = 10
+        versionName = "0.2.5"
     }
 
     signingConfigs {

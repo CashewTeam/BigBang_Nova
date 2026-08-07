@@ -24,11 +24,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.automirrored.outlined.Redo
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Share
@@ -102,6 +102,7 @@ class BoomActivity : ComponentActivity() {
     private var pendingDiscardAction by mutableStateOf<PendingDiscardAction?>(null)
     private var pendingIncomingIntent: Intent? = null
     private var discardDismissAuthorized = false
+    private var closeAfterCopyPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -169,7 +170,7 @@ class BoomActivity : ComponentActivity() {
                 onUndo = { boomChipPage?.undoEdit() },
                 onRedo = { boomChipPage?.redoEdit() },
                 onShareAll = { shareAll() },
-                onMore = { showPlaceholder() },
+                onMore = { copyAllText() },
             )
         }
 
@@ -264,6 +265,10 @@ class BoomActivity : ComponentActivity() {
     }
 
     private fun shouldDismissPage(): Boolean {
+        if (closeAfterCopyPending) {
+            closeAfterCopyPending = false
+            return true
+        }
         if (discardDismissAuthorized) {
             discardDismissAuthorized = false
             return true
@@ -283,6 +288,14 @@ class BoomActivity : ComponentActivity() {
     fun requestAnimatedDismissFromLegacy() {
         if (requestDiscardConfirmation(PendingDiscardAction.DISMISS)) {
             animatedDismissRequester?.invoke() ?: finish()
+        }
+    }
+
+    fun requestCloseAfterCopyFromLegacy() {
+        closeAfterCopyPending = true
+        requestAnimatedDismissFromLegacy()
+        if (pendingDiscardAction == PendingDiscardAction.DISMISS) {
+            closeAfterCopyPending = false
         }
     }
 
@@ -396,8 +409,18 @@ class BoomActivity : ComponentActivity() {
         })
     }
 
-    private fun showPlaceholder() {
-        Toast.makeText(this, R.string.bigbang_action_placeholder, Toast.LENGTH_SHORT).show()
+    private fun copyAllText() {
+        val text = boomChipPage?.originalText ?: return
+        if (text.isEmpty()) {
+            return
+        }
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
+        Toast.makeText(this, R.string.copy_tips, Toast.LENGTH_SHORT).show()
+        if (settings.isCloseBigBangAfterCopyEnabled) {
+            closeAfterCopyPending = true
+            animatedDismissRequester?.invoke() ?: finish()
+        }
     }
 
     private fun enterEditMode() {
@@ -1097,10 +1120,10 @@ private fun BigBangOverlayContent(
                                         contentDescription = stringResource(R.string.bigbang_action_share_all),
                                     )
                                     OverlayIconAction(
-                                        imageVector = Icons.Outlined.MoreHoriz,
+                                        imageVector = Icons.Outlined.ContentCopy,
                                         tint = if (dark) Color(0xFFD7DEE7) else Color(0xFF6F6962),
                                         onClick = onMore,
-                                        contentDescription = stringResource(R.string.bigbang_action_more),
+                                        contentDescription = stringResource(R.string.bigbang_action_copy_all),
                                     )
                                 }
                             }

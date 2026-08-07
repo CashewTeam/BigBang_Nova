@@ -35,6 +35,7 @@ public final class BigBangSettings {
     public static final String KEY_FLOATING_BALL_LANDSCAPE_SAFE_AREA = "floating_ball_landscape_safe_area";
     public static final String KEY_ADAPTIVE_LAUNCHER_ICON = "adaptive_launcher_icon";
     public static final String KEY_CLASSIC_OVERLAY_STYLE = "classic_overlay_style";
+    public static final String KEY_CLOSE_BIG_BANG_AFTER_COPY = "close_big_bang_after_copy";
     public static final String KEY_GAP_ROW_HEIGHT_PERCENT = "gap_row_height_percent";
     public static final String KEY_CUSTOM_SEARCH_PROVIDERS = "custom_search_providers";
     public static final String KEY_NEXT_CUSTOM_SEARCH_TYPE = "next_custom_search_type";
@@ -456,6 +457,14 @@ public final class BigBangSettings {
 
     public void setClassicOverlayStyleEnabled(boolean enabled) {
         preferences.edit().putBoolean(KEY_CLASSIC_OVERLAY_STYLE, enabled).apply();
+    }
+
+    public boolean isCloseBigBangAfterCopyEnabled() {
+        return preferences.getBoolean(KEY_CLOSE_BIG_BANG_AFTER_COPY, false);
+    }
+
+    public void setCloseBigBangAfterCopyEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_CLOSE_BIG_BANG_AFTER_COPY, enabled).apply();
     }
 
     public int getGapRowHeightPercent() {
